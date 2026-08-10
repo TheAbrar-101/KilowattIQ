@@ -1,0 +1,6 @@
+{
+  "name": "KilowattIQ",
+  "description": "IoT-enabled Smart Energy Monitoring and Cost Analysis System for Bangladeshi households",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
