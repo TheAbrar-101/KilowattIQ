@@ -1,13 +1,16 @@
 import { BaseDeviceAdapter } from './DeviceAdapter';
 import { IoTDevice, AdapterType } from '../../shared/types/iot';
 import { PowerReading } from '../../shared/types/energy';
+import { MqttTelemetryService } from '../services/MqttTelemetryService';
+import { SupabaseService } from '../services/SupabaseService';
 
 export class MQTTAdapter extends BaseDeviceAdapter {
   adapterType: AdapterType = 'MQTTAdapter';
 
   async connect(device: IoTDevice): Promise<boolean> {
-    // In production, subscribes to MQTT broker topic (e.g. `kilowattiq/household_01/pzem004t`)
-    return true;
+    const mqttService = MqttTelemetryService.getInstance();
+    const status = mqttService.getStatus();
+    return status.mqttStatus === 'MQTT_CONNECTED';
   }
 
   async disconnect(deviceId: string): Promise<void> {
@@ -15,35 +18,60 @@ export class MQTTAdapter extends BaseDeviceAdapter {
   }
 
   async fetchTelemetry(device: IoTDevice): Promise<PowerReading> {
-    // ESP32 + PZEM-004T MQTT payload schema
-    const simulatedMqttPayload = {
-      voltage: 221.4,
-      current: 4.82,
-      power: Math.max(10, (device.config?.ratedWatts || 800) + (Math.random() - 0.5) * 50),
-      energy: (device.config?.accumulatedKwh || 180) + 0.008,
-      frequency: 50.0,
-      pf: 0.95,
-    };
+    const mqttService = MqttTelemetryService.getInstance();
+    const latestLive = mqttService.getLatestForDevice(device.id);
 
-    if (device.config) device.config.accumulatedKwh = simulatedMqttPayload.energy;
+    if (latestLive) {
+      return {
+        timestamp: latestLive.timestamp,
+        voltage: latestLive.voltage,
+        current: latestLive.current,
+        activePowerW: latestLive.activePowerW,
+        energyKwh: latestLive.energyKwh || 0,
+        powerFactor: latestLive.powerFactor,
+        frequency: latestLive.frequency,
+        deviceId: device.id,
+      };
+    }
 
+    // Try DB latest reading
+    const dbReading = await SupabaseService.getInstance().getLatestReadingForDevice(device.id);
+    if (dbReading) {
+      return {
+        timestamp: dbReading.timestamp,
+        voltage: Number(dbReading.voltage),
+        current: Number(dbReading.current),
+        activePowerW: Number(dbReading.active_power),
+        energyKwh: 0,
+        powerFactor: Number(dbReading.power_factor),
+        frequency: Number(dbReading.frequency),
+        deviceId: device.id,
+      };
+    }
+
+    // Default reading when no telemetry recorded yet
     return {
       timestamp: new Date().toISOString(),
-      voltage: simulatedMqttPayload.voltage,
-      current: Number(simulatedMqttPayload.current.toFixed(2)),
-      activePowerW: Number(simulatedMqttPayload.power.toFixed(1)),
-      energyKwh: Number(simulatedMqttPayload.energy.toFixed(3)),
-      powerFactor: simulatedMqttPayload.pf,
-      frequency: simulatedMqttPayload.frequency,
+      voltage: 220.0,
+      current: 0.0,
+      activePowerW: 0.0,
+      energyKwh: 0.0,
+      powerFactor: 1.0,
+      frequency: 50.0,
       deviceId: device.id,
     };
   }
 
   async getHealthStatus(device: IoTDevice): Promise<{ isOnline: boolean; latencyMs: number; signalQualityPct: number }> {
+    const mqttService = MqttTelemetryService.getInstance();
+    const status = mqttService.getStatus();
+    const isOnline = status.mqttStatus === 'MQTT_CONNECTED';
+
     return {
-      isOnline: true,
-      latencyMs: Math.floor(8 + Math.random() * 12), // Direct MQTT low-latency
-      signalQualityPct: 95,
+      isOnline,
+      latencyMs: isOnline ? 12 : 0,
+      signalQualityPct: isOnline ? 95 : 0,
     };
   }
 }
+

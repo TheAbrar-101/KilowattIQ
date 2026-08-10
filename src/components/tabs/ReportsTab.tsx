@@ -1,14 +1,17 @@
 import React from 'react';
-import { FileSpreadsheet, Download, Printer, CheckCircle, FileText } from 'lucide-react';
+import { FileSpreadsheet, Download } from 'lucide-react';
 import { Household } from '../../../shared/types/household';
+import { useAuth } from '../../context/AuthContext';
 
 interface ReportsTabProps {
   household: Household;
 }
 
 export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
+  const { token } = useAuth();
+
   const handleExportCSV = () => {
-    window.open(`/api/v1/reports/export?householdId=${household.id}`, '_blank');
+    window.open(`/api/v1/reports/export?householdId=${household.id}&access_token=${token || ''}`, '_blank');
   };
 
   return (

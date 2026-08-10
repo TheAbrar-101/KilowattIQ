@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { Activity, Calculator, Home, Cpu, Lightbulb, FileSpreadsheet, ShieldAlert } from 'lucide-react';
 
 export type TabType = 'LIVE' | 'COST' | 'APPLIANCES' | 'DEVICES' | 'RECOMMENDATIONS' | 'REPORTS' | 'ADMIN';
@@ -23,7 +24,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
   return (
     <nav className="bg-slate-900 border-b border-slate-800 shadow-inner">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center space-x-1.5 overflow-x-auto py-1.5 scrollbar-none">
+        <div className="flex items-center space-x-2 overflow-x-auto py-2 scrollbar-none">
           {tabs
             .filter(tab => !tab.adminOnly || isAdminMode)
             .map(tab => {
@@ -32,14 +33,23 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
                 <button
                   key={tab.id}
                   onClick={() => onSelectTab(tab.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold'
+                      ? 'text-emerald-400'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                   }`}
                 >
-                  {tab.icon}
-                  <span>{tab.label}</span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabPill"
+                      className="absolute inset-0 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2">
+                    {tab.icon}
+                    <span>{tab.label}</span>
+                  </span>
                 </button>
               );
             })}

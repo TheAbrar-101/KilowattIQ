@@ -35,6 +35,8 @@ export interface Appliance {
   energyRatingStars?: number; // 1-5 stars
   isInverterType: boolean;
   isVampireRisk: boolean;
+  purchasePriceBDT?: number;
+  purchaseDate?: string;
   notes?: string;
 }
 

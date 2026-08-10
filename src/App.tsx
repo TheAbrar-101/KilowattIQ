@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthPage } from './components/auth/AuthPage';
 import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
 import { LiveDashboardTab } from './components/tabs/LiveDashboardTab';
@@ -13,13 +16,13 @@ import { Household, Room, Appliance } from '../shared/types/household';
 import { IoTDevice } from '../shared/types/iot';
 import { PowerReading, RecommendationItem } from '../shared/types/energy';
 
-export default function App() {
+function MainAppContent() {
+  const { user, token, loading, households, activeHousehold, setActiveHousehold } = useAuth();
+
   const [activeTab, setActiveTab] = useState<TabType>('LIVE');
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
 
   // Core Data States
-  const [households, setHouseholds] = useState<Household[]>([]);
-  const [activeHousehold, setActiveHousehold] = useState<Household | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [appliances, setAppliances] = useState<Appliance[]>([]);
   const [devices, setDevices] = useState<IoTDevice[]>([]);
@@ -27,48 +30,57 @@ export default function App() {
 
   // Live Telemetry States
   const [liveReadings, setLiveReadings] = useState<PowerReading[]>([]);
-  const [totalActiveWatts, setTotalActiveWatts] = useState<number>(420);
+  const [totalActiveWatts, setTotalActiveWatts] = useState<number>(1845);
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(true);
+  const [activeApplianceStates, setActiveApplianceStates] = useState<Record<string, boolean>>({
+    'c0000000-0000-0000-0000-000000000001': true,
+    'c0000000-0000-0000-0000-000000000002': true,
+    'c0000000-0000-0000-0000-000000000008': true,
+  });
 
-  // 1. Fetch initial Households
-  useEffect(() => {
-    fetch('/api/v1/households')
-      .then(res => res.json())
-      .then(res => {
-        if (res.status === 'success' && res.data && res.data.length > 0) {
-          setHouseholds(res.data);
-          setActiveHousehold(res.data[0]);
-        }
-      })
-      .catch(err => console.error('Failed to load households:', err));
-  }, []);
+  // Auth Header Helper
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: token ? `Bearer ${token}` : '',
+  };
 
-  // 2. Load data whenever activeHousehold changes
+  // Load data whenever activeHousehold changes
   const loadHouseholdData = useCallback((householdId: string) => {
+    const headers = { Authorization: token ? `Bearer ${token}` : '' };
+
     // Fetch Rooms
-    fetch(`/api/v1/households/${householdId}/rooms`)
+    fetch(`/api/v1/households/${householdId}/rooms`, { headers })
       .then(res => res.json())
       .then(res => { if (res.status === 'success') setRooms(res.data); })
       .catch(err => console.error(err));
 
     // Fetch Appliances
-    fetch(`/api/v1/households/${householdId}/appliances`)
+    fetch(`/api/v1/households/${householdId}/appliances`, { headers })
       .then(res => res.json())
-      .then(res => { if (res.status === 'success') setAppliances(res.data); })
+      .then(res => {
+        if (res.status === 'success') {
+          setAppliances(res.data);
+          const initialStates: Record<string, boolean> = {};
+          res.data.forEach((app: Appliance) => {
+            initialStates[app.id] = app.category === 'REFRIGERATOR' || app.category === 'AIR_CONDITIONER' || app.category === 'WATER_HEATER';
+          });
+          setActiveApplianceStates(prev => ({ ...initialStates, ...prev }));
+        }
+      })
       .catch(err => console.error(err));
 
     // Fetch Devices
-    fetch(`/api/v1/devices?householdId=${householdId}`)
+    fetch(`/api/v1/devices?householdId=${householdId}`, { headers })
       .then(res => res.json())
       .then(res => { if (res.status === 'success') setDevices(res.data); })
       .catch(err => console.error(err));
 
     // Fetch Recommendations
-    fetch(`/api/v1/recommendations?householdId=${householdId}`)
+    fetch(`/api/v1/recommendations?householdId=${householdId}`, { headers })
       .then(res => res.json())
       .then(res => { if (res.status === 'success') setRecommendations(res.data); })
       .catch(err => console.error(err));
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (activeHousehold) {
@@ -76,17 +88,23 @@ export default function App() {
     }
   }, [activeHousehold, loadHouseholdData]);
 
-  // 3. Poll Live Telemetry every 3 seconds
+  // Poll Live Telemetry every 3 seconds
   useEffect(() => {
     if (!activeHousehold) return;
 
     const pollTelemetry = () => {
-      fetch(`/api/v1/telemetry/live?householdId=${activeHousehold.id}`)
+      fetch(`/api/v1/telemetry/live?householdId=${activeHousehold.id}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+      })
         .then(res => res.json())
         .then(res => {
           if (res.status === 'success' && res.data) {
-            setLiveReadings(res.data.readings || []);
-            setTotalActiveWatts(res.data.summary?.totalActivePowerW || 0);
+            setLiveReadings(prev => {
+              const newReadings = res.data.readings || [];
+              if (newReadings.length === 0) return prev;
+              const combined = [...prev, ...newReadings];
+              return combined.slice(-20);
+            });
             setIsLiveConnected(true);
           }
         })
@@ -99,37 +117,108 @@ export default function App() {
     pollTelemetry();
     const interval = setInterval(pollTelemetry, 3000);
     return () => clearInterval(interval);
-  }, [activeHousehold]);
+  }, [activeHousehold, token]);
 
-  // Handle adding new IoT device via API
-  const handleAddDevice = (newDeviceData: Omit<IoTDevice, 'id' | 'lastSeen'>) => {
-    fetch('/api/v1/devices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newDeviceData),
-    })
-      .then(res => res.json())
-      .then(res => {
-        if (res.status === 'success' && res.data && activeHousehold) {
-          setDevices(prev => [...prev, res.data]);
-        }
-      })
-      .catch(err => console.error('Failed to create device:', err));
-  };
-
-  if (!activeHousehold) {
+  // If loading auth state
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center font-sans">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-slate-400 font-medium">Initializing KilowattIQ Architecture...</p>
+          <p className="text-sm text-slate-400 font-medium">Restoring KilowattIQ Supabase Auth Session...</p>
         </div>
       </div>
     );
   }
 
+  // If user is not authenticated
+  if (!user || !token) {
+    return <AuthPage />;
+  }
+
+  // Handle toggling appliance ON/OFF dynamically
+  const handleToggleAppliance = (applianceId: string) => {
+    setActiveApplianceStates(prev => {
+      const isCurrentlyOn = !!prev[applianceId];
+      const newState = !isCurrentlyOn;
+      const targetApp = appliances.find(a => a.id === applianceId);
+      
+      if (targetApp) {
+        const delta = newState ? targetApp.ratedPowerW : -targetApp.ratedPowerW;
+        setTotalActiveWatts(w => Math.max(12, w + delta));
+      }
+      return { ...prev, [applianceId]: newState };
+    });
+  };
+
+  // Handle adding new appliance
+  const handleAddAppliance = (newApp: Omit<Appliance, 'id'>) => {
+    if (!activeHousehold) return;
+    fetch(`/api/v1/households/${activeHousehold.id}/appliances`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(newApp),
+    })
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === 'success' && res.data) {
+          setAppliances(prev => [...prev, res.data]);
+        } else {
+          const localApp: Appliance = {
+            ...newApp,
+            id: `app_${Date.now()}`,
+          };
+          setAppliances(prev => [...prev, localApp]);
+        }
+      })
+      .catch(() => {
+        const localApp: Appliance = {
+          ...newApp,
+          id: `app_${Date.now()}`,
+        };
+        setAppliances(prev => [...prev, localApp]);
+      });
+  };
+
+  // Handle adding new IoT device
+  const handleAddDevice = (newDeviceData: Omit<IoTDevice, 'id' | 'lastSeen'>) => {
+    fetch('/api/v1/devices', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(newDeviceData),
+    })
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === 'success' && res.data) {
+          setDevices(prev => [...prev, res.data]);
+        } else {
+          const localDev: IoTDevice = {
+            ...newDeviceData,
+            id: `dev_${Date.now()}`,
+            lastSeen: new Date().toISOString(),
+          };
+          setDevices(prev => [...prev, localDev]);
+        }
+      })
+      .catch(() => {
+        const localDev: IoTDevice = {
+          ...newDeviceData,
+          id: `dev_${Date.now()}`,
+          lastSeen: new Date().toISOString(),
+        };
+        setDevices(prev => [...prev, localDev]);
+      });
+  };
+
+  // Resolve recommendation
+  const handleResolveRecommendation = (recId: string) => {
+    setRecommendations(prev =>
+      prev.map(r => (r.id === recId ? { ...r, status: 'resolved' as const } : r))
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased flex flex-col selection:bg-emerald-500 selection:text-slate-950">
       {/* Top Application Header */}
       <Header
         households={households}
@@ -148,56 +237,83 @@ export default function App() {
         isAdminMode={isAdminMode}
       />
 
-      {/* Main Tab Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        {activeTab === 'LIVE' && (
-          <LiveDashboardTab
-            household={activeHousehold}
-            liveReadings={liveReadings}
-            appliances={appliances}
-            totalActiveWatts={totalActiveWatts}
-          />
-        )}
+      {/* Main Tab Content with Motion */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            {activeTab === 'LIVE' && activeHousehold && (
+              <LiveDashboardTab
+                household={activeHousehold}
+                liveReadings={liveReadings}
+                appliances={appliances}
+                totalActiveWatts={totalActiveWatts}
+                activeApplianceStates={activeApplianceStates}
+                onToggleAppliance={handleToggleAppliance}
+                onSetTotalWatts={setTotalActiveWatts}
+              />
+            )}
 
-        {activeTab === 'COST' && (
-          <CostAnalysisTab household={activeHousehold} />
-        )}
+            {activeTab === 'COST' && activeHousehold && (
+              <CostAnalysisTab household={activeHousehold} />
+            )}
 
-        {activeTab === 'APPLIANCES' && (
-          <AppliancesTab
-            household={activeHousehold}
-            rooms={rooms}
-            appliances={appliances}
-          />
-        )}
+            {activeTab === 'APPLIANCES' && activeHousehold && (
+              <AppliancesTab
+                household={activeHousehold}
+                rooms={rooms}
+                appliances={appliances}
+                activeApplianceStates={activeApplianceStates}
+                onToggleAppliance={handleToggleAppliance}
+                onAddAppliance={handleAddAppliance}
+              />
+            )}
 
-        {activeTab === 'DEVICES' && (
-          <IoTDevicesTab
-            household={activeHousehold}
-            devices={devices}
-            onAddDevice={handleAddDevice}
-          />
-        )}
+            {activeTab === 'DEVICES' && activeHousehold && (
+              <IoTDevicesTab
+                household={activeHousehold}
+                devices={devices}
+                onAddDevice={handleAddDevice}
+              />
+            )}
 
-        {activeTab === 'RECOMMENDATIONS' && (
-          <RecommendationsTab recommendations={recommendations} />
-        )}
+            {activeTab === 'RECOMMENDATIONS' && (
+              <RecommendationsTab
+                recommendations={recommendations}
+                onResolve={handleResolveRecommendation}
+              />
+            )}
 
-        {activeTab === 'REPORTS' && (
-          <ReportsTab household={activeHousehold} />
-        )}
+            {activeTab === 'REPORTS' && activeHousehold && (
+              <ReportsTab household={activeHousehold} />
+            )}
 
-        {activeTab === 'ADMIN' && isAdminMode && (
-          <AdminTab households={households} />
-        )}
+            {activeTab === 'ADMIN' && isAdminMode && (
+              <AdminTab households={households} />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Footer */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-[11px] text-slate-500 py-3 text-center">
-        <p>
-          KilowattIQ Smart Energy & Cost System • High Density Operations Dashboard • BERC / DESCO / DPDC Tariff Standards
+      <footer className="bg-slate-900 border-t border-slate-800 text-[11px] text-slate-500 py-3.5 text-center mt-auto">
+        <p className="max-w-7xl mx-auto px-4">
+          KilowattIQ Smart Energy & Cost System • Live Telemetry & DESCO Tariff Optimization • Real-time Meter Gateway v1.0.4
         </p>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainAppContent />
+    </AuthProvider>
   );
 }

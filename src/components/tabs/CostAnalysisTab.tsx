@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Calculator, AlertTriangle, TrendingUp, CheckCircle } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Calculator, AlertTriangle, TrendingUp, CheckCircle, Sliders, DollarSign, Layers, PieChart } from 'lucide-react';
 import { TariffType, CostCalculation, BudgetStatus } from '../../../shared/types/energy';
 import { Household } from '../../../shared/types/household';
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
@@ -33,24 +34,24 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       
       {/* Top Controller Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-emerald-400" />
-              <span>Bangladeshi Electricity Tariff Engine</span>
+              <Calculator className="w-4.5 h-4.5 text-emerald-400" />
+              <span>Bangladeshi Electricity Tariff Engine & Simulator</span>
             </h3>
             <p className="text-[11px] text-slate-400">
-              BERC / DESCO / DPDC LT-A Residential Tariff Engine
+              BERC / DESCO / DPDC LT-A Residential Tariff Engine with dynamic slab calculations
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">Tariff:</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Tariff Model:</span>
               <select
                 value={selectedTariffType}
                 onChange={(e) => setSelectedTariffType(e.target.value as TariffType)}
@@ -63,7 +64,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
               </select>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs">
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
               <span className="text-[10px] text-slate-400 font-bold uppercase">Consumption:</span>
               <input
                 type="number"
@@ -71,176 +72,198 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
                 max="1500"
                 value={kwhInput}
                 onChange={(e) => setKwhInput(Math.max(0, Number(e.target.value)))}
-                className="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-white font-mono font-bold text-xs focus:border-emerald-500 focus:outline-none"
+                className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-white font-mono font-bold text-xs focus:border-emerald-500 focus:outline-none"
               />
-              <span className="text-slate-400 font-mono">kWh</span>
+              <span className="text-slate-400 font-mono font-bold">kWh</span>
             </div>
           </div>
         </div>
+
+        {/* Interactive Sliders for Consumption & Month Days */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-800">
+          
+          {/* Slider 1: kWh Consumption */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+              <span className="flex items-center gap-1.5">
+                <Sliders className="w-3 h-3 text-emerald-400" />
+                Monthly kWh Consumption Slider
+              </span>
+              <span className="text-emerald-400 font-mono">{kwhInput} kWh</span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="1000"
+              step="5"
+              value={kwhInput}
+              onChange={(e) => setKwhInput(Number(e.target.value))}
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            />
+          </div>
+
+          {/* Slider 2: Days Passed in Billing Cycle */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+              <span className="flex items-center gap-1.5">
+                <Sliders className="w-3 h-3 text-amber-400" />
+                Billing Cycle Progress ({daysPassedInput} / 30 Days)
+              </span>
+              <span className="text-amber-400 font-mono">{((daysPassedInput / 30) * 100).toFixed(0)}% Complete</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="30"
+              value={daysPassedInput}
+              onChange={(e) => setDaysPassedInput(Number(e.target.value))}
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            />
+          </div>
+
+        </div>
       </div>
 
-      {/* Bill Cost Summary & Slab Step Visualizer */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Bill Cost Summary & Slab Step Breakdown Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         
-        {/* Left 2 Cols: Cost Breakdown */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm space-y-4">
+        {/* Left 2 Cols: Cost Breakdown & Slab Items */}
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Electricity Bill Breakdown</h4>
-              <p className="text-[10px] text-slate-400">Sanctioned Load: {household.sanctionedLoadKw} kW | Meter Rent: ৳40</p>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Electricity Bill Detailed Breakdown</h4>
+              <p className="text-[10px] text-slate-400">Sanctioned Load: {household.sanctionedLoadKw} kW | Meter Rent: ৳40 | Demand Charge: ৳{household.sanctionedLoadKw * 42}</p>
             </div>
             <div className="text-right">
-              <span className="text-2xl font-black font-mono text-emerald-400">
+              <motion.span
+                key={costCalc.grossTotalBDT}
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                className="text-3xl font-black font-mono text-emerald-400"
+              >
                 ৳{costCalc.grossTotalBDT.toFixed(2)}
-              </span>
-              <p className="text-[9px] text-slate-400 uppercase font-bold">Gross Total (Inc VAT)</p>
+              </motion.span>
+              <p className="text-[9px] text-slate-400 uppercase font-bold">Gross Total (Inc 5% VAT)</p>
             </div>
           </div>
 
-          {/* Slab Steps Visual Progress */}
-          {selectedTariffType === 'SLAB' && costCalc.slabBreakdown && (
-            <div className="space-y-2">
-              <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                DESCO 6-Step Slab Visualizer
-              </h5>
-              
-              <div className="space-y-1.5">
-                {costCalc.slabBreakdown.map((slab, idx) => (
-                  <div key={idx} className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs space-y-1">
-                    <div className="flex items-center justify-between font-medium">
-                      <span className="text-slate-200 text-[11px]">{slab.stepName}</span>
-                      <span className="font-mono text-emerald-400 text-[11px]">
-                        {slab.kwhInSlab} kWh × ৳{slab.rate} = <span className="font-bold">৳{slab.costBDT}</span>
+          {/* Slab Breakdown Items */}
+          <div className="space-y-2">
+            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              <span>DESCO LT-A Tiered Slab Distribution ({kwhInput} kWh)</span>
+            </h5>
+
+            <div className="space-y-1.5">
+              {(costCalc.slabBreakdown || []).map((s, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold font-mono text-[11px]">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <span className="font-bold text-white block">{s.stepName}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {s.kwhInSlab} kWh @ ৳{s.rate}/kWh
                       </span>
                     </div>
-                    <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, (slab.kwhInSlab / 100) * 100)}%` }}
-                      />
-                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* Table Breakdown of Charges */}
-          <div className="bg-slate-950 border border-slate-800 rounded-lg overflow-hidden text-xs">
-            <table className="w-full text-left">
-              <thead className="bg-slate-900 text-slate-400 border-b border-slate-800 text-[10px] uppercase tracking-wider font-bold">
-                <tr>
-                  <th className="py-2 px-3">Bill Component</th>
-                  <th className="py-2 px-3">Rate / Calculation</th>
-                  <th className="py-2 px-3 text-right">Amount (BDT)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300 font-mono text-[11px]">
-                <tr>
-                  <td className="py-2 px-3 font-sans font-medium text-slate-200">Energy Consumption Charge</td>
-                  <td className="py-2 px-3 text-slate-400">{costCalc.totalKwh} kWh ({selectedTariffType} mode)</td>
-                  <td className="py-2 px-3 text-right font-bold text-white">৳{costCalc.energyCostBDT}</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-sans font-medium text-slate-200">Demand Charge</td>
-                  <td className="py-2 px-3 text-slate-400">{household.sanctionedLoadKw} kW × ৳42.0/kW</td>
-                  <td className="py-2 px-3 text-right text-slate-200">৳{costCalc.demandChargeBDT}</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-sans font-medium text-slate-200">Meter Rent</td>
-                  <td className="py-2 px-3 text-slate-400">Fixed Monthly Charge</td>
-                  <td className="py-2 px-3 text-right text-slate-200">৳{costCalc.meterRentBDT}</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-sans font-medium text-slate-200">Government VAT (5%)</td>
-                  <td className="py-2 px-3 text-slate-400">5% of Energy + Demand + Meter Rent</td>
-                  <td className="py-2 px-3 text-right text-slate-200">৳{costCalc.vatBDT}</td>
-                </tr>
-                <tr className="bg-slate-900 font-sans">
-                  <td className="py-2.5 px-3 font-bold text-emerald-400 text-xs">Effective Unit Rate</td>
-                  <td className="py-2.5 px-3 text-slate-400 text-[11px]">Gross Total / Total kWh</td>
-                  <td className="py-2.5 px-3 text-right font-bold text-emerald-400 font-mono text-xs">
-                    ৳{costCalc.effectiveRatePerKwh} / kWh
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                    ৳{s.costBDT.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Fixed Charges Table */}
+          <div className="grid grid-cols-3 gap-3 pt-2">
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
+              <span className="text-[9px] font-bold text-slate-500 uppercase block">Energy Cost</span>
+              <span className="text-sm font-bold text-white font-mono">৳{costCalc.energyCostBDT.toFixed(2)}</span>
+            </div>
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
+              <span className="text-[9px] font-bold text-slate-500 uppercase block">Fixed & Demand</span>
+              <span className="text-sm font-bold text-white font-mono">৳{(costCalc.demandChargeBDT + costCalc.meterRentBDT).toFixed(2)}</span>
+            </div>
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
+              <span className="text-[9px] font-bold text-slate-500 uppercase block">VAT (5%)</span>
+              <span className="text-sm font-bold text-emerald-400 font-mono">৳{costCalc.vatBDT.toFixed(2)}</span>
+            </div>
+          </div>
+
         </div>
 
-        {/* Right Col: Monthly Budget Overage Prediction */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm space-y-4">
+        {/* Right Col: Budget & Burn Rate Predictor */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4">
           <div>
-            <h4 className="text-xs font-bold text-white flex items-center gap-1.5 uppercase tracking-wider">
-              <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              <span>Budget Overage Predictor</span>
-            </h4>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Extrapolates month-end cost based on current run-rate
-            </p>
-          </div>
-
-          <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 text-[11px]">Monthly Budget Cap:</span>
-              <span className="font-bold text-white font-mono">৳{household.monthlyBudgetBDT}</span>
+            <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-amber-400" />
+                <span>Monthly Budget Engine</span>
+              </h4>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${
+                budgetStatus.isOverageLikely
+                  ? 'bg-rose-950 text-rose-400 border-rose-800'
+                  : 'bg-emerald-950 text-emerald-400 border-emerald-800'
+              }`}>
+                {budgetStatus.isOverageLikely ? 'BUDGET EXCEEDED' : 'ON TRACK'}
+              </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 text-[11px]">Days Elapsed:</span>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="1"
-                  max="30"
-                  value={daysPassedInput}
-                  onChange={(e) => setDaysPassedInput(Math.min(30, Math.max(1, Number(e.target.value))))}
-                  className="w-10 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-center text-white font-mono text-xs focus:outline-none"
-                />
-                <span className="text-slate-500 font-mono text-[10px]">/ 30 Days</span>
+            <div className="space-y-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Monthly Budget Cap</span>
+                <span className="text-2xl font-black text-white font-mono">৳{household.monthlyBudgetBDT} BDT</span>
               </div>
-            </div>
 
-            <div className="pt-2 border-t border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 text-[11px]">Projected Month-End:</span>
-                <span className={`font-mono font-bold text-sm ${budgetStatus.isOverageLikely ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  ৳{budgetStatus.projectedCostBDT}
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Projected End-Of-Month Bill</span>
+                <span className="text-2xl font-black text-amber-400 font-mono">৳{budgetStatus.projectedCostBDT.toFixed(0)} BDT</span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                  <span>Spent So Far: ৳{budgetStatus.currentSpentBDT.toFixed(0)}</span>
+                  <span>Day {daysPassedInput} / 30</span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      budgetStatus.isOverageLikely ? 'bg-rose-500' : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(100, (budgetStatus.currentSpentBDT / household.monthlyBudgetBDT) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Actionable Advice */}
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
+                <span className="text-[10px] font-bold text-amber-400 uppercase block flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Budget Insight
                 </span>
-              </div>
-
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 text-[11px]">Projected kWh:</span>
-                <span className="font-mono text-slate-200 text-[11px]">{budgetStatus.projectedKwh} kWh</span>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  {budgetStatus.isOverageLikely
+                    ? `Projected to exceed budget by ${budgetStatus.overagePercentage.toFixed(0)}%. Consider shifting AC usage during peak hours.`
+                    : `Current usage pattern is within safe budget limits. Estimated savings vs cap: ৳${Math.max(0, household.monthlyBudgetBDT - budgetStatus.projectedCostBDT).toFixed(0)} BDT.`}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Overage Warning Badge */}
-          {budgetStatus.isOverageLikely ? (
-            <div className="bg-rose-950/60 border border-rose-900/80 rounded-lg p-3 text-rose-300 text-xs space-y-1.5">
-              <div className="flex items-center gap-1.5 font-bold text-rose-400 text-xs">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Budget Overage Risk Detected</span>
-              </div>
-              <p className="text-[10px] leading-relaxed text-rose-200">
-                Exceeding budget by <span className="font-bold">{budgetStatus.overagePercentage}%</span> (৳{(budgetStatus.projectedCostBDT - household.monthlyBudgetBDT).toFixed(0)} above cap).
-              </p>
-            </div>
-          ) : (
-            <div className="bg-emerald-950/60 border border-emerald-900/80 rounded-lg p-3 text-emerald-300 text-xs space-y-1.5">
-              <div className="flex items-center gap-1.5 font-bold text-emerald-400 text-xs">
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>On Track for Target Budget</span>
-              </div>
-              <p className="text-[10px] leading-relaxed text-emerald-200">
-                Run-rate is within safe limits. Estimated savings: ৳{(household.monthlyBudgetBDT - budgetStatus.projectedCostBDT).toFixed(0)}.
-              </p>
-            </div>
-          )}
+          <div className="pt-3 border-t border-slate-800 text-[10px] text-slate-500 text-center font-mono">
+            KilowattIQ Tariff Engine • BERC Ordinance LT-A 2026
+          </div>
         </div>
 
       </div>
+
     </div>
   );
 };

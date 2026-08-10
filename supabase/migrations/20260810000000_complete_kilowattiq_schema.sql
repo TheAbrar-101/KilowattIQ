@@ -1,270 +1,259 @@
--- KilowattIQ Complete Supabase PostgreSQL Schema Migration
+-- ====================================================================
+-- KilowattIQ Smart Energy Management Schema Migration
 -- Migration: 20260810000000_complete_kilowattiq_schema.sql
+-- Target: Supabase PostgreSQL
+-- ====================================================================
 
--- Enable UUID extension if not enabled
+-- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. PROFILES TABLE (linked to auth.users)
+-- 1. PROFILES (Linked to Supabase auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name TEXT NOT NULL,
-  phone TEXT,
-  role TEXT NOT NULL DEFAULT 'household_user' CHECK (role IN ('household_user', 'admin')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT,
+    full_name TEXT,
+    phone TEXT,
+    role TEXT NOT NULL DEFAULT 'household_user' CHECK (role IN ('household_user', 'admin')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 2. HOUSEHOLDS TABLE
+-- 2. HOUSEHOLDS
 CREATE TABLE IF NOT EXISTS public.households (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  utility_provider TEXT NOT NULL CHECK (utility_provider IN ('DESCO', 'DPDC', 'BPDB', 'REB', 'WZPDCL', 'NESCO')),
-  account_number TEXT,
-  sanctioned_load_kw NUMERIC(10,2) NOT NULL DEFAULT 4.5,
-  monthly_budget_bdt NUMERIC(10,2) NOT NULL DEFAULT 4500.00,
-  address_division TEXT DEFAULT 'Dhaka',
-  address_city TEXT DEFAULT 'Dhaka',
-  address_area TEXT DEFAULT 'Gulshan',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    utility_provider TEXT NOT NULL CHECK (utility_provider IN ('DESCO', 'DPDC', 'NESCO', 'BREB', 'WZPDCL', 'OTHER')),
+    account_number TEXT,
+    sanctioned_load_kw NUMERIC(8,2) NOT NULL DEFAULT 5.00 CHECK (sanctioned_load_kw > 0),
+    address_street TEXT,
+    address_city TEXT DEFAULT 'Dhaka',
+    address_area TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. HOUSEHOLD MEMBERS TABLE
+-- 3. HOUSEHOLD MEMBERS
 CREATE TABLE IF NOT EXISTS public.household_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  member_role TEXT NOT NULL DEFAULT 'member' CHECK (member_role IN ('owner', 'member', 'admin')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT unique_household_user UNIQUE (household_id, user_id)
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT household_members_unique_user UNIQUE (household_id, user_id)
 );
 
--- 4. ROOMS TABLE
+-- 4. ROOMS
 CREATE TABLE IF NOT EXISTS public.rooms (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  floor_level INT DEFAULT 1,
-  icon TEXT DEFAULT 'home',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    floor_level INTEGER DEFAULT 1,
+    icon TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 5. APPLIANCES TABLE
+-- 5. APPLIANCES
 CREATE TABLE IF NOT EXISTS public.appliances (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
-  device_id UUID, -- Foreign key added after devices table creation
-  name TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN (
-    'AIR_CONDITIONER', 'REFRIGERATOR', 'TELEVISION', 'FAN', 
-    'WATER_HEATER', 'WASHING_MACHINE', 'MICROWAVE', 'LIGHTING', 
-    'ROUTER', 'MAIN_FEED', 'OTHER'
-  )),
-  rated_wattage NUMERIC(10,2) NOT NULL DEFAULT 0.00,
-  standby_wattage NUMERIC(10,2) NOT NULL DEFAULT 0.00,
-  purchase_price NUMERIC(10,2) DEFAULT 0.00,
-  purchase_date DATE,
-  average_hours_per_day NUMERIC(4,2) DEFAULT 0.00,
-  is_inverter_type BOOLEAN DEFAULT FALSE,
-  energy_rating_stars INT DEFAULT 3 CHECK (energy_rating_stars BETWEEN 1 AND 5),
-  is_vampire_risk BOOLEAN DEFAULT FALSE,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    rated_power_w NUMERIC(10,2) NOT NULL CHECK (rated_power_w >= 0),
+    standby_power_w NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (standby_power_w >= 0),
+    purchase_price_bdt NUMERIC(12,2) CHECK (purchase_price_bdt IS NULL OR purchase_price_bdt >= 0),
+    purchase_date DATE,
+    star_rating INTEGER CHECK (star_rating IS NULL OR (star_rating >= 1 AND star_rating <= 5)),
+    is_vampire_risk BOOLEAN NOT NULL DEFAULT false,
+    is_inverter_type BOOLEAN NOT NULL DEFAULT false,
+    average_hours_per_day NUMERIC(4,2) NOT NULL DEFAULT 4.00 CHECK (average_hours_per_day >= 0 AND average_hours_per_day <= 24),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 6. DEVICES TABLE
+-- 6. DEVICES (IoT & Smart Meters)
 CREATE TABLE IF NOT EXISTS public.devices (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
-  appliance_id UUID REFERENCES public.appliances(id) ON DELETE SET NULL,
-  name TEXT NOT NULL,
-  device_type TEXT NOT NULL CHECK (device_type IN (
-    'smart_meter', 'smart_plug', 'circuit_sensor', 'virtual/mock_device',
-    'SMART_METER', 'SMART_PLUG', 'CIRCUIT_SENSOR', 'ESP32_PZEM'
-  )),
-  integration_tier TEXT NOT NULL DEFAULT 'tier_1' CHECK (integration_tier IN ('tier_0', 'tier_1', 'tier_2')),
-  adapter_type TEXT NOT NULL CHECK (adapter_type IN (
-    'mock', 'tuya', 'mqtt', 'desco',
-    'MockAdapter', 'TuyaAdapter', 'MQTTAdapter', 'DESCOAdapter', 'CompositeAdapter'
-  )),
-  protocol TEXT DEFAULT 'HTTP',
-  mac_or_serial TEXT,
-  mqtt_topic TEXT,
-  is_online BOOLEAN DEFAULT TRUE,
-  last_seen_at TIMESTAMPTZ DEFAULT NOW(),
-  config JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
+    appliance_id UUID REFERENCES public.appliances(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    device_type TEXT NOT NULL CHECK (device_type IN ('SMART_METER', 'SMART_PLUG', 'ESP32_PZEM', 'VIRTUAL_DEVICE', 'DESCO_AMI')),
+    adapter_type TEXT NOT NULL CHECK (adapter_type IN ('MockAdapter', 'TuyaAdapter', 'MQTTAdapter', 'DESCOAdapter')),
+    integration_tier TEXT NOT NULL DEFAULT 'tier_1' CHECK (integration_tier IN ('tier_0', 'tier_1', 'tier_2')),
+    mac_or_serial TEXT,
+    mqtt_topic TEXT,
+    is_online BOOLEAN NOT NULL DEFAULT true,
+    last_seen TIMESTAMPTZ,
+    config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Foreign key constraint for appliances.device_id
-ALTER TABLE public.appliances 
-  ADD CONSTRAINT fk_appliances_device 
-  FOREIGN KEY (device_id) REFERENCES public.devices(id) ON DELETE SET NULL;
-
--- 7. READINGS TABLE (Time-series data)
+-- 7. READINGS (Time-series energy data)
 CREATE TABLE IF NOT EXISTS public.readings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  device_id UUID NOT NULL REFERENCES public.devices(id) ON DELETE CASCADE,
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  power_watts NUMERIC(10,2) NOT NULL,
-  voltage_v NUMERIC(6,2) DEFAULT 220.0,
-  current_a NUMERIC(6,2) DEFAULT 0.0,
-  power_factor NUMERIC(4,2) DEFAULT 0.95,
-  frequency_hz NUMERIC(5,2) DEFAULT 50.0,
-  energy_kwh NUMERIC(12,4) DEFAULT 0.0000,
-  cumulative_energy_kwh NUMERIC(12,4) DEFAULT 0.0000,
-  state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'standby', 'offline')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id UUID NOT NULL REFERENCES public.devices(id) ON DELETE CASCADE,
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    power_watts NUMERIC(10,2) NOT NULL CHECK (power_watts >= 0),
+    voltage_v NUMERIC(6,2),
+    current_a NUMERIC(8,3),
+    power_factor NUMERIC(4,3) CHECK (power_factor IS NULL OR (power_factor >= 0 AND power_factor <= 1)),
+    frequency_hz NUMERIC(5,2),
+    energy_kwh NUMERIC(12,4),
+    cumulative_energy_kwh NUMERIC(14,4),
+    state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'standby', 'offline'))
 );
 
--- 8. TARIFFS TABLE
+CREATE INDEX IF NOT EXISTS idx_readings_device_time ON public.readings (device_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_readings_household_time ON public.readings (household_id, timestamp DESC);
+
+-- 8. TARIFFS
 CREATE TABLE IF NOT EXISTS public.tariffs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES public.households(id) ON DELETE CASCADE, -- NULL for global/admin templates
-  name TEXT NOT NULL,
-  tariff_type TEXT NOT NULL CHECK (tariff_type IN ('flat-rate', 'time-of-use', 'tiered', 'seasonal')),
-  utility_provider TEXT DEFAULT 'DESCO',
-  is_active BOOLEAN DEFAULT TRUE,
-  effective_date DATE DEFAULT CURRENT_DATE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID REFERENCES public.households(id) ON DELETE CASCADE,
+    utility_provider TEXT NOT NULL,
+    tariff_type TEXT NOT NULL CHECK (tariff_type IN ('flat_rate', 'time_of_use', 'tiered', 'seasonal')),
+    tariff_code TEXT NOT NULL,
+    effective_date DATE NOT NULL,
+    expiry_date DATE,
+    vat_percentage NUMERIC(5,2) NOT NULL DEFAULT 5.00,
+    demand_charge_per_kw_bdt NUMERIC(10,2) NOT NULL DEFAULT 42.00,
+    meter_rent_bdt NUMERIC(10,2) NOT NULL DEFAULT 40.00,
+    is_system_global BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 9. TARIFF RATE RULES TABLE
+-- 9. TARIFF RATE RULES (Slab / Tier breakdown)
 CREATE TABLE IF NOT EXISTS public.tariff_rate_rules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tariff_id UUID NOT NULL REFERENCES public.tariffs(id) ON DELETE CASCADE,
-  slab_min_kwh NUMERIC(10,2),
-  slab_max_kwh NUMERIC(10,2), -- NULL means upper limit (infinity)
-  rate_per_kwh_bdt NUMERIC(10,2) NOT NULL,
-  time_start TIME,
-  time_end TIME,
-  season_start_month INT CHECK (season_start_month BETWEEN 1 AND 12),
-  season_end_month INT CHECK (season_end_month BETWEEN 1 AND 12),
-  description TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tariff_id UUID NOT NULL REFERENCES public.tariffs(id) ON DELETE CASCADE,
+    step_number INTEGER NOT NULL,
+    step_name TEXT NOT NULL,
+    slab_min_kwh NUMERIC(10,2) NOT NULL DEFAULT 0,
+    slab_max_kwh NUMERIC(10,2),
+    rate_bdt_per_kwh NUMERIC(10,4) NOT NULL CHECK (rate_bdt_per_kwh >= 0),
+    time_of_day_start TIME,
+    time_of_day_end TIME,
+    start_month INTEGER CHECK (start_month IS NULL OR (start_month >= 1 AND start_month <= 12)),
+    end_month INTEGER CHECK (end_month IS NULL OR (end_month >= 1 AND end_month <= 12))
 );
 
--- 10. BUDGETS TABLE
+-- 10. BUDGETS
 CREATE TABLE IF NOT EXISTS public.budgets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  monthly_target_bdt NUMERIC(10,2) NOT NULL,
-  currency TEXT DEFAULT 'BDT',
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    target_monthly_bdt NUMERIC(12,2) NOT NULL CHECK (target_monthly_bdt > 0),
+    target_monthly_kwh NUMERIC(10,2),
+    alert_threshold_percent INTEGER NOT NULL DEFAULT 80 CHECK (alert_threshold_percent BETWEEN 1 AND 100),
+    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+    year INTEGER NOT NULL CHECK (year >= 2020),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT budgets_unique_household_period UNIQUE (household_id, month, year)
 );
 
--- 11. BUDGET HISTORY TABLE
+-- 11. BUDGET HISTORY
 CREATE TABLE IF NOT EXISTS public.budget_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  month TEXT NOT NULL, -- Format: YYYY-MM
-  target_bdt NUMERIC(10,2) NOT NULL,
-  actual_spend_bdt NUMERIC(10,2) NOT NULL,
-  projected_spend_bdt NUMERIC(10,2) NOT NULL,
-  actual_kwh NUMERIC(10,2) DEFAULT 0.00,
-  is_over_budget BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+    year INTEGER NOT NULL CHECK (year >= 2020),
+    target_bdt NUMERIC(12,2) NOT NULL,
+    actual_spend_bdt NUMERIC(12,2) NOT NULL DEFAULT 0,
+    projected_spend_bdt NUMERIC(12,2),
+    overage_bdt NUMERIC(12,2) DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT budget_history_unique_household_period UNIQUE (household_id, month, year)
 );
 
--- 12. SUGGESTIONS TABLE
+-- 12. SUGGESTIONS
 CREATE TABLE IF NOT EXISTS public.suggestions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  device_id UUID REFERENCES public.devices(id) ON DELETE SET NULL,
-  appliance_id UUID REFERENCES public.appliances(id) ON DELETE SET NULL,
-  type TEXT NOT NULL CHECK (type IN ('standby', 'diagnostic', 'roi', 'budget')),
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  severity TEXT DEFAULT 'MEDIUM' CHECK (severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
-  priority TEXT DEFAULT 'MEDIUM' CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH')),
-  potential_savings_bdt NUMERIC(10,2) DEFAULT 0.00,
-  action_step TEXT,
-  status TEXT DEFAULT 'new' CHECK (status IN ('new', 'acknowledged', 'resolved')),
-  supporting_data JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    appliance_id UUID REFERENCES public.appliances(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('standby', 'diagnostic', 'roi', 'budget')),
+    severity TEXT NOT NULL CHECK (severity IN ('high', 'medium', 'low')),
+    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'acknowledged', 'resolved')),
+    description TEXT NOT NULL,
+    estimated_monthly_savings_bdt NUMERIC(10,2) DEFAULT 0,
+    actionable_step TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 13. DEVICE CREDENTIALS TABLE (Strictly protected sensitive credentials)
+-- 13. DEVICE CREDENTIALS (SENSITIVE - RESTRICTED FROM NORMAL HOUSEHOLD USERS)
 CREATE TABLE IF NOT EXISTS public.device_credentials (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  device_id UUID NOT NULL REFERENCES public.devices(id) ON DELETE CASCADE,
-  household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-  api_key TEXT,
-  api_secret TEXT,
-  mqtt_username TEXT,
-  mqtt_password TEXT,
-  auth_token TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id UUID NOT NULL REFERENCES public.devices(id) ON DELETE CASCADE,
+    api_key TEXT,
+    mqtt_username TEXT,
+    mqtt_password TEXT,
+    access_token TEXT,
+    refresh_token TEXT,
+    auth_payload JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT device_credentials_unique_device UNIQUE (device_id)
 );
 
--- 14. AUDIT LOGS TABLE
+-- 14. AUDIT LOGS
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  household_id UUID REFERENCES public.households(id) ON DELETE SET NULL,
-  action TEXT NOT NULL,
-  entity_type TEXT NOT NULL,
-  entity_id TEXT,
-  metadata JSONB DEFAULT '{}'::jsonb,
-  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID REFERENCES public.households(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ==================================================
--- INDEXES FOR PERFORMANCE
--- ==================================================
-CREATE INDEX IF NOT EXISTS idx_household_members_user ON public.household_members(user_id);
-CREATE INDEX IF NOT EXISTS idx_household_members_household ON public.household_members(household_id);
-CREATE INDEX IF NOT EXISTS idx_rooms_household ON public.rooms(household_id);
-CREATE INDEX IF NOT EXISTS idx_appliances_household ON public.appliances(household_id);
-CREATE INDEX IF NOT EXISTS idx_appliances_room ON public.appliances(room_id);
-CREATE INDEX IF NOT EXISTS idx_devices_household ON public.devices(household_id);
-CREATE INDEX IF NOT EXISTS idx_readings_device_time ON public.readings(device_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_readings_household_time ON public.readings(household_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_suggestions_household ON public.suggestions(household_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_household ON public.audit_logs(household_id);
+-- Additional Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_household_members_user ON public.household_members (user_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_household ON public.rooms (household_id);
+CREATE INDEX IF NOT EXISTS idx_appliances_household ON public.appliances (household_id);
+CREATE INDEX IF NOT EXISTS idx_devices_household ON public.devices (household_id);
+CREATE INDEX IF NOT EXISTS idx_suggestions_household ON public.suggestions (household_id);
 
--- ==================================================
--- HELPER FUNCTIONS FOR AUTHORIZATION
--- ==================================================
+-- ====================================================================
+-- SECURITY FUNCTIONS & ROW LEVEL SECURITY (RLS) POLICIES
+-- ====================================================================
 
--- Helper function to check if current user is member of a household
-CREATE OR REPLACE FUNCTION public.is_household_member(h_id UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.household_members
-    WHERE household_id = h_id AND user_id = auth.uid()
+-- Helper function to check household membership safely (SECURITY DEFINER prevents recursion)
+CREATE OR REPLACE FUNCTION public.is_household_member(lookup_household_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.household_members
+    WHERE household_id = lookup_household_id
+      AND user_id = auth.uid()
   );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- Helper function to check if current user is system administrator
+-- Helper function to check admin role safely
 CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'admin'
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'admin'
   );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- ==================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- ==================================================
-
--- Enable RLS on all user tables
+-- Enable RLS on all 14 tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.households ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.household_members ENABLE ROW LEVEL SECURITY;
@@ -280,73 +269,110 @@ ALTER TABLE public.suggestions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.device_credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Profiles Policies
-CREATE POLICY "Users can view own profile or admin view all" ON public.profiles
-  FOR SELECT USING (id = auth.uid() OR public.is_admin());
+-- 1. Profiles Policies
+CREATE POLICY "Users view own profile or admins view all"
+  ON public.profiles FOR SELECT
+  USING (id = auth.uid() OR public.is_admin());
 
-CREATE POLICY "Users can update own profile" ON public.profiles
-  FOR UPDATE USING (id = auth.uid());
+CREATE POLICY "Users update own profile"
+  ON public.profiles FOR UPDATE
+  USING (id = auth.uid());
 
--- Households Policies
-CREATE POLICY "Members can view their households" ON public.households
-  FOR SELECT USING (public.is_household_member(id) OR public.is_admin());
+CREATE POLICY "Users insert own profile"
+  ON public.profiles FOR INSERT
+  WITH CHECK (id = auth.uid() OR public.is_admin());
 
-CREATE POLICY "Members can update their households" ON public.households
-  FOR UPDATE USING (public.is_household_member(id) OR public.is_admin());
+-- 2. Households Policies
+CREATE POLICY "Members or admins view households"
+  ON public.households FOR SELECT
+  USING (public.is_household_member(id) OR public.is_admin());
 
--- Household Members Policies
-CREATE POLICY "Members can view household members" ON public.household_members
-  FOR SELECT USING (public.is_household_member(household_id) OR user_id = auth.uid() OR public.is_admin());
+CREATE POLICY "Authenticated users create households"
+  ON public.households FOR INSERT
+  WITH CHECK (auth.uid() IS NOT NULL);
 
--- Rooms Policies
-CREATE POLICY "Household members can access rooms" ON public.rooms
-  FOR ALL USING (public.is_household_member(household_id) OR public.is_admin());
+CREATE POLICY "Members or admins update households"
+  ON public.households FOR UPDATE
+  USING (public.is_household_member(id) OR public.is_admin());
 
--- Appliances Policies
-CREATE POLICY "Household members can access appliances" ON public.appliances
-  FOR ALL USING (public.is_household_member(household_id) OR public.is_admin());
+-- 3. Household Members Policies
+CREATE POLICY "Members view household membership"
+  ON public.household_members FOR SELECT
+  USING (public.is_household_member(household_id) OR user_id = auth.uid() OR public.is_admin());
 
--- Devices Policies
-CREATE POLICY "Household members can access devices" ON public.devices
-  FOR ALL USING (public.is_household_member(household_id) OR public.is_admin());
+CREATE POLICY "Owners or admins manage household members"
+  ON public.household_members FOR ALL
+  USING (public.is_household_member(household_id) OR public.is_admin());
 
--- Readings Policies
-CREATE POLICY "Household members can view readings" ON public.readings
-  FOR SELECT USING (public.is_household_member(household_id) OR public.is_admin());
+-- 4. Rooms Policies
+CREATE POLICY "Household members manage rooms"
+  ON public.rooms FOR ALL
+  USING (public.is_household_member(household_id) OR public.is_admin());
 
--- Tariffs Policies
-CREATE POLICY "Household members can view tariffs" ON public.tariffs
-  FOR SELECT USING (household_id IS NULL OR public.is_household_member(household_id) OR public.is_admin());
+-- 5. Appliances Policies
+CREATE POLICY "Household members manage appliances"
+  ON public.appliances FOR ALL
+  USING (public.is_household_member(household_id) OR public.is_admin());
 
--- Tariff Rate Rules Policies
-CREATE POLICY "Users can view tariff rules" ON public.tariff_rate_rules
-  FOR SELECT USING (
+-- 6. Devices Policies
+CREATE POLICY "Household members manage devices"
+  ON public.devices FOR ALL
+  USING (public.is_household_member(household_id) OR public.is_admin());
+
+-- 7. Readings Policies
+CREATE POLICY "Household members view readings"
+  ON public.readings FOR SELECT
+  USING (public.is_household_member(household_id) OR public.is_admin());
+
+CREATE POLICY "Household members insert readings"
+  ON public.readings FOR INSERT
+  WITH CHECK (public.is_household_member(household_id) OR public.is_admin());
+
+-- 8. Tariffs Policies
+CREATE POLICY "Members view tariffs"
+  ON public.tariffs FOR SELECT
+  USING (is_system_global = true OR public.is_household_member(household_id) OR public.is_admin());
+
+CREATE POLICY "Members or admins manage tariffs"
+  ON public.tariffs FOR ALL
+  USING (public.is_household_member(household_id) OR public.is_admin());
+
+-- 9. Tariff Rate Rules Policies
+CREATE POLICY "Members view tariff rate rules"
+  ON public.tariff_rate_rules FOR SELECT
+  USING (
     EXISTS (
-      SELECT 1 FROM public.tariffs t
-      WHERE t.id = tariff_id AND (t.household_id IS NULL OR public.is_household_member(t.household_id) OR public.is_admin())
+      SELECT 1 FROM public.tariffs
+      WHERE tariffs.id = tariff_rate_rules.tariff_id
+        AND (tariffs.is_system_global = true OR public.is_household_member(tariffs.household_id) OR public.is_admin())
     )
   );
 
--- Budgets Policies
-CREATE POLICY "Household members can access budgets" ON public.budgets
-  FOR ALL USING (public.is_household_member(household_id) OR public.is_admin());
+-- 10. Budgets Policies
+CREATE POLICY "Household members manage budgets"
+  ON public.budgets FOR ALL
+  USING (public.is_household_member(household_id) OR public.is_admin());
 
--- Budget History Policies
-CREATE POLICY "Household members can access budget history" ON public.budget_history
-  FOR ALL USING (public.is_household_member(household_id) OR public.is_admin());
+-- 11. Budget History Policies
+CREATE POLICY "Household members view budget history"
+  ON public.budget_history FOR SELECT
+  USING (public.is_household_member(household_id) OR public.is_admin());
 
--- Suggestions Policies
-CREATE POLICY "Household members can access suggestions" ON public.suggestions
-  FOR ALL USING (public.is_household_member(household_id) OR public.is_admin());
+-- 12. Suggestions Policies
+CREATE POLICY "Household members manage suggestions"
+  ON public.suggestions FOR ALL
+  USING (public.is_household_member(household_id) OR public.is_admin());
 
--- Device Credentials Policies (RESTRICTED: No direct user select except service_role/admin)
-CREATE POLICY "Strict device credentials access" ON public.device_credentials
-  FOR ALL USING (public.is_admin());
+-- 13. Device Credentials Policies (RESTRICTED TO ADMINS / SERVICE ROLE ONLY)
+CREATE POLICY "Admins only access device credentials"
+  ON public.device_credentials FOR ALL
+  USING (public.is_admin());
 
--- Audit Logs Policies
-CREATE POLICY "Users can view relevant audit logs" ON public.audit_logs
-  FOR SELECT USING (
-    user_id = auth.uid() 
-    OR (household_id IS NOT NULL AND public.is_household_member(household_id))
+-- 14. Audit Logs Policies
+CREATE POLICY "Users view relevant audit logs"
+  ON public.audit_logs FOR SELECT
+  USING (
+    (household_id IS NOT NULL AND public.is_household_member(household_id))
+    OR user_id = auth.uid()
     OR public.is_admin()
   );
