@@ -38,11 +38,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const safeParseJson = async (res: Response): Promise<any> => {
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
-      return await res.json();
+      try {
+        return await res.json();
+      } catch (parseErr) {
+        console.error('[AuthContext] JSON parse error:', parseErr);
+      }
     }
     const rawText = await res.text();
     console.error('[AuthContext] Received non-JSON response:', res.status, rawText);
-    throw new Error(`Server returned invalid response format (${res.status}).`);
+
+    let extractedMessage = '';
+    const bodyMatch = rawText.match(/<pre>(.*?)<\/pre>/i) || rawText.match(/<h1>(.*?)<\/h1>/i);
+    const titleMatch = rawText.match(/<title>(.*?)<\/title>/i);
+    if (bodyMatch && bodyMatch[1]) {
+      extractedMessage = bodyMatch[1].trim();
+    } else if (titleMatch && titleMatch[1]) {
+      extractedMessage = titleMatch[1].trim();
+    } else if (rawText && rawText.length < 150 && !rawText.includes('<')) {
+      extractedMessage = rawText.trim();
+    }
+
+    if (res.status === 500) {
+      throw new Error(
+        extractedMessage
+          ? `Server error (500): ${extractedMessage}`
+          : 'Server error (500). If connecting your own Supabase project, verify your SUPABASE_URL and SUPABASE_ANON_KEY in project settings, or click "Gulshan Resident" below.'
+      );
+    }
+    if (res.status === 404) {
+      throw new Error('API route not found (404). Please check backend server routing.');
+    }
+    throw new Error(extractedMessage || `Server returned unexpected status (${res.status}).`);
   };
 
   const fetchSession = async (currentToken: string) => {

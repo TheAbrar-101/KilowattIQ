@@ -19,6 +19,15 @@ import budgetRoutes from './routes/v1/budgets';
 
 const app = express();
 
+// URL normalizer middleware for Vercel Serverless and reverse proxy rewrites
+app.use((req, res, next) => {
+  const matchedPath = (req.headers['x-matched-path'] as string) || (req.headers['x-vercel-matched-path'] as string);
+  if (matchedPath && (req.url === '/api' || req.url === '/api/') && matchedPath !== req.url) {
+    req.url = matchedPath;
+  }
+  next();
+});
+
 // Global Middlewares
 app.use(express.json());
 app.use(requestLogger);
@@ -51,58 +60,51 @@ const handleHealthCheck = async (req: express.Request, res: express.Response) =>
   }
 };
 
-// Health check endpoints
+// Health check and root ping endpoints
+app.get(['/', '/api'], (req, res) => {
+  res.json({
+    status: 'success',
+    service: 'KilowattIQ Backend API',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get('/api/health', handleHealthCheck);
 app.get('/api/v1/health', handleHealthCheck);
 app.get('/health', handleHealthCheck);
 app.get('/v1/health', handleHealthCheck);
 
-// RESTful API v1 Routes (Both with /api and direct /v1 prefixes)
-app.use('/api/v1/auth', authRoutes);
-app.use('/v1/auth', authRoutes);
+// RESTful API Routes (Mounted under /api/v1, /v1, /api, and direct root paths)
+const routes = [
+  { path: 'auth', router: authRoutes },
+  { path: 'profile', router: profileRoutes },
+  { path: 'my-households', router: householdRoutes },
+  { path: 'households', router: householdRoutes },
+  { path: 'devices', router: deviceRoutes },
+  { path: 'telemetry', router: telemetryRoutes },
+  { path: 'analytics', router: analyticsRoutes },
+  { path: 'recommendations', router: recommendationRoutes },
+  { path: 'reports', router: reportRoutes },
+  { path: 'admin', router: adminRoutes },
+  { path: 'system', router: systemRoutes },
+  { path: 'tariffs', router: tariffRoutes },
+  { path: 'budgets', router: budgetRoutes },
+];
 
-app.use('/api/v1/profile', profileRoutes);
-app.use('/v1/profile', profileRoutes);
+for (const { path, router } of routes) {
+  app.use(`/api/v1/${path}`, router);
+  app.use(`/v1/${path}`, router);
+  app.use(`/api/${path}`, router);
+  app.use(`/${path}`, router);
+}
 
-app.use('/api/v1/my-households', householdRoutes);
-app.use('/v1/my-households', householdRoutes);
-
-app.use('/api/v1/households', householdRoutes);
-app.use('/v1/households', householdRoutes);
-
-app.use('/api/v1/devices', deviceRoutes);
-app.use('/v1/devices', deviceRoutes);
-
-app.use('/api/v1/telemetry', telemetryRoutes);
-app.use('/v1/telemetry', telemetryRoutes);
-
-app.use('/api/v1/analytics', analyticsRoutes);
-app.use('/v1/analytics', analyticsRoutes);
-
-app.use('/api/v1/recommendations', recommendationRoutes);
-app.use('/v1/recommendations', recommendationRoutes);
-
-app.use('/api/v1/reports', reportRoutes);
-app.use('/v1/reports', reportRoutes);
-
-app.use('/api/v1/admin', adminRoutes);
-app.use('/v1/admin', adminRoutes);
-
-app.use('/api/v1/system', systemRoutes);
-app.use('/v1/system', systemRoutes);
-
-app.use('/api/v1/tariffs', tariffRoutes);
-app.use('/v1/tariffs', tariffRoutes);
-
-app.use('/api/v1/budgets', budgetRoutes);
-app.use('/v1/budgets', budgetRoutes);
-
-// Catch-all 404 handler for unmatched API calls (ensures API returns JSON instead of HTML)
-app.use(['/api/*', '/v1/*'], (req: express.Request, res: express.Response) => {
+// Universal catch-all 404 handler for any unmatched endpoint (always returns JSON, never HTML)
+app.use((req: express.Request, res: express.Response) => {
   res.status(404).json({
     status: 'error',
     statusCode: 404,
-    message: `API endpoint not found: ${req.method} ${req.originalUrl}`,
+    message: `API endpoint not found: ${req.method} ${req.originalUrl || req.url}`,
   });
 });
 

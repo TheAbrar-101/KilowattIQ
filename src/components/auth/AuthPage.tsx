@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Zap, Shield, Mail, Lock, User, Phone, CheckCircle2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
+import { Zap, Shield, Mail, Lock, User, Phone, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Database, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const AuthPage: React.FC = () => {
   const { signIn, signUp, error: authContextError, loading } = useAuth();
   const [isRegisterMode, setIsRegisterMode] = useState<boolean>(false);
+  const [showDbGuide, setShowDbGuide] = useState<boolean>(false);
 
   // Form State
   const [fullName, setFullName] = useState<string>('');
@@ -130,9 +131,45 @@ export const AuthPage: React.FC = () => {
 
           {/* Errors Display */}
           {(formError || authContextError) && (
-            <div className="mb-6 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <span>{formError || authContextError}</span>
+            <div className="mb-6 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 flex flex-col gap-2 text-xs text-rose-300">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <span>{formError || authContextError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDbGuide(!showDbGuide)}
+                className="text-left text-[11px] font-semibold text-emerald-400 hover:underline flex items-center gap-1 mt-1 cursor-pointer"
+              >
+                <span>Connecting your own Supabase database? Click for instructions</span>
+                {showDbGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          )}
+
+          {/* Supabase Connection Setup Guide Collapsible */}
+          {showDbGuide && (
+            <div className="mb-6 bg-slate-950 border border-emerald-500/30 rounded-xl p-4 text-xs text-slate-300 space-y-3 shadow-inner">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+                <Database className="w-4 h-4" />
+                <span>Supabase Setup Guide</span>
+              </div>
+              <ol className="list-decimal pl-4 space-y-2 text-[11px] text-slate-300 leading-relaxed">
+                <li>
+                  <strong className="text-white">Run Database Migrations:</strong> In your Supabase Dashboard, open <em>SQL Editor</em> and run the script in <code className="bg-slate-800 text-emerald-300 px-1 py-0.5 rounded text-[10px]">supabase/migrations/20260810000000_complete_kilowattiq_schema.sql</code>.
+                </li>
+                <li>
+                  <strong className="text-white">Add Environment Variables:</strong> Under <em>Project Settings &gt; API</em> in Supabase, copy your keys and add them to your environment variables:
+                  <ul className="list-disc pl-4 mt-1 space-y-0.5 text-slate-400 font-mono text-[10px]">
+                    <li><strong className="text-slate-200">SUPABASE_URL</strong>: https://your-id.supabase.co</li>
+                    <li><strong className="text-slate-200">SUPABASE_ANON_KEY</strong>: eyJhbGci...</li>
+                    <li><strong className="text-slate-200">SUPABASE_SERVICE_ROLE_KEY</strong>: eyJhbGci...</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong className="text-white">Disable Email Confirmation (Optional):</strong> In Supabase under <em>Authentication &gt; Providers &gt; Email</em>, toggle off &quot;Confirm email&quot; for instant logins without email verification.
+                </li>
+              </ol>
             </div>
           )}
 
