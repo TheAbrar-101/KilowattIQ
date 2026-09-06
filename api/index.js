@@ -64,17 +64,27 @@ var SupabaseService = class _SupabaseService {
     const hasValidKey = hasValidServiceKey || hasValidAnonKey;
     let formattedUrl = "";
     if (url && url.length > 3 && !url.includes("your-supabase-project")) {
-      formattedUrl = url.trim();
-      if (/^[a-z0-9]{20}$/i.test(formattedUrl)) {
-        formattedUrl = `https://${formattedUrl}.supabase.co`;
-      } else if (formattedUrl.includes("/project/")) {
-        const ref = formattedUrl.split("/project/")[1].split("/")[0].split("?")[0];
+      let candidate = url.trim();
+      if (/^[a-z0-9]{20}$/i.test(candidate)) {
+        formattedUrl = `https://${candidate}.supabase.co`;
+      } else if (candidate.includes("/project/")) {
+        const ref = candidate.split("/project/")[1].split("/")[0].split("?")[0];
         formattedUrl = `https://${ref}.supabase.co`;
       } else {
-        if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
-          formattedUrl = `https://${formattedUrl}`;
+        if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) {
+          candidate = `https://${candidate}`;
         }
-        formattedUrl = formattedUrl.replace(/\/+$/, "");
+        try {
+          const parsed = new URL(candidate);
+          formattedUrl = `${parsed.protocol}//${parsed.host}`;
+        } catch {
+          const match = candidate.match(/([a-z0-9_-]+\.supabase\.co)/i);
+          if (match && match[1]) {
+            formattedUrl = `https://${match[1]}`;
+          } else {
+            formattedUrl = candidate.replace(/\/+$/, "");
+          }
+        }
       }
     }
     const hasValidUrl = Boolean(formattedUrl && formattedUrl.includes(".supabase.co"));
@@ -350,11 +360,17 @@ var SupabaseService = class _SupabaseService {
       password: params.password
     });
     if (authErr) {
-      if (authErr.message?.toLowerCase().includes("email not confirmed")) {
+      const errMsg = authErr.message?.toLowerCase() || "";
+      if (errMsg.includes("invalid path")) {
+        throw new Error(
+          'Supabase URL contained an extra subpath (such as /rest/v1). KilowattIQ has normalized this to "https://<ref>.supabase.co". Please verify that SUPABASE_URL in your hosting environment is set to "https://<your-project-ref>.supabase.co" without any trailing path.'
+        );
+      }
+      if (errMsg.includes("email not confirmed")) {
         throw new Error('Email not confirmed in Supabase. Please verify your email or disable "Confirm email" in Supabase Dashboard (Authentication > Providers > Email).');
       }
-      if (authErr.message?.toLowerCase().includes("invalid login credentials")) {
-        throw new Error("Invalid email or password. Please verify your credentials or register a new account.");
+      if (errMsg.includes("invalid login credentials")) {
+        throw new Error('Invalid email or password. If this is a new Supabase database, please click "Register Household" above to create your account first, or use the demo buttons below.');
       }
       throw authErr;
     }
