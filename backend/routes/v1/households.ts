@@ -129,4 +129,25 @@ router.post('/:id/appliances', async (req: AuthenticatedRequest, res: Response) 
   res.status(201).json({ status: 'success', data: appliance });
 });
 
+// POST /api/v1/households/:id/appliances/:applianceId/toggle
+router.post('/:id/appliances/:applianceId/toggle', async (req: AuthenticatedRequest, res: Response) => {
+  const { id, applianceId } = req.params;
+  if (!isHouseholdAuthorized(req, id)) {
+    return res.status(403).json({ status: 'error', message: 'Access denied to requested household.' });
+  }
+
+  const { isOn } = req.body || {};
+  const result = await db.toggleAppliance(applianceId, isOn);
+
+  res.json({
+    status: 'success',
+    data: {
+      applianceId: result.applianceId,
+      householdId: id,
+      isOn: result.isOn,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+});
+
 export default router;

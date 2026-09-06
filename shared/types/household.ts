@@ -28,7 +28,7 @@ export interface Appliance {
   roomId: string;
   deviceId?: string; // Connected IoT Device ID if assigned
   name: string;
-  category: 'AIR_CONDITIONER' | 'REFRIGERATOR' | 'TELEVISION' | 'WASHING_MACHINE' | 'LIGHTING' | 'FAN' | 'WATER_HEATER' | 'COMPUTER' | 'OTHER';
+  category: 'AIR_CONDITIONER' | 'REFRIGERATOR' | 'TELEVISION' | 'WASHING_MACHINE' | 'LIGHTING' | 'FAN' | 'WATER_HEATER' | 'COMPUTER' | 'MICROWAVE' | 'ROUTER' | 'OTHER';
   ratedPowerW: number;
   standbyPowerW: number;
   averageHoursPerDay: number;

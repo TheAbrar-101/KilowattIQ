@@ -26,11 +26,24 @@ router.post('/register', async (req: AuthenticatedRequest, res: Response) => {
 
     const result = await db.signUpUser({ email, password, fullName, phone });
 
+    if (result.requiresEmailConfirmation || !result.session?.access_token) {
+      return res.status(200).json({
+        status: 'success',
+        message: result.message || 'Account registered successfully. Please check your email to confirm before logging in.',
+        data: {
+          requiresEmailConfirmation: true,
+          token: null,
+          user: result.user,
+          households: result.households,
+        },
+      });
+    }
+
     res.status(201).json({
       status: 'success',
       message: 'Account registered successfully.',
       data: {
-        token: result.session?.access_token || 'demo-jwt-token',
+        token: result.session.access_token,
         user: result.user,
         households: result.households,
       },

@@ -14,10 +14,12 @@ export const AuthPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    setInfoMessage(null);
 
     if (isRegisterMode) {
       if (!fullName.trim()) {

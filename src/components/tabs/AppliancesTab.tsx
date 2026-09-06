@@ -23,6 +23,14 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
   onAddAppliance,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const handleToggle = (appId: string) => {
+    if (!onToggleAppliance) return;
+    setTogglingId(appId);
+    onToggleAppliance(appId);
+    setTimeout(() => setTogglingId(null), 500);
+  };
 
   // New appliance form state
   const [name, setName] = useState('');
@@ -127,15 +135,16 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
                         </div>
 
                         <button
-                          onClick={() => onToggleAppliance && onToggleAppliance(app.id)}
+                          onClick={() => handleToggle(app.id)}
+                          disabled={togglingId === app.id}
                           className={`p-1.5 rounded-lg border text-[10px] font-bold font-mono transition-all flex items-center gap-1 cursor-pointer ${
                             isOn
                               ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
                               : 'bg-slate-800 border-slate-700 text-slate-400'
-                          }`}
+                          } ${togglingId === app.id ? 'opacity-50 animate-pulse' : ''}`}
                         >
-                          <Power className="w-3 h-3" />
-                          <span>{isOn ? 'ON' : 'OFF'}</span>
+                          <Power className={`w-3 h-3 ${togglingId === app.id ? 'animate-spin' : ''}`} />
+                          <span>{togglingId === app.id ? '...' : isOn ? 'ON' : 'OFF'}</span>
                         </button>
                       </div>
                     );

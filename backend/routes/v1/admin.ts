@@ -7,9 +7,12 @@ const db = SupabaseService.getInstance();
 
 // GET /api/v1/admin/overview
 router.get('/overview', async (req: AuthenticatedRequest, res: Response) => {
-  // In production, verifies req.user?.role === 'ADMIN'
-  const households = await db.getHouseholds('usr_dhaka_01');
-  const devices = await db.getDevices('hh_gulshan_01');
+  if (!req.user || req.user.role !== 'ADMIN') {
+    return res.status(403).json({ status: 'error', message: 'Forbidden: Admin access required.' });
+  }
+
+  const households = await db.getHouseholds(req.user.id);
+  const devices = await db.getDevices('11111111-1111-4111-a111-111111111111');
 
   res.json({
     status: 'success',

@@ -41,4 +41,5 @@ export interface DeviceAdapterInterface {
   getDeviceHistory?(deviceId: string, timeframe?: string): Promise<PowerReading[]>;
   getEnergySummary?(deviceId: string): Promise<{ todayKwh: number; monthKwh: number; averageWatts: number }>;
   getStandbyAnalysis?(deviceId: string): Promise<{ isVampirePower: boolean; standbyWatts: number; estimatedMonthlyWasteBDT: number }>;
+  toggleState?(deviceId: string, state: boolean): Promise<boolean>;
 }

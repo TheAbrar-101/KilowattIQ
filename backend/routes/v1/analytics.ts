@@ -81,4 +81,39 @@ router.post('/roi', (req: AuthenticatedRequest, res: Response) => {
   res.json({ status: 'success', data: result });
 });
 
+// GET /api/v1/analytics/monthly-trend?householdId=...
+router.get('/monthly-trend', async (req: AuthenticatedRequest, res: Response) => {
+  const householdId = (req.query.householdId as string) || '11111111-1111-4111-a111-111111111111';
+  const household = await db.getHouseholdById(householdId);
+  const budgetBDT = household?.monthlyBudgetBDT || 4500;
+  const loadKw = household?.sanctionedLoadKw || 3.0;
+
+  const months = ['Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026'];
+  const baseKwh = [240, 265, 310, 325, 295, 285];
+
+  const trend = months.map((month, idx) => {
+    const kwh = baseKwh[idx];
+    const cost = TariffCalculator.calculateCost(kwh, loadKw, 'SLAB');
+
+    return {
+      month,
+      consumptionKwh: kwh,
+      costBDT: cost.grossTotalBDT,
+      budgetBDT,
+      effectiveRateBDT: cost.effectiveRatePerKwh,
+      isOverBudget: cost.grossTotalBDT > budgetBDT,
+    };
+  });
+
+  res.json({
+    status: 'success',
+    data: {
+      householdId,
+      sanctionedLoadKw: loadKw,
+      monthlyBudgetBDT: budgetBDT,
+      trend,
+    },
+  });
+});
+
 export default router;

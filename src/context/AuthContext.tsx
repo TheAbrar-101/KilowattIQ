@@ -35,6 +35,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [households, setHouseholds] = useState<Household[]>([]);
   const [activeHousehold, setActiveHousehold] = useState<Household | null>(null);
 
+  const safeParseJson = async (res: Response): Promise<any> => {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await res.json();
+    }
+    const rawText = await res.text();
+    console.error('[AuthContext] Received non-JSON response:', res.status, rawText);
+    throw new Error(`Server returned invalid response format (${res.status}).`);
+  };
+
   const fetchSession = async (currentToken: string) => {
     try {
       setLoading(true);
@@ -46,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (res.ok) {
-        const json = await res.json();
+        const json = await safeParseJson(res);
         if (json.status === 'success' && json.data) {
           setUser(json.data.user);
           const userHhs = json.data.households || [];
@@ -87,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email, password }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (!res.ok || json.status === 'error') {
         throw new Error(json.message || 'Invalid email or password.');
       }
@@ -119,14 +129,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ fullName, email, phone, password }),
       });
 
-      const json = await res.json();
+      const json = await safeParseJson(res);
       if (!res.ok || json.status === 'error') {
         throw new Error(json.message || 'Registration failed.');
       }
 
       const authToken = json.data.token;
-      localStorage.setItem(TOKEN_KEY, authToken);
-      setToken(authToken);
+      if (authToken) {
+        localStorage.setItem(TOKEN_KEY, authToken);
+        setToken(authToken);
+      }
       setUser(json.data.user);
       const userHhs = json.data.households || [];
       setHouseholds(userHhs);

@@ -99,4 +99,84 @@ export interface RecommendationItem {
   description: string;
   estimatedMonthlySavingsBDT: number;
   actionableStep: string;
+  status?: string;
 }
+
+export interface AiPriorityAction {
+  title: string;
+  reason: string;
+  impact: 'high' | 'medium' | 'low';
+}
+
+export interface AiAdvisoryResponse {
+  summary: string;
+  priorityActions: AiPriorityAction[];
+  explanation: string;
+  language: 'en' | 'bn';
+}
+
+export interface AiAdvisorResult {
+  available: boolean;
+  aiAdvice?: AiAdvisoryResponse;
+  fallbackReason?: string;
+  sourceMetrics: {
+    currentLoadW: number;
+    projectedBillBDT: number;
+    monthlyBudgetBDT: number;
+    vampireWasteBDT: number;
+    sanctionedLoadKw: number;
+    tariffSlabName: string;
+  };
+  deterministicRecommendations: RecommendationItem[];
+}
+
+
+export interface FullReportData {
+  household: {
+    id: string;
+    name: string;
+    utilityProvider: string;
+    accountNumber: string;
+    sanctionedLoadKw: number;
+    monthlyBudgetBDT: number;
+  };
+  reportingPeriod: string;
+  generatedAt: string;
+  energySummary: {
+    totalMonthlyKwh: number;
+    avgDailyKwh: number;
+    avgActivePowerW: number;
+    peakPowerW: number;
+    peakTimestamp: string;
+  };
+  costAnalysis: CostCalculation;
+  budgetAnalysis: {
+    monthlyBudgetBDT: number;
+    currentSpentBDT: number;
+    projectedKwh: number;
+    projectedCostBDT: number;
+    remainingBudgetBDT: number;
+    budgetUtilizationPct: number;
+    isOverBudget: boolean;
+  };
+  applianceAnalysis: Array<{
+    id: string;
+    name: string;
+    roomName: string;
+    ratedPowerW: number;
+    estimatedMonthlyKwh: number;
+    estimatedMonthlyCostBDT: number;
+    isOn: boolean;
+  }>;
+  vampirePowerAudit: {
+    totalStandbyWatts: number;
+    totalMonthlyWastedBDT: number;
+    totalAnnualWastedBDT: number;
+    reports: VampirePowerReport[];
+  };
+  recommendations: RecommendationItem[];
+  roiAnalyses: ROIAnalysis[];
+  aiAdvice?: AiAdvisoryResponse;
+}
+
+

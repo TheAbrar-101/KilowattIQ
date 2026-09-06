@@ -1,6 +1,7 @@
 import { BaseDeviceAdapter } from './DeviceAdapter';
 import { IoTDevice, AdapterType } from '../../shared/types/iot';
 import { PowerReading } from '../../shared/types/energy';
+import { SupabaseService } from '../services/SupabaseService';
 
 export class DESCOAdapter extends BaseDeviceAdapter {
   adapterType: AdapterType = 'DESCOAdapter';
@@ -15,10 +16,25 @@ export class DESCOAdapter extends BaseDeviceAdapter {
   }
 
   async fetchTelemetry(device: IoTDevice): Promise<PowerReading> {
-    // DESCO Smart Meter API polling payload format
-    const baseLoadKw = (device.config?.sanctionedLoadKw || 3.0) * 0.4;
-    const activeWatts = Math.max(100, baseLoadKw * 1000 + (Math.random() - 0.5) * 200);
-    const cumulativeKwh = (device.config?.accumulatedKwh || 310) + 0.012;
+    const db = SupabaseService.getInstance();
+    const appliances = await db.getAppliances(device.householdId);
+
+    let calculatedWatts = 0;
+    for (const app of appliances) {
+      if (app.category === 'OTHER' || app.name.toLowerCase().includes('service entry')) {
+        continue;
+      }
+      if (db.isApplianceOn(app.id)) {
+        calculatedWatts += app.ratedPowerW;
+      } else {
+        calculatedWatts += (app.standbyPowerW || 0);
+      }
+    }
+
+    // Add minor sensor fluctuation (±15W)
+    const noise = (Math.random() - 0.5) * 30;
+    const activeWatts = Math.max(12, Math.round(calculatedWatts + noise));
+    const cumulativeKwh = (device.config?.accumulatedKwh || 310) + (activeWatts / 1000) * (3 / 3600);
 
     if (device.config) device.config.accumulatedKwh = cumulativeKwh;
 

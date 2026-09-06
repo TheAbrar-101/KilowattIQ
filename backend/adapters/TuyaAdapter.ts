@@ -1,12 +1,12 @@
 import { BaseDeviceAdapter } from './DeviceAdapter';
 import { IoTDevice, AdapterType } from '../../shared/types/iot';
 import { PowerReading } from '../../shared/types/energy';
+import { SupabaseService } from '../services/SupabaseService';
 
 export class TuyaAdapter extends BaseDeviceAdapter {
   adapterType: AdapterType = 'TuyaAdapter';
 
   async connect(device: IoTDevice): Promise<boolean> {
-    // In production, authenticates with Tuya Cloud OpenAPI using client credentials
     return true;
   }
 
@@ -15,18 +15,15 @@ export class TuyaAdapter extends BaseDeviceAdapter {
   }
 
   async fetchTelemetry(device: IoTDevice): Promise<PowerReading> {
-    // Tuya smart plugs return electrical parameters: cur_power (dS/10W), cur_voltage (dV), cur_current (mA)
-    const mockTuyaCloudPayload = {
-      cur_power: Math.floor((device.config?.ratedWatts || 1500) * 10 * (0.85 + Math.random() * 0.3)),
-      cur_voltage: 2200 + Math.floor(Math.random() * 80),
-      cur_current: 3500 + Math.floor(Math.random() * 500),
-    };
+    const db = SupabaseService.getInstance();
+    const isOn = device.applianceId ? db.isApplianceOn(device.applianceId) : db.isDeviceOn(device.id);
 
-    const watts = mockTuyaCloudPayload.cur_power / 10;
-    const accumulatedKwh = (device.config?.accumulatedKwh || 45) + 0.005;
+    const ratedWatts = device.config?.ratedWatts || 1650;
+    const activeWatts = isOn ? Math.round(ratedWatts * (0.95 + Math.random() * 0.1)) : 0;
+    const accumulatedKwh = (device.config?.accumulatedKwh || 45) + (activeWatts / 1000) * (3 / 3600);
     if (device.config) device.config.accumulatedKwh = accumulatedKwh;
 
-    return this.createBaseReading(device.id, watts, accumulatedKwh);
+    return this.createBaseReading(device.id, activeWatts, accumulatedKwh);
   }
 
   async getHealthStatus(device: IoTDevice): Promise<{ isOnline: boolean; latencyMs: number; signalQualityPct: number }> {

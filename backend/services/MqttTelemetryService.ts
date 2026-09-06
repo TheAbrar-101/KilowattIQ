@@ -50,11 +50,12 @@ export class MqttTelemetryService {
       !brokerUrl ||
       brokerUrl === '' ||
       brokerUrl.includes('your-broker') ||
-      brokerUrl.includes('example.com');
+      brokerUrl.includes('example.com') ||
+      brokerUrl.includes('broker.hivemq.com');
 
     if (isUnconfigured) {
       this.status = 'NOT_CONFIGURED';
-      console.log('[MqttTelemetryService] MQTT credentials not configured. MQTT status set to NOT_CONFIGURED.');
+      console.log('[MqttTelemetryService] MQTT integration not configured; running without MQTT.');
       return;
     }
 
@@ -65,16 +66,20 @@ export class MqttTelemetryService {
     this.status = 'MQTT_DISCONNECTED';
 
     try {
+      let reconnectCount = 0;
+      const maxReconnectAttempts = 5;
+
       this.client = mqtt.connect(brokerUrl, {
         clientId,
         username,
         password,
         clean: true,
-        reconnectPeriod: 5000,
-        connectTimeout: 10000,
+        reconnectPeriod: 10000,
+        connectTimeout: 5000,
       });
 
       this.client.on('connect', () => {
+        reconnectCount = 0;
         this.status = 'MQTT_CONNECTED';
         console.log(`[MqttTelemetryService] MQTT Connected successfully. Subscribing to topic: ${this.topic}`);
 
@@ -88,12 +93,18 @@ export class MqttTelemetryService {
       });
 
       this.client.on('reconnect', () => {
-        console.log('[MqttTelemetryService] Reconnecting to MQTT broker...');
+        reconnectCount++;
+        if (reconnectCount > maxReconnectAttempts) {
+          console.warn(`[MqttTelemetryService] MQTT reached maximum reconnect attempts (${maxReconnectAttempts}). Disconnecting.`);
+          this.client?.end(true);
+          this.status = 'MQTT_DISCONNECTED';
+          return;
+        }
+        console.log(`[MqttTelemetryService] Reconnecting to MQTT broker (Attempt ${reconnectCount}/${maxReconnectAttempts})...`);
       });
 
       this.client.on('offline', () => {
         this.status = 'MQTT_DISCONNECTED';
-        console.warn('[MqttTelemetryService] MQTT broker client went offline.');
       });
 
       this.client.on('close', () => {

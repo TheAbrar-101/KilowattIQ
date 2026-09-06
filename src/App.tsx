@@ -89,35 +89,40 @@ function MainAppContent() {
   }, [activeHousehold, loadHouseholdData]);
 
   // Poll Live Telemetry every 3 seconds
-  useEffect(() => {
+  const pollTelemetry = useCallback(() => {
     if (!activeHousehold) return;
 
-    const pollTelemetry = () => {
-      fetch(`/api/v1/telemetry/live?householdId=${activeHousehold.id}`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      })
-        .then(res => res.json())
-        .then(res => {
-          if (res.status === 'success' && res.data) {
-            setLiveReadings(prev => {
-              const newReadings = res.data.readings || [];
-              if (newReadings.length === 0) return prev;
-              const combined = [...prev, ...newReadings];
-              return combined.slice(-20);
-            });
-            setIsLiveConnected(true);
+    fetch(`/api/v1/telemetry/live?householdId=${activeHousehold.id}`, {
+      headers: { Authorization: token ? `Bearer ${token}` : '' },
+    })
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === 'success' && res.data) {
+          if (res.data.summary && typeof res.data.summary.totalActivePowerW === 'number') {
+            setTotalActiveWatts(res.data.summary.totalActivePowerW);
           }
-        })
-        .catch(err => {
-          console.warn('Telemetry polling error:', err);
-          setIsLiveConnected(false);
-        });
-    };
+          setLiveReadings(prev => {
+            const newReadings = res.data.readings || [];
+            if (newReadings.length === 0) return prev;
+            const combined = [...prev, ...newReadings];
+            return combined.slice(-20);
+          });
+          setIsLiveConnected(true);
+        }
+      })
+      .catch(err => {
+        console.warn('Telemetry polling error:', err);
+        setIsLiveConnected(false);
+      });
+  }, [activeHousehold, token]);
+
+  useEffect(() => {
+    if (!activeHousehold) return;
 
     pollTelemetry();
     const interval = setInterval(pollTelemetry, 3000);
     return () => clearInterval(interval);
-  }, [activeHousehold, token]);
+  }, [activeHousehold, pollTelemetry]);
 
   // If loading auth state
   if (loading) {
@@ -138,17 +143,30 @@ function MainAppContent() {
 
   // Handle toggling appliance ON/OFF dynamically
   const handleToggleAppliance = (applianceId: string) => {
-    setActiveApplianceStates(prev => {
-      const isCurrentlyOn = !!prev[applianceId];
-      const newState = !isCurrentlyOn;
-      const targetApp = appliances.find(a => a.id === applianceId);
-      
-      if (targetApp) {
-        const delta = newState ? targetApp.ratedPowerW : -targetApp.ratedPowerW;
-        setTotalActiveWatts(w => Math.max(12, w + delta));
-      }
-      return { ...prev, [applianceId]: newState };
-    });
+    if (!activeHousehold) return;
+    const isCurrentlyOn = !!activeApplianceStates[applianceId];
+    const newState = !isCurrentlyOn;
+
+    // Optimistic UI update
+    setActiveApplianceStates(prev => ({ ...prev, [applianceId]: newState }));
+
+    // Send API toggle command to backend
+    fetch(`/api/v1/households/${activeHousehold.id}/appliances/${applianceId}/toggle`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ isOn: newState }),
+    })
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === 'success') {
+          pollTelemetry();
+        }
+      })
+      .catch(err => {
+        console.error('Appliance toggle error:', err);
+        // Revert on error
+        setActiveApplianceStates(prev => ({ ...prev, [applianceId]: isCurrentlyOn }));
+      });
   };
 
   // Handle adding new appliance
@@ -284,6 +302,8 @@ function MainAppContent() {
 
             {activeTab === 'RECOMMENDATIONS' && (
               <RecommendationsTab
+                household={activeHousehold || undefined}
+                token={token}
                 recommendations={recommendations}
                 onResolve={handleResolveRecommendation}
               />

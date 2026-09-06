@@ -20,7 +20,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
 
   // Non-API paths (e.g., static assets, Vite SPA routes, frontend HTML/JS) do not require API authentication
   const path = req.path;
-  if (!path.startsWith('/api/')) {
+  if (!path.startsWith('/api/') && !path.startsWith('/v1/')) {
     return next();
   }
 
@@ -28,9 +28,14 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
   const isPublicPath =
     path === '/api/health' ||
     path === '/api/v1/health' ||
+    path === '/health' ||
+    path === '/v1/health' ||
     path === '/api/v1/auth/login' ||
+    path === '/v1/auth/login' ||
     path === '/api/v1/auth/register' ||
-    path.startsWith('/api/v1/system/');
+    path === '/v1/auth/register' ||
+    path.startsWith('/api/v1/system/') ||
+    path.startsWith('/v1/system/');
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);

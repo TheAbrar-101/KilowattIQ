@@ -44,4 +44,20 @@ router.get('/:id/health', async (req: AuthenticatedRequest, res: Response) => {
   res.json({ status: 'success', data: { deviceId: device.id, adapter: device.adapterType, health } });
 });
 
+// POST /api/v1/devices/:id/toggle
+router.post('/:id/toggle', async (req: AuthenticatedRequest, res: Response) => {
+  const deviceId = req.params.id;
+  const { isOn } = req.body || {};
+
+  const result = await db.toggleDevice(deviceId, isOn);
+  res.json({
+    status: 'success',
+    data: {
+      deviceId: result.deviceId,
+      isOn: result.isOn,
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
 export default router;

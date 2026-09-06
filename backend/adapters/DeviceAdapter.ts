@@ -69,6 +69,10 @@ export abstract class BaseDeviceAdapter implements DeviceAdapterInterface {
     };
   }
 
+  async toggleState(deviceId: string, state: boolean): Promise<boolean> {
+    return true;
+  }
+
   protected createBaseReading(deviceId: string, activePowerW: number, energyKwhDelta: number = 0.01): PowerReading {
     const now = new Date();
     // Simulate typical BD grid voltage ~220V - 230V
