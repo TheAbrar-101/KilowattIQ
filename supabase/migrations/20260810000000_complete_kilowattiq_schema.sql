@@ -270,74 +270,90 @@ ALTER TABLE public.device_credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- 1. Profiles Policies
+DROP POLICY IF EXISTS "Users view own profile or admins view all" ON public.profiles;
 CREATE POLICY "Users view own profile or admins view all"
   ON public.profiles FOR SELECT
   USING (id = auth.uid() OR public.is_admin());
 
+DROP POLICY IF EXISTS "Users update own profile" ON public.profiles;
 CREATE POLICY "Users update own profile"
   ON public.profiles FOR UPDATE
   USING (id = auth.uid());
 
+DROP POLICY IF EXISTS "Users insert own profile" ON public.profiles;
 CREATE POLICY "Users insert own profile"
   ON public.profiles FOR INSERT
   WITH CHECK (id = auth.uid() OR public.is_admin());
 
 -- 2. Households Policies
+DROP POLICY IF EXISTS "Members or admins view households" ON public.households;
 CREATE POLICY "Members or admins view households"
   ON public.households FOR SELECT
   USING (public.is_household_member(id) OR public.is_admin());
 
+DROP POLICY IF EXISTS "Authenticated users create households" ON public.households;
 CREATE POLICY "Authenticated users create households"
   ON public.households FOR INSERT
   WITH CHECK (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS "Members or admins update households" ON public.households;
 CREATE POLICY "Members or admins update households"
   ON public.households FOR UPDATE
   USING (public.is_household_member(id) OR public.is_admin());
 
 -- 3. Household Members Policies
+DROP POLICY IF EXISTS "Members view household membership" ON public.household_members;
 CREATE POLICY "Members view household membership"
   ON public.household_members FOR SELECT
   USING (public.is_household_member(household_id) OR user_id = auth.uid() OR public.is_admin());
 
+DROP POLICY IF EXISTS "Owners or admins manage household members" ON public.household_members;
 CREATE POLICY "Owners or admins manage household members"
   ON public.household_members FOR ALL
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 4. Rooms Policies
+DROP POLICY IF EXISTS "Household members manage rooms" ON public.rooms;
 CREATE POLICY "Household members manage rooms"
   ON public.rooms FOR ALL
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 5. Appliances Policies
+DROP POLICY IF EXISTS "Household members manage appliances" ON public.appliances;
 CREATE POLICY "Household members manage appliances"
   ON public.appliances FOR ALL
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 6. Devices Policies
+DROP POLICY IF EXISTS "Household members manage devices" ON public.devices;
 CREATE POLICY "Household members manage devices"
   ON public.devices FOR ALL
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 7. Readings Policies
+DROP POLICY IF EXISTS "Household members view readings" ON public.readings;
 CREATE POLICY "Household members view readings"
   ON public.readings FOR SELECT
   USING (public.is_household_member(household_id) OR public.is_admin());
 
+DROP POLICY IF EXISTS "Household members insert readings" ON public.readings;
 CREATE POLICY "Household members insert readings"
   ON public.readings FOR INSERT
   WITH CHECK (public.is_household_member(household_id) OR public.is_admin());
 
 -- 8. Tariffs Policies
+DROP POLICY IF EXISTS "Members view tariffs" ON public.tariffs;
 CREATE POLICY "Members view tariffs"
   ON public.tariffs FOR SELECT
   USING (is_system_global = true OR public.is_household_member(household_id) OR public.is_admin());
 
+DROP POLICY IF EXISTS "Members or admins manage tariffs" ON public.tariffs;
 CREATE POLICY "Members or admins manage tariffs"
   ON public.tariffs FOR ALL
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 9. Tariff Rate Rules Policies
+DROP POLICY IF EXISTS "Members view tariff rate rules" ON public.tariff_rate_rules;
 CREATE POLICY "Members view tariff rate rules"
   ON public.tariff_rate_rules FOR SELECT
   USING (
@@ -349,26 +365,31 @@ CREATE POLICY "Members view tariff rate rules"
   );
 
 -- 10. Budgets Policies
+DROP POLICY IF EXISTS "Household members manage budgets" ON public.budgets;
 CREATE POLICY "Household members manage budgets"
   ON public.budgets FOR ALL
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 11. Budget History Policies
+DROP POLICY IF EXISTS "Household members view budget history" ON public.budget_history;
 CREATE POLICY "Household members view budget history"
   ON public.budget_history FOR SELECT
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 12. Suggestions Policies
+DROP POLICY IF EXISTS "Household members manage suggestions" ON public.suggestions;
 CREATE POLICY "Household members manage suggestions"
   ON public.suggestions FOR ALL
   USING (public.is_household_member(household_id) OR public.is_admin());
 
 -- 13. Device Credentials Policies (RESTRICTED TO ADMINS / SERVICE ROLE ONLY)
+DROP POLICY IF EXISTS "Admins only access device credentials" ON public.device_credentials;
 CREATE POLICY "Admins only access device credentials"
   ON public.device_credentials FOR ALL
   USING (public.is_admin());
 
 -- 14. Audit Logs Policies
+DROP POLICY IF EXISTS "Users view relevant audit logs" ON public.audit_logs;
 CREATE POLICY "Users view relevant audit logs"
   ON public.audit_logs FOR SELECT
   USING (
