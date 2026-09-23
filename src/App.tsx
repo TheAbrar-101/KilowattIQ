@@ -32,6 +32,7 @@ function MainAppContent() {
   const [liveReadings, setLiveReadings] = useState<PowerReading[]>([]);
   const [totalActiveWatts, setTotalActiveWatts] = useState<number>(1845);
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(true);
+  const [streamMode, setStreamMode] = useState<'SSE' | 'POLLING'>('SSE');
   const [activeApplianceStates, setActiveApplianceStates] = useState<Record<string, boolean>>({
     'c0000000-0000-0000-0000-000000000001': true,
     'c0000000-0000-0000-0000-000000000002': true,
@@ -88,7 +89,7 @@ function MainAppContent() {
     }
   }, [activeHousehold, loadHouseholdData]);
 
-  // Poll Live Telemetry every 3 seconds
+  // Telemetry Polling Fallback
   const pollTelemetry = useCallback(() => {
     if (!activeHousehold) return;
 
@@ -116,13 +117,58 @@ function MainAppContent() {
       });
   }, [activeHousehold, token]);
 
+  // Real-Time Telemetry: Server-Sent Events (SSE) Stream with Polling Fallback
   useEffect(() => {
     if (!activeHousehold) return;
 
-    pollTelemetry();
-    const interval = setInterval(pollTelemetry, 3000);
-    return () => clearInterval(interval);
-  }, [activeHousehold, pollTelemetry]);
+    let eventSource: EventSource | null = null;
+    let fallbackInterval: any = null;
+
+    try {
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+      const streamUrl = `/api/v1/telemetry/stream?householdId=${encodeURIComponent(activeHousehold.id)}${tokenParam}`;
+      eventSource = new EventSource(streamUrl);
+
+      eventSource.addEventListener('telemetry', (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload && payload.summary && typeof payload.summary.totalActivePowerW === 'number') {
+            setTotalActiveWatts(payload.summary.totalActivePowerW);
+          }
+          if (payload && payload.readings) {
+            setLiveReadings(prev => {
+              const combined = [...prev, ...(payload.readings || [])];
+              return combined.slice(-20);
+            });
+          }
+          setIsLiveConnected(true);
+          setStreamMode('SSE');
+        } catch (err) {
+          console.warn('SSE frame parse error:', err);
+        }
+      });
+
+      eventSource.onerror = () => {
+        // Switch to polling fallback if SSE stream disconnects or encounters an error
+        setStreamMode('POLLING');
+        eventSource?.close();
+        eventSource = null;
+        if (!fallbackInterval) {
+          pollTelemetry();
+          fallbackInterval = setInterval(pollTelemetry, 3000);
+        }
+      };
+    } catch (err) {
+      setStreamMode('POLLING');
+      pollTelemetry();
+      fallbackInterval = setInterval(pollTelemetry, 3000);
+    }
+
+    return () => {
+      if (eventSource) eventSource.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
+  }, [activeHousehold, token, pollTelemetry]);
 
   // If loading auth state
   if (loading) {
@@ -246,6 +292,7 @@ function MainAppContent() {
         onToggleAdminMode={() => setIsAdminMode(!isAdminMode)}
         isLiveConnected={isLiveConnected}
         totalActiveWatts={totalActiveWatts}
+        streamMode={streamMode}
       />
 
       {/* Main Navigation Tabs */}

@@ -11,6 +11,7 @@ interface HeaderProps {
   onToggleAdminMode: () => void;
   isLiveConnected: boolean;
   totalActiveWatts: number;
+  streamMode?: 'SSE' | 'POLLING';
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleAdminMode,
   isLiveConnected,
   totalActiveWatts,
+  streamMode = 'SSE',
 }) => {
   const { user, signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState<boolean>(false);
@@ -74,7 +76,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="hidden md:flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-lg px-2.5 py-1 text-[11px]">
             <div className={`w-2 h-2 rounded-full ${isLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
             <span className="text-slate-400 font-mono font-medium">
-              {isLiveConnected ? `${(totalActiveWatts / 1000).toFixed(2)} kW Live` : 'Offline'}
+              {isLiveConnected
+                ? `${(totalActiveWatts / 1000).toFixed(2)} kW ${streamMode === 'SSE' ? '• SSE Live' : '• Polling'}`
+                : 'Offline'}
             </span>
           </div>
         </div>

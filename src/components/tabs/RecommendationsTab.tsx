@@ -220,7 +220,7 @@ export const RecommendationsTab: React.FC<RecommendationsTabProps> = ({
               )}
 
               {/* AI Advice Output */}
-              {aiResult.available && aiResult.aiAdvice && (
+              {aiResult.aiAdvice && (
                 <div className="space-y-4">
                   {/* Executive Summary Card */}
                   <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2">

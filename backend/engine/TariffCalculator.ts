@@ -1,4 +1,4 @@
-import { TariffStructure, CostCalculation, TariffType } from '../../shared/types/energy';
+import { TariffStructure, CostCalculation, TariffType, SlabThresholdAnalysis } from '../../shared/types/energy';
 import { BD_DEFAULT_SLAB_TARIFF } from '../../shared/constants/bdTariffs';
 
 export class TariffCalculator {
@@ -73,4 +73,79 @@ export class TariffCalculator {
       effectiveRatePerKwh: Number(effectiveRate.toFixed(2)),
     };
   }
+
+  /**
+   * Predictive analysis for BERC slab step-jump risks and countdown
+   */
+  static analyzeSlabThreshold(
+    currentKwh: number,
+    daysPassed: number = 18,
+    totalDaysInMonth: number = 30,
+    sanctionedLoadKw: number = 3.0,
+    tariffConfig: TariffStructure = BD_DEFAULT_SLAB_TARIFF
+  ): SlabThresholdAnalysis {
+    const safeDaysPassed = Math.max(1, daysPassed);
+    const safeTotalDays = Math.max(safeDaysPassed, totalDaysInMonth);
+    const remainingDays = safeTotalDays - safeDaysPassed;
+
+    const burnRateKwhPerDay = currentKwh / safeDaysPassed;
+    const projectedMonthEndKwh = burnRateKwhPerDay * safeTotalDays;
+
+    // Determine current active slab
+    let currentSlab = tariffConfig.slabs[0];
+    let nextSlab = tariffConfig.slabs[1] || null;
+
+    for (let i = 0; i < tariffConfig.slabs.length; i++) {
+      const slab = tariffConfig.slabs[i];
+      if (currentKwh >= slab.minKwh && (slab.maxKwh === null || currentKwh <= slab.maxKwh)) {
+        currentSlab = slab;
+        nextSlab = tariffConfig.slabs[i + 1] || null;
+        break;
+      }
+    }
+
+    const thresholdKwh = currentSlab.maxKwh;
+    const kwhRemainingToBreach = thresholdKwh !== null ? Math.max(0, thresholdKwh - currentKwh) : 0;
+    
+    let daysUntilBreach: number | null = null;
+    if (thresholdKwh !== null && burnRateKwhPerDay > 0) {
+      daysUntilBreach = Number((kwhRemainingToBreach / burnRateKwhPerDay).toFixed(1));
+    }
+
+    const projectedBreachOccurs = thresholdKwh !== null && projectedMonthEndKwh > thresholdKwh;
+
+    const currentRateBDT = currentSlab.ratePerKwh;
+    const nextRateBDT = nextSlab ? nextSlab.ratePerKwh : null;
+    const rateJumpPercentage = nextRateBDT
+      ? Number((((nextRateBDT - currentRateBDT) / currentRateBDT) * 100).toFixed(1))
+      : 0;
+
+    const maxDailyKwhToStayInSlab = remainingDays > 0 && thresholdKwh !== null
+      ? Number((kwhRemainingToBreach / remainingDays).toFixed(1))
+      : 0;
+
+    // Calculate financial impact: difference between staying at current slab cap vs projected month-end bill
+    const costAtCap = thresholdKwh !== null
+      ? this.calculateCost(thresholdKwh, sanctionedLoadKw, 'SLAB', tariffConfig).grossTotalBDT
+      : 0;
+    const costAtProjected = this.calculateCost(projectedMonthEndKwh, sanctionedLoadKw, 'SLAB', tariffConfig).grossTotalBDT;
+    const avoidableMonthlySurchargeBDT = Math.max(0, Number((costAtProjected - costAtCap).toFixed(2)));
+
+    return {
+      currentSlabName: currentSlab.stepName,
+      currentRateBDT,
+      nextSlabName: nextSlab ? nextSlab.stepName : null,
+      nextRateBDT,
+      rateJumpPercentage,
+      thresholdKwh,
+      kwhRemainingToBreach: Number(kwhRemainingToBreach.toFixed(1)),
+      burnRateKwhPerDay: Number(burnRateKwhPerDay.toFixed(2)),
+      projectedMonthEndKwh: Number(projectedMonthEndKwh.toFixed(1)),
+      daysUntilBreach,
+      projectedBreachOccurs,
+      maxDailyKwhToStayInSlab,
+      avoidableMonthlySurchargeBDT,
+    };
+  }
 }
+

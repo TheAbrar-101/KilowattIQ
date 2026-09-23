@@ -2027,6 +2027,55 @@ router5.get("/live", async (req, res) => {
     }
   });
 });
+router5.get("/stream", async (req, res) => {
+  const householdId = req.query.householdId || "hh_gulshan_01";
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") {
+    res.flushHeaders();
+  }
+  let isClosed = false;
+  const pushTelemetry = async () => {
+    if (isClosed) return;
+    try {
+      const devices = await db5.getDevices(householdId);
+      const mqttStatus = mqttService.getStatus();
+      const readings = await Promise.all(
+        devices.map((device) => iot2.pollDeviceTelemetry(device))
+      );
+      const totalWatts = readings.reduce((acc, r) => acc + (r.activePowerW || 0), 0);
+      const avgVoltage = readings.length > 0 ? readings.reduce((acc, r) => acc + (r.voltage || 220), 0) / readings.length : 220;
+      const payload = {
+        householdId,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        transport: "SSE",
+        mqttStatus: mqttStatus.mqttStatus,
+        lastTelemetryReceived: mqttStatus.lastTelemetryReceived,
+        packetStats: mqttStatus.packetStats,
+        summary: {
+          totalActivePowerW: Number(totalWatts.toFixed(1)),
+          gridVoltageV: Number(avgVoltage.toFixed(1)),
+          activeDeviceCount: devices.filter((d) => d.isOnline).length
+        },
+        readings
+      };
+      res.write(`event: telemetry
+data: ${JSON.stringify(payload)}
+
+`);
+    } catch (err) {
+    }
+  };
+  await pushTelemetry();
+  const timer = setInterval(pushTelemetry, 1500);
+  req.on("close", () => {
+    isClosed = true;
+    clearInterval(timer);
+    res.end();
+  });
+});
 router5.get("/history", async (req, res) => {
   const householdId = req.query.householdId || "hh_gulshan_01";
   const rawReadings = await db5.getReadings(householdId);
@@ -2156,6 +2205,55 @@ var TariffCalculator = class {
       vatBDT: Number(vatBDT.toFixed(2)),
       grossTotalBDT: Number(grossTotalBDT.toFixed(2)),
       effectiveRatePerKwh: Number(effectiveRate.toFixed(2))
+    };
+  }
+  /**
+   * Predictive analysis for BERC slab step-jump risks and countdown
+   */
+  static analyzeSlabThreshold(currentKwh, daysPassed = 18, totalDaysInMonth = 30, sanctionedLoadKw = 3, tariffConfig = BD_DEFAULT_SLAB_TARIFF) {
+    const safeDaysPassed = Math.max(1, daysPassed);
+    const safeTotalDays = Math.max(safeDaysPassed, totalDaysInMonth);
+    const remainingDays = safeTotalDays - safeDaysPassed;
+    const burnRateKwhPerDay = currentKwh / safeDaysPassed;
+    const projectedMonthEndKwh = burnRateKwhPerDay * safeTotalDays;
+    let currentSlab = tariffConfig.slabs[0];
+    let nextSlab = tariffConfig.slabs[1] || null;
+    for (let i = 0; i < tariffConfig.slabs.length; i++) {
+      const slab = tariffConfig.slabs[i];
+      if (currentKwh >= slab.minKwh && (slab.maxKwh === null || currentKwh <= slab.maxKwh)) {
+        currentSlab = slab;
+        nextSlab = tariffConfig.slabs[i + 1] || null;
+        break;
+      }
+    }
+    const thresholdKwh = currentSlab.maxKwh;
+    const kwhRemainingToBreach = thresholdKwh !== null ? Math.max(0, thresholdKwh - currentKwh) : 0;
+    let daysUntilBreach = null;
+    if (thresholdKwh !== null && burnRateKwhPerDay > 0) {
+      daysUntilBreach = Number((kwhRemainingToBreach / burnRateKwhPerDay).toFixed(1));
+    }
+    const projectedBreachOccurs = thresholdKwh !== null && projectedMonthEndKwh > thresholdKwh;
+    const currentRateBDT = currentSlab.ratePerKwh;
+    const nextRateBDT = nextSlab ? nextSlab.ratePerKwh : null;
+    const rateJumpPercentage = nextRateBDT ? Number(((nextRateBDT - currentRateBDT) / currentRateBDT * 100).toFixed(1)) : 0;
+    const maxDailyKwhToStayInSlab = remainingDays > 0 && thresholdKwh !== null ? Number((kwhRemainingToBreach / remainingDays).toFixed(1)) : 0;
+    const costAtCap = thresholdKwh !== null ? this.calculateCost(thresholdKwh, sanctionedLoadKw, "SLAB", tariffConfig).grossTotalBDT : 0;
+    const costAtProjected = this.calculateCost(projectedMonthEndKwh, sanctionedLoadKw, "SLAB", tariffConfig).grossTotalBDT;
+    const avoidableMonthlySurchargeBDT = Math.max(0, Number((costAtProjected - costAtCap).toFixed(2)));
+    return {
+      currentSlabName: currentSlab.stepName,
+      currentRateBDT,
+      nextSlabName: nextSlab ? nextSlab.stepName : null,
+      nextRateBDT,
+      rateJumpPercentage,
+      thresholdKwh,
+      kwhRemainingToBreach: Number(kwhRemainingToBreach.toFixed(1)),
+      burnRateKwhPerDay: Number(burnRateKwhPerDay.toFixed(2)),
+      projectedMonthEndKwh: Number(projectedMonthEndKwh.toFixed(1)),
+      daysUntilBreach,
+      projectedBreachOccurs,
+      maxDailyKwhToStayInSlab,
+      avoidableMonthlySurchargeBDT
     };
   }
 };
@@ -2408,7 +2506,8 @@ var GeminiAdvisorService = class {
     if (!apiKey || apiKey.trim() === "") {
       return {
         available: false,
-        fallbackReason: "GEMINI_API_KEY is not configured in backend environment."
+        fallbackReason: "GEMINI_API_KEY is not configured in backend environment. Operating in Deterministic Energy Advisory mode.",
+        aiAdvice: this.generateDeterministicFallback(payload)
       };
     }
     try {
@@ -2486,7 +2585,7 @@ Return the advisory response in the requested JSON structure.`;
         (_, reject) => setTimeout(() => reject(new Error("Gemini API call timed out after 6 seconds")), 6e3)
       );
       const generatePromise = ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         contents: promptText,
         config: {
           systemInstruction,
@@ -2538,9 +2637,77 @@ Return the advisory response in the requested JSON structure.`;
       console.warn(`[GeminiAdvisorService] Advisory fallback triggered: ${cleanReason}`);
       return {
         available: false,
-        fallbackReason: cleanReason
+        fallbackReason: cleanReason,
+        aiAdvice: this.generateDeterministicFallback(payload)
       };
     }
+  }
+  /**
+   * Generates deterministic, localized energy advisory in English or Bangla
+   * when LLM credentials are not configured or rate-limited.
+   */
+  static generateDeterministicFallback(payload) {
+    const isBn = payload.language === "bn";
+    if (isBn) {
+      const summary2 = `${payload.householdName}-\u098F\u09B0 \u09AC\u09B0\u09CD\u09A4\u09AE\u09BE\u09A8 \u09B8\u0995\u09CD\u09B0\u09BF\u09AF\u09BC \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u09B2\u09CB\u09A1 ${payload.currentActiveWatts} \u0993\u09AF\u09BC\u09BE\u099F \u098F\u09AC\u0982 \u09AE\u09BE\u09B8\u09BF\u0995 \u0986\u09A8\u09C1\u09AE\u09BE\u09A8\u09BF\u0995 \u0996\u09B0\u099A ${payload.monthlyKwh} \u0987\u0989\u09A8\u09BF\u099F (\u0986\u09A8\u09C1\u09AE\u09BE\u09A8\u09BF\u0995 \u09AE\u09CB\u099F \u09AC\u09BF\u09B2: \u09F3${payload.projectedBillBDT.toLocaleString("en-US", { maximumFractionDigits: 0 })})\u0964 \u0985\u09A8\u09C1\u09AE\u09CB\u09A6\u09BF\u09A4 \u09B2\u09CB\u09A1 ${payload.sanctionedLoadKw} \u0995\u09BF\u09B2\u09CB\u0993\u09AF\u09BC\u09BE\u099F \u098F\u09AC\u0982 \u09AE\u09BE\u09B8\u09BF\u0995 \u09AC\u09BE\u099C\u09C7\u099F \u09F3${payload.monthlyBudgetBDT.toLocaleString("en-US", { maximumFractionDigits: 0 })}-\u098F\u09B0 \u09AC\u09BF\u09AA\u09B0\u09C0\u09A4\u09C7 \u0986\u09AA\u09A8\u09BE\u09B0 \u0996\u09B0\u099A \u09AC\u09B0\u09CD\u09A4\u09AE\u09BE\u09A8\u09C7 ${payload.overagePercentage > 0 ? `${payload.overagePercentage.toFixed(1)}% \u09AC\u09BE\u099C\u09C7\u099F\u09C7\u09B0 \u09AC\u09C7\u09B6\u09BF \u09B0\u09AF\u09BC\u09C7\u099B\u09C7\u0964` : "\u09AC\u09BE\u099C\u09C7\u099F\u09C7\u09B0 \u09AE\u09A7\u09CD\u09AF\u09C7 \u09B8\u09C1\u09B0\u0995\u09CD\u09B7\u09BF\u09A4 \u09B0\u09AF\u09BC\u09C7\u099B\u09C7\u0964"}`;
+      const priorityActions2 = (payload.deterministicRecommendations || []).slice(0, 3).map((rec) => ({
+        title: rec.title,
+        reason: rec.description,
+        impact: rec.priority.toLowerCase()
+      }));
+      if (priorityActions2.length === 0) {
+        priorityActions2.push(
+          {
+            title: "\u09AA\u09BF\u0995 \u0986\u0993\u09AF\u09BC\u09BE\u09B0 \u09B2\u09CB\u09A1 \u09B8\u09CD\u09A5\u09BE\u09A8\u09BE\u09A8\u09CD\u09A4\u09B0",
+            reason: "\u09AC\u09BF\u0995\u09BE\u09B2 \u09EB\u099F\u09BE \u09A5\u09C7\u0995\u09C7 \u09B0\u09BE\u09A4 \u09E7\u09E7\u099F\u09BE \u09AA\u09B0\u09CD\u09AF\u09A8\u09CD\u09A4 \u0989\u099A\u09CD\u099A \u09B6\u0995\u09CD\u09A4\u09BF\u09B0 \u098F\u09B8\u09BF \u09AC\u09BE \u0997\u09BF\u099C\u09BE\u09B0 \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0 \u0995\u09AE\u09BF\u09AF\u09BC\u09C7 \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09A4\u09C7\u09B0 \u099A\u09BE\u09AA \u09B9\u09CD\u09B0\u09BE\u09B8 \u0995\u09B0\u09C1\u09A8\u0964",
+            impact: "high"
+          },
+          {
+            title: "\u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u09AD\u09CD\u09AF\u09BE\u09AE\u09CD\u09AA\u09BE\u09AF\u09BC\u09BE\u09B0 \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u09B0\u09CB\u09A7",
+            reason: `\u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u09AE\u09CB\u09A1\u09C7 \u099F\u09BF\u09AD\u09BF, \u09AE\u09BE\u0987\u0995\u09CD\u09B0\u09CB\u0993\u09AF\u09BC\u09C7\u09AD \u0993 \u099A\u09BE\u09B0\u09CD\u099C\u09BE\u09B0 \u09AC\u09A8\u09CD\u09A7 \u0995\u09B0\u09C7 \u09AE\u09BE\u09B8\u09C7 \u09AA\u09CD\u09B0\u09BE\u09AF\u09BC \u09F3${payload.vampirePowerBDT} \u09B8\u09BE\u09B6\u09CD\u09B0\u09AF\u09BC \u0995\u09B0\u09C1\u09A8\u0964`,
+            impact: "medium"
+          }
+        );
+      }
+      const explanation2 = `\u09E7. \u09A1\u09C7\u09B8\u0995\u09CB/\u09A1\u09BF\u09AA\u09BF\u09A1\u09BF\u09B8\u09BF \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09AC\u09BF\u09B6\u09CD\u09B2\u09C7\u09B7\u09A3: \u0986\u09AA\u09A8\u09BE\u09B0 \u09AA\u09B0\u09BF\u09AC\u09BE\u09B0 \u09AC\u09B0\u09CD\u09A4\u09AE\u09BE\u09A8\u09C7 "${payload.tariffSlabName}" \u09B8\u09CD\u09A4\u09B0\u09C7 \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0 \u0995\u09B0\u099B\u09C7\u0964 \u09AA\u09B0\u09AC\u09B0\u09CD\u09A4\u09C0 \u0989\u099A\u09CD\u099A\u09A4\u09B0 \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC\u09C7 \u0997\u09C7\u09B2\u09C7 \u09AA\u09CD\u09B0\u09A4\u09BF \u0987\u0989\u09A8\u09BF\u099F\u09C7\u09B0 \u09AE\u09C2\u09B2\u09CD\u09AF \u0989\u09B2\u09CD\u09B2\u09C7\u0996\u09AF\u09CB\u0997\u09CD\u09AF \u09B9\u09BE\u09B0\u09C7 \u09AC\u09C3\u09A6\u09CD\u09A7\u09BF \u09AA\u09BE\u09AC\u09C7\u0964
+\u09E8. \u0985\u09A8\u09C1\u09AE\u09CB\u09A6\u09BF\u09A4 \u09B2\u09CB\u09A1 \u09B8\u09C1\u09B0\u0995\u09CD\u09B7\u09BE: \u0986\u09AA\u09A8\u09BE\u09B0 \u09B8\u09B0\u09CD\u09AC\u09CB\u099A\u09CD\u099A \u0985\u09A8\u09C1\u09AE\u09CB\u09A6\u09BF\u09A4 \u09B2\u09CB\u09A1 ${payload.sanctionedLoadKw} kW\u0964 \u098F\u0995\u09BE\u09A7\u09BF\u0995 \u09AD\u09BE\u09B0\u09C0 \u09B8\u09B0\u099E\u09CD\u099C\u09BE\u09AE (\u09AF\u09C7\u09AE\u09A8 \u098F\u0995\u09BE\u09A7\u09BF\u0995 \u098F\u09B8\u09BF \u0993 \u0993\u09AF\u09BC\u09BE\u099F\u09BE\u09B0 \u09B9\u09BF\u099F\u09BE\u09B0) \u098F\u0995\u09B8\u09BE\u09A5\u09C7 \u099A\u09BE\u09B2\u09BE\u09B2\u09C7 \u0985\u09A4\u09BF\u09B0\u09BF\u0995\u09CD\u09A4 \u09B2\u09CB\u09A1 \u09AA\u09C7\u09A8\u09BE\u09B2\u09CD\u099F\u09BF \u09AC\u09BE \u09AE\u09BF\u099F\u09BE\u09B0 \u099F\u09CD\u09B0\u09BF\u09AA \u09B9\u09A4\u09C7 \u09AA\u09BE\u09B0\u09C7\u0964
+\u09E9. \u09AD\u09CD\u09AF\u09BE\u09AE\u09CD\u09AA\u09BE\u09AF\u09BC\u09BE\u09B0 \u09AA\u09BE\u0993\u09AF\u09BC\u09BE\u09B0: \u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u09AA\u09CD\u09B2\u09BE\u0997 \u09B2\u09CB\u09A1 \u09A5\u09C7\u0995\u09C7 \u09AE\u09BE\u09B8\u09C7 \u0986\u09A8\u09C1\u09AE\u09BE\u09A8\u09BF\u0995 \u09F3${payload.vampirePowerBDT} \u0985\u09AA\u099A\u09AF\u09BC \u09B9\u099A\u09CD\u099B\u09C7\u0964 \u09B8\u09CD\u09AE\u09BE\u09B0\u09CD\u099F \u09AA\u09CD\u09B2\u09BE\u0997 \u09AC\u09BE \u09B8\u09C1\u0987\u099A \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0 \u0995\u09B0\u09C7 \u098F\u0987 \u09B8\u09BE\u09B6\u09CD\u09B0\u09AF\u09BC \u09A8\u09BF\u09B6\u09CD\u099A\u09BF\u09A4 \u0995\u09B0\u09BE \u09B8\u09AE\u09CD\u09AD\u09AC\u0964`;
+      return {
+        summary: summary2,
+        priorityActions: priorityActions2,
+        explanation: explanation2,
+        language: "bn"
+      };
+    }
+    const summary = `${payload.householdName} is currently drawing ${payload.currentActiveWatts} W of active load with projected monthly consumption of ${payload.monthlyKwh} kWh (projected bill: \u09F3${payload.projectedBillBDT.toLocaleString("en-US", { maximumFractionDigits: 0 })}). Compared against your sanctioned load of ${payload.sanctionedLoadKw} kW and monthly budget of \u09F3${payload.monthlyBudgetBDT.toLocaleString("en-US", { maximumFractionDigits: 0 })}, usage is ${payload.overagePercentage > 0 ? `${payload.overagePercentage.toFixed(1)}% over your set budget.` : "well within your allocated monthly budget."}`;
+    const priorityActions = (payload.deterministicRecommendations || []).slice(0, 3).map((rec) => ({
+      title: rec.title,
+      reason: rec.description,
+      impact: rec.priority.toLowerCase()
+    }));
+    if (priorityActions.length === 0) {
+      priorityActions.push(
+        {
+          title: "Shift Inductive Loads off Peak Hours",
+          reason: "Avoid concurrent running of Air Conditioners and Water Geysers during national peak hours (5:00 PM \u2013 11:00 PM).",
+          impact: "high"
+        },
+        {
+          title: "Eliminate Phantom Standby Waste",
+          reason: `Unplug idle appliances (microwave clocks, TV standby, set-top boxes) to reclaim ~\u09F3${payload.vampirePowerBDT}/month in wasted energy.`,
+          impact: "medium"
+        }
+      );
+    }
+    const explanation = `1. DESCO LT-A Slab Context: Your household is currently consuming in "${payload.tariffSlabName}". Under Bangladesh BERC residential tariff rules, crossing into higher tiers incurs steeper marginal rates per kWh.
+2. Sanctioned Demand Management: Your sanctioned load is ${payload.sanctionedLoadKw} kW. Keeping combined peak load under this threshold avoids utility demand penalties and feeder circuit breaker trips.
+3. Standby Vampire Loads: Approximately \u09F3${payload.vampirePowerBDT}/month is lost to standby leakage. Using smart power strips for entertainment units and chargers delivers immediate recurring savings.`;
+    return {
+      summary,
+      priorityActions,
+      explanation,
+      language: "en"
+    };
   }
 };
 

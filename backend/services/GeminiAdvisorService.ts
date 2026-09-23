@@ -28,7 +28,8 @@ export class GeminiAdvisorService {
     if (!apiKey || apiKey.trim() === '') {
       return {
         available: false,
-        fallbackReason: 'GEMINI_API_KEY is not configured in backend environment.',
+        fallbackReason: 'GEMINI_API_KEY is not configured in backend environment. Operating in Deterministic Energy Advisory mode.',
+        aiAdvice: this.generateDeterministicFallback(payload),
       };
     }
 
@@ -107,13 +108,13 @@ Requested Response Language: ${payload.language === 'bn' ? 'Bangla (bn)' : 'Engl
 
 Return the advisory response in the requested JSON structure.`;
 
-      // Call Gemini 2.0 Flash with timeout wrapper
+      // Call Gemini Flash with timeout wrapper
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Gemini API call timed out after 6 seconds')), 6000)
       );
 
       const generatePromise = ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         contents: promptText,
         config: {
           systemInstruction,
@@ -185,7 +186,95 @@ Return the advisory response in the requested JSON structure.`;
       return {
         available: false,
         fallbackReason: cleanReason,
+        aiAdvice: this.generateDeterministicFallback(payload),
       };
     }
+  }
+
+  /**
+   * Generates deterministic, localized energy advisory in English or Bangla
+   * when LLM credentials are not configured or rate-limited.
+   */
+  private static generateDeterministicFallback(payload: EnergyContextPayload): AiAdvisoryResponse {
+    const isBn = payload.language === 'bn';
+
+    if (isBn) {
+      const summary = `${payload.householdName}-এর বর্তমান সক্রিয় বিদ্যুৎ লোড ${payload.currentActiveWatts} ওয়াট এবং মাসিক আনুমানিক খরচ ${payload.monthlyKwh} ইউনিট (আনুমানিক মোট বিল: ৳${payload.projectedBillBDT.toLocaleString('en-US', { maximumFractionDigits: 0 })})। অনুমোদিত লোড ${payload.sanctionedLoadKw} কিলোওয়াট এবং মাসিক বাজেট ৳${payload.monthlyBudgetBDT.toLocaleString('en-US', { maximumFractionDigits: 0 })}-এর বিপরীতে আপনার খরচ বর্তমানে ${
+        payload.overagePercentage > 0
+          ? `${payload.overagePercentage.toFixed(1)}% বাজেটের বেশি রয়েছে।`
+          : 'বাজেটের মধ্যে সুরক্ষিত রয়েছে।'
+      }`;
+
+      const priorityActions = (payload.deterministicRecommendations || []).slice(0, 3).map(rec => ({
+        title: rec.title,
+        reason: rec.description,
+        impact: rec.priority.toLowerCase() as 'high' | 'medium' | 'low',
+      }));
+
+      if (priorityActions.length === 0) {
+        priorityActions.push(
+          {
+            title: 'পিক আওয়ার লোড স্থানান্তর',
+            reason: 'বিকাল ৫টা থেকে রাত ১১টা পর্যন্ত উচ্চ শক্তির এসি বা গিজার ব্যবহার কমিয়ে বিদ্যুতের চাপ হ্রাস করুন।',
+            impact: 'high',
+          },
+          {
+            title: 'স্ট্যান্ডবাই ভ্যাম্পায়ার বিদ্যুৎ রোধ',
+            reason: `স্ট্যান্ডবাই মোডে টিভি, মাইক্রোওয়েভ ও চার্জার বন্ধ করে মাসে প্রায় ৳${payload.vampirePowerBDT} সাশ্রয় করুন।`,
+            impact: 'medium',
+          }
+        );
+      }
+
+      const explanation = `১. ডেসকো/ডিপিডিসি স্ল্যাব বিশ্লেষণ: আপনার পরিবার বর্তমানে "${payload.tariffSlabName}" স্তরে বিদ্যুৎ ব্যবহার করছে। পরবর্তী উচ্চতর স্ল্যাবে গেলে প্রতি ইউনিটের মূল্য উল্লেখযোগ্য হারে বৃদ্ধি পাবে।
+২. অনুমোদিত লোড সুরক্ষা: আপনার সর্বোচ্চ অনুমোদিত লোড ${payload.sanctionedLoadKw} kW। একাধিক ভারী সরঞ্জাম (যেমন একাধিক এসি ও ওয়াটার হিটার) একসাথে চালালে অতিরিক্ত লোড পেনাল্টি বা মিটার ট্রিপ হতে পারে।
+৩. ভ্যাম্পায়ার পাওয়ার: স্ট্যান্ডবাই প্লাগ লোড থেকে মাসে আনুমানিক ৳${payload.vampirePowerBDT} অপচয় হচ্ছে। স্মার্ট প্লাগ বা সুইচ ব্যবহার করে এই সাশ্রয় নিশ্চিত করা সম্ভব।`;
+
+      return {
+        summary,
+        priorityActions,
+        explanation,
+        language: 'bn',
+      };
+    }
+
+    // English Fallback
+    const summary = `${payload.householdName} is currently drawing ${payload.currentActiveWatts} W of active load with projected monthly consumption of ${payload.monthlyKwh} kWh (projected bill: ৳${payload.projectedBillBDT.toLocaleString('en-US', { maximumFractionDigits: 0 })}). Compared against your sanctioned load of ${payload.sanctionedLoadKw} kW and monthly budget of ৳${payload.monthlyBudgetBDT.toLocaleString('en-US', { maximumFractionDigits: 0 })}, usage is ${
+      payload.overagePercentage > 0
+        ? `${payload.overagePercentage.toFixed(1)}% over your set budget.`
+        : 'well within your allocated monthly budget.'
+    }`;
+
+    const priorityActions = (payload.deterministicRecommendations || []).slice(0, 3).map(rec => ({
+      title: rec.title,
+      reason: rec.description,
+      impact: rec.priority.toLowerCase() as 'high' | 'medium' | 'low',
+    }));
+
+    if (priorityActions.length === 0) {
+      priorityActions.push(
+        {
+          title: 'Shift Inductive Loads off Peak Hours',
+          reason: 'Avoid concurrent running of Air Conditioners and Water Geysers during national peak hours (5:00 PM – 11:00 PM).',
+          impact: 'high',
+        },
+        {
+          title: 'Eliminate Phantom Standby Waste',
+          reason: `Unplug idle appliances (microwave clocks, TV standby, set-top boxes) to reclaim ~৳${payload.vampirePowerBDT}/month in wasted energy.`,
+          impact: 'medium',
+        }
+      );
+    }
+
+    const explanation = `1. DESCO LT-A Slab Context: Your household is currently consuming in "${payload.tariffSlabName}". Under Bangladesh BERC residential tariff rules, crossing into higher tiers incurs steeper marginal rates per kWh.
+2. Sanctioned Demand Management: Your sanctioned load is ${payload.sanctionedLoadKw} kW. Keeping combined peak load under this threshold avoids utility demand penalties and feeder circuit breaker trips.
+3. Standby Vampire Loads: Approximately ৳${payload.vampirePowerBDT}/month is lost to standby leakage. Using smart power strips for entertainment units and chargers delivers immediate recurring savings.`;
+
+    return {
+      summary,
+      priorityActions,
+      explanation,
+      language: 'en',
+    };
   }
 }

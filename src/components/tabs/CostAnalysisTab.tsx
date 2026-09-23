@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Calculator, AlertTriangle, TrendingUp, CheckCircle, Sliders, DollarSign, Layers, PieChart } from 'lucide-react';
-import { TariffType, CostCalculation, BudgetStatus } from '../../../shared/types/energy';
+import {
+  Calculator,
+  AlertTriangle,
+  TrendingUp,
+  CheckCircle,
+  Sliders,
+  DollarSign,
+  Layers,
+  PieChart,
+  ShieldAlert,
+  Clock,
+  Target,
+  ArrowUpRight,
+  Zap
+} from 'lucide-react';
+import { TariffType, CostCalculation, BudgetStatus, SlabThresholdAnalysis } from '../../../shared/types/energy';
 import { Household } from '../../../shared/types/household';
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 import { BudgetEngine } from '../../../backend/engine/BudgetEngine';
@@ -31,6 +45,14 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
     30,
     household.sanctionedLoadKw,
     selectedTariffType
+  );
+
+  // Compute predictive BERC slab threshold risk analysis
+  const slabAnalysis: SlabThresholdAnalysis = TariffCalculator.analyzeSlabThreshold(
+    kwhInput,
+    daysPassedInput,
+    30,
+    household.sanctionedLoadKw
   );
 
   return (
@@ -262,6 +284,112 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
           </div>
         </div>
 
+      </div>
+
+      {/* Predictive BERC Slab Threshold Risk Monitor */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+              slabAnalysis.projectedBreachOccurs ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
+            }`}>
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <span>BERC Progressive Slab Threshold Risk Monitor</span>
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase ${
+                  slabAnalysis.projectedBreachOccurs
+                    ? 'bg-rose-950 text-rose-400 border border-rose-800'
+                    : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                }`}>
+                  {slabAnalysis.projectedBreachOccurs ? 'Step Jump Hazard' : 'Safe Tier Profile'}
+                </span>
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                Predictive slab transition tracking to protect households against steep marginal unit rate jumps
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="text-[10px] text-slate-500 uppercase block font-mono">Current Active Tier</span>
+            <span className="text-xs font-bold text-emerald-400 font-mono">
+              {slabAnalysis.currentSlabName} (৳{slabAnalysis.currentRateBDT}/unit)
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          {/* Metric 1: Next Slab Jump */}
+          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
+              <ArrowUpRight className="w-3 h-3 text-amber-400" />
+              Next Step Margin
+            </span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-base font-bold font-mono text-white">
+                {slabAnalysis.nextRateBDT ? `৳${slabAnalysis.nextRateBDT}` : 'Max Tier'}
+              </span>
+              {slabAnalysis.rateJumpPercentage > 0 && (
+                <span className="text-[11px] font-bold text-rose-400 font-mono">
+                  (+{slabAnalysis.rateJumpPercentage}%)
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              {slabAnalysis.nextSlabName || 'Top BERC step reached'}
+            </p>
+          </div>
+
+          {/* Metric 2: Breach Countdown */}
+          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
+              <Clock className="w-3 h-3 text-emerald-400" />
+              Breach Countdown
+            </span>
+            <div className="text-base font-bold font-mono text-white">
+              {slabAnalysis.daysUntilBreach !== null
+                ? `${slabAnalysis.daysUntilBreach} Days`
+                : 'No Limit'}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              {slabAnalysis.kwhRemainingToBreach > 0
+                ? `${slabAnalysis.kwhRemainingToBreach} kWh buffer remaining`
+                : 'Already in top tier'}
+            </p>
+          </div>
+
+          {/* Metric 3: Target Daily Cap */}
+          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
+              <Target className="w-3 h-3 text-emerald-400" />
+              Target Daily Cap
+            </span>
+            <div className="text-base font-bold font-mono text-emerald-400">
+              {slabAnalysis.maxDailyKwhToStayInSlab > 0
+                ? `${slabAnalysis.maxDailyKwhToStayInSlab} kWh/day`
+                : 'Slab Exceeded'}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Limit to maintain {slabAnalysis.currentSlabName.split(' ')[0]} {slabAnalysis.currentSlabName.split(' ')[1]}
+            </p>
+          </div>
+
+          {/* Metric 4: Avoidable Penalty */}
+          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
+              <Zap className="w-3 h-3 text-amber-400" />
+              Avoidable Surcharge
+            </span>
+            <div className="text-base font-bold font-mono text-amber-400">
+              ৳{slabAnalysis.avoidableMonthlySurchargeBDT.toLocaleString('en-US', { maximumFractionDigits: 0 })} BDT
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Savings if breach is averted
+            </p>
+          </div>
+        </div>
       </div>
 
     </div>

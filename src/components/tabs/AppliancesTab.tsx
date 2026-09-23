@@ -58,6 +58,22 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
     7.34
   );
 
+  const computeApplianceHealth = (app: Appliance) => {
+    let score = 92;
+    if (!app.isInverterType) score -= 18;
+    if (app.standbyPowerW > 10) score -= 8;
+    if (app.ratedPowerW > 1500 && !app.isInverterType) score -= 9;
+    score = Math.max(50, Math.min(100, score));
+
+    if (score >= 85) {
+      return { score, label: 'Optimal', badgeStyle: 'text-emerald-400 bg-emerald-950/80 border-emerald-800' };
+    }
+    if (score >= 70) {
+      return { score, label: 'Serviceable', badgeStyle: 'text-amber-400 bg-amber-950/80 border-amber-800' };
+    }
+    return { score, label: 'High Draw', badgeStyle: 'text-rose-400 bg-rose-950/80 border-rose-800' };
+  };
+
   const handleSubmitNewAppliance = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !onAddAppliance) return;
@@ -120,6 +136,8 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
                 <div className="space-y-2">
                   {roomApps.map((app) => {
                     const isOn = activeApplianceStates[app.id] ?? true;
+                    const health = computeApplianceHealth(app);
+
                     return (
                       <div
                         key={app.id}
@@ -127,10 +145,15 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
                           isOn ? 'bg-slate-900 border-emerald-500/30' : 'bg-slate-900/40 border-slate-800 opacity-70'
                         }`}
                       >
-                        <div>
-                          <span className="font-bold text-xs text-slate-200 block">{app.name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {app.ratedPowerW}W • {app.isInverterType ? 'Inverter ★' : 'Standard'}
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs text-slate-200 block">{app.name}</span>
+                            <span className={`text-[9px] px-1.5 py-0.2 rounded border font-mono font-bold ${health.badgeStyle}`}>
+                              {health.score}% {health.label}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono block">
+                            {app.ratedPowerW}W • {app.isInverterType ? 'Inverter ★' : 'Standard'} • Standby: {app.standbyPowerW}W
                           </span>
                         </div>
 

@@ -56,6 +56,7 @@ KilowattIQ is an enterprise-grade, full-stack IoT Smart Energy Management platfo
 
 ## 📑 Documentation
 
+- 📘 **[Master Technical Architecture & Engineering Manual](docs/MASTER_TECHNICAL_MANUAL.md)** *(Comprehensive system guide, math models, and interview preparation)*
 - [Vercel Deployment Guide](docs/VERCEL_DEPLOYMENT.md)
 - [Demo Guide & Presentation Script](docs/DEMO_GUIDE.md)
 - [API Reference](docs/API_REFERENCE.md)

@@ -179,4 +179,21 @@ export interface FullReportData {
   aiAdvice?: AiAdvisoryResponse;
 }
 
+export interface SlabThresholdAnalysis {
+  currentSlabName: string;
+  currentRateBDT: number;
+  nextSlabName: string | null;
+  nextRateBDT: number | null;
+  rateJumpPercentage: number;
+  thresholdKwh: number | null;
+  kwhRemainingToBreach: number;
+  burnRateKwhPerDay: number;
+  projectedMonthEndKwh: number;
+  daysUntilBreach: number | null;
+  projectedBreachOccurs: boolean;
+  maxDailyKwhToStayInSlab: number;
+  avoidableMonthlySurchargeBDT: number;
+}
+
+
 
