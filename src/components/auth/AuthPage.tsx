@@ -97,6 +97,72 @@ export const AuthPage: React.FC = () => {
         {/* Auth Card */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 backdrop-blur-md">
           
+          {/* Instant Prototype Access Hero Section */}
+          <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/30 shadow-lg shadow-emerald-500/5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[11px] font-bold text-emerald-400 tracking-wider uppercase">
+                  Interactive Prototype Ready
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-300 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20">
+                No setup required
+              </span>
+            </div>
+            
+            <p className="text-xs text-slate-300 mb-3.5 leading-relaxed">
+              Launch directly into the fully simulated live smart grid prototype with pre-loaded DESCO AMI meters, appliance telemetry, and Bangladesh slab tariff analytics.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('consumer')}
+                className="group w-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 hover:border-emerald-400 rounded-xl p-3 text-left transition-all cursor-pointer flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-300 group-hover:text-emerald-200">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Gulshan Resident</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+                <span className="text-[10px] text-slate-400 group-hover:text-slate-300">
+                  Live dashboard, IoT telemetry, slab tariffs & AI advisor
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('admin')}
+                className="group w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 rounded-xl p-3 text-left transition-all cursor-pointer flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-300 group-hover:text-amber-200">
+                    <Shield className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Grid Administrator</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+                <span className="text-[10px] text-slate-400 group-hover:text-slate-300">
+                  National utility grid, BERC tariffs & load stress monitor
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="relative flex py-2 items-center mb-5">
+            <div className="flex-grow border-t border-slate-800"></div>
+            <span className="flex-shrink mx-3 text-[10px] uppercase font-semibold tracking-wider text-slate-500">
+              Or sign in with custom account
+            </span>
+            <div className="flex-grow border-t border-slate-800"></div>
+          </div>
+
           {/* Mode Switcher Tabs */}
           <div className="grid grid-cols-2 bg-slate-950 p-1 rounded-xl border border-slate-800/80 mb-6">
             <button

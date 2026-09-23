@@ -1,12 +1,26 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
-let url = process.env.SUPABASE_URL || '';
-if (url.includes('supabase.com/dashboard/project/')) {
-  const ref = url.split('supabase.com/dashboard/project/')[1].split('/')[0];
-  url = `https://${ref}.supabase.co`;
-} else if (!url.startsWith('http://') && !url.startsWith('https://')) {
-  url = `https://${url}`;
+let rawUrl = (process.env.SUPABASE_URL || '').trim();
+let url = '';
+if (rawUrl) {
+  if (/^[a-z0-9]{20}$/i.test(rawUrl)) {
+    url = `https://${rawUrl}.supabase.co`;
+  } else if (rawUrl.includes('/project/')) {
+    const ref = rawUrl.split('/project/')[1].split('/')[0].split('?')[0];
+    url = `https://${ref}.supabase.co`;
+  } else {
+    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+      rawUrl = `https://${rawUrl}`;
+    }
+    try {
+      const parsed = new URL(rawUrl);
+      url = `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      const match = rawUrl.match(/([a-z0-9_-]+\.supabase\.co)/i);
+      url = match ? `https://${match[1]}` : rawUrl.replace(/\/+$/, '');
+    }
+  }
 }
 
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
