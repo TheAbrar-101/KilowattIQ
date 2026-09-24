@@ -2070,9 +2070,20 @@ data: ${JSON.stringify(payload)}
   };
   await pushTelemetry();
   const timer = setInterval(pushTelemetry, 1500);
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  let serverlessSafetyTimer = null;
+  if (isServerless) {
+    res.write("retry: 500\n\n");
+    serverlessSafetyTimer = setTimeout(() => {
+      isClosed = true;
+      clearInterval(timer);
+      res.end();
+    }, 8500);
+  }
   req.on("close", () => {
     isClosed = true;
     clearInterval(timer);
+    if (serverlessSafetyTimer) clearTimeout(serverlessSafetyTimer);
     res.end();
   });
 });

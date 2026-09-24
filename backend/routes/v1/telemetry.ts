@@ -97,9 +97,24 @@ router.get('/stream', async (req: AuthenticatedRequest, res: Response) => {
   // Schedule sub-second / 1.5s interval updates
   const timer = setInterval(pushTelemetry, 1500);
 
+  // If running in a serverless environment (e.g. Vercel / AWS Lambda),
+  // rotate the stream gracefully at 8.5 seconds to prevent function invocation timeouts (504 Gateway Timeout)
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  let serverlessSafetyTimer: any = null;
+
+  if (isServerless) {
+    res.write('retry: 500\n\n');
+    serverlessSafetyTimer = setTimeout(() => {
+      isClosed = true;
+      clearInterval(timer);
+      res.end();
+    }, 8500);
+  }
+
   req.on('close', () => {
     isClosed = true;
     clearInterval(timer);
+    if (serverlessSafetyTimer) clearTimeout(serverlessSafetyTimer);
     res.end();
   });
 });
