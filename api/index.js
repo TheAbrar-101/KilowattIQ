@@ -3230,12 +3230,15 @@ router8.get("/data", async (req, res) => {
     return res.status(500).json({ status: "error", message: "Internal server error compiling report data." });
   }
 });
-router8.get("/export", async (req, res) => {
+router8.get(["/export", "/export/:format"], async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ status: "error", message: "Authentication required. Please log in." });
   }
   const householdId = req.query.householdId || "11111111-1111-4111-a111-111111111111";
-  const format = req.query.format?.toLowerCase() === "pdf" ? "pdf" : "csv";
+  const paramFormat = req.params?.format;
+  const queryFormat = req.query?.format;
+  const requestedFormat = (paramFormat || queryFormat || "csv").toLowerCase();
+  const format = requestedFormat === "pdf" ? "pdf" : "csv";
   if (!isHouseholdAuthorized3(req, householdId)) {
     return res.status(403).json({ status: "error", message: "Access denied to requested household report." });
   }

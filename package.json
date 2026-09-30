@@ -10,6 +10,7 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
     "seed": "tsx backend/scripts/seed_demo.ts",
+    "test:checkpoints": "tsx backend/scripts/test_system_checkpoints.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

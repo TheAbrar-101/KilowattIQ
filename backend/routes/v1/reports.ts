@@ -148,13 +148,17 @@ router.get('/data', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // GET /api/v1/reports/export?householdId=...&format=pdf|csv
-router.get('/export', async (req: AuthenticatedRequest, res: Response) => {
+// GET /api/v1/reports/export/:format
+router.get(['/export', '/export/:format'], async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ status: 'error', message: 'Authentication required. Please log in.' });
   }
 
   const householdId = (req.query.householdId as string) || '11111111-1111-4111-a111-111111111111';
-  const format = (req.query.format as string)?.toLowerCase() === 'pdf' ? 'pdf' : 'csv';
+  const paramFormat = req.params?.format;
+  const queryFormat = req.query?.format as string;
+  const requestedFormat = (paramFormat || queryFormat || 'csv').toLowerCase();
+  const format = requestedFormat === 'pdf' ? 'pdf' : 'csv';
 
   if (!isHouseholdAuthorized(req, householdId)) {
     return res.status(403).json({ status: 'error', message: 'Access denied to requested household report.' });
