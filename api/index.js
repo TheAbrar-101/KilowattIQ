@@ -3388,7 +3388,7 @@ var handleHealthCheck = async (req, res) => {
     });
   }
 };
-app.get(["/", "/api"], (req, res) => {
+app.get(["/api", "/api/v1"], (req, res) => {
   res.json({
     status: "success",
     service: "KilowattIQ Backend API",
@@ -3419,9 +3419,8 @@ for (const { path, router: router13 } of routes) {
   app.use(`/api/v1/${path}`, router13);
   app.use(`/v1/${path}`, router13);
   app.use(`/api/${path}`, router13);
-  app.use(`/${path}`, router13);
 }
-app.use((req, res) => {
+app.use(["/api", "/v1"], (req, res) => {
   res.status(404).json({
     status: "error",
     statusCode: 404,

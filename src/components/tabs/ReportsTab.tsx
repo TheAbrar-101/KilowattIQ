@@ -178,12 +178,12 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             <button
               onClick={() => handleDownloadExport('csv')}
               disabled={isExportingCsv}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0 active:scale-95"
             >
               {isExportingCsv ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin stroke-[2.5]" />
               ) : (
-                <Download className="w-4 h-4 text-slate-950" />
+                <Download className="w-4 h-4 text-slate-950 stroke-[2.5]" />
               )}
               <span>{isExportingCsv ? 'Generating CSV...' : 'Export CSV'}</span>
             </button>
@@ -192,12 +192,12 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             <button
               onClick={() => handleDownloadExport('pdf')}
               disabled={isExportingPdf}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0 active:scale-95"
             >
               {isExportingPdf ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin stroke-[2.5]" />
               ) : (
-                <FileText className="w-4 h-4 text-white" />
+                <FileText className="w-4 h-4 text-slate-950 stroke-[2.5]" />
               )}
               <span>{isExportingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
             </button>
@@ -205,9 +205,9 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             {/* Print View */}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl border border-slate-700 transition-all cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold font-display px-3.5 py-2 rounded-xl border border-slate-700/80 transition-all cursor-pointer shrink-0"
             >
-              <Printer className="w-4 h-4 text-slate-400" />
+              <Printer className="w-4 h-4 text-slate-300" />
               <span>Print Report</span>
             </button>
           </div>

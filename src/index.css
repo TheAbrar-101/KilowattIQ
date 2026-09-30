@@ -1,1 +1,89 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: #cbd5e1; /* slate-300: gentle, eye-soothing tone against deep slate dark background */
+    background-color: #0b0f19;
+    line-height: 1.625;
+    letter-spacing: 0.012em;
+  }
+
+  /* Eye-soothing plain text rules */
+  p, li, dd, blockquote {
+    color: #cbd5e1;
+    font-weight: 400;
+    line-height: 1.68;
+    letter-spacing: 0.014em;
+  }
+
+  .text-muted, .text-slate-400, .text-slate-500 {
+    letter-spacing: 0.012em;
+  }
+
+  /* Headings: Crisp, well-fronted structure */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: #f8fafc;
+  }
+
+  /* Clickable elements: Bolder, prominent, well-fronted and tactile */
+  button,
+  a,
+  select,
+  input[type="button"],
+  input[type="submit"],
+  [role="button"],
+  .clickable-action {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Clickable hover and active tactile states */
+  button:not(:disabled):hover,
+  a:not([aria-disabled="true"]):hover,
+  [role="button"]:not([aria-disabled="true"]):hover {
+    filter: brightness(1.08);
+  }
+
+  button:not(:disabled):active,
+  a:not([aria-disabled="true"]):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(0.98);
+  }
+
+  /* Focus rings for clear accessibility affordance */
+  button:focus-visible,
+  a:focus-visible,
+  select:focus-visible,
+  input:focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+  }
+
+  /* Numeric and Telemetry displays */
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}

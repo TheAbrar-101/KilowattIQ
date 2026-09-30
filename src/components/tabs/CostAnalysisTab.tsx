@@ -72,22 +72,43 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">Tariff Model:</span>
+            <div className="flex items-center gap-1.5 bg-slate-950 p-1 border border-slate-800 rounded-xl">
+              {[
+                { label: '120 kWh', val: 120 },
+                { label: '285 kWh', val: 285 },
+                { label: '420 kWh', val: 420 },
+              ].map((preset) => (
+                <button
+                  key={preset.val}
+                  type="button"
+                  onClick={() => setKwhInput(preset.val)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold font-display transition-all cursor-pointer ${
+                    kwhInput === preset.val
+                      ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+              <span className="text-[10px] text-slate-400 font-bold uppercase font-display">Tariff Model:</span>
               <select
                 value={selectedTariffType}
                 onChange={(e) => setSelectedTariffType(e.target.value as TariffType)}
-                className="bg-transparent text-emerald-400 font-bold focus:outline-none cursor-pointer text-xs"
+                className="bg-transparent text-emerald-400 font-extrabold font-display focus:outline-none cursor-pointer text-xs"
               >
-                <option value="SLAB" className="bg-slate-900 text-slate-200">Slab / Tiered (Standard BD)</option>
-                <option value="FLAT" className="bg-slate-900 text-slate-200">Flat Rate Tariff</option>
-                <option value="TOU" className="bg-slate-900 text-slate-200">Time-Of-Use (Peak / Off-Peak)</option>
-                <option value="SEASONAL" className="bg-slate-900 text-slate-200">Seasonal Adjusted</option>
+                <option value="SLAB" className="bg-slate-900 text-slate-200 font-bold">Slab / Tiered (Standard BD)</option>
+                <option value="FLAT" className="bg-slate-900 text-slate-200 font-bold">Flat Rate Tariff</option>
+                <option value="TOU" className="bg-slate-900 text-slate-200 font-bold">Time-Of-Use (Peak / Off-Peak)</option>
+                <option value="SEASONAL" className="bg-slate-900 text-slate-200 font-bold">Seasonal Adjusted</option>
               </select>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">Consumption:</span>
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+              <span className="text-[10px] text-slate-400 font-bold uppercase font-display">Consumption:</span>
               <input
                 type="number"
                 min="0"

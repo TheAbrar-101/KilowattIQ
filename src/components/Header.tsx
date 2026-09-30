@@ -55,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Center: Household Selector & Realtime Badge */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs">
+          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700/80 hover:border-slate-600 rounded-lg px-2.5 py-1 text-xs transition-colors">
             <Building2 className="w-3.5 h-3.5 text-emerald-400" />
             <select
               value={activeHousehold?.id || ''}
@@ -63,10 +63,10 @@ export const Header: React.FC<HeaderProps> = ({
                 const found = households.find(h => h.id === e.target.value);
                 if (found) onSelectHousehold(found);
               }}
-              className="bg-transparent text-xs text-slate-200 font-semibold focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-100 font-bold font-display tracking-wide focus:outline-none cursor-pointer"
             >
               {households.map(h => (
-                <option key={h.id} value={h.id} className="bg-slate-900 text-slate-200">
+                <option key={h.id} value={h.id} className="bg-slate-900 text-slate-100 font-bold">
                   {h.name} ({h.utilityProvider})
                 </option>
               ))}
@@ -87,27 +87,27 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleAdminMode}
-            className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border transition-all uppercase tracking-wider ${
+            className={`flex items-center gap-1.5 text-xs font-bold font-display px-3 py-1.5 rounded-lg border transition-all uppercase tracking-wider cursor-pointer ${
               isAdminMode
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/50 shadow-sm'
+                : 'bg-slate-800/90 text-slate-200 border-slate-700 hover:bg-slate-800 hover:border-slate-600'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[10px]">{isAdminMode ? 'Admin View' : 'Consumer View'}</span>
+            <span className="text-[10px] font-extrabold">{isAdminMode ? 'Admin View' : 'Consumer View'}</span>
           </button>
 
           {/* User Profile Menu Dropdown */}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg px-2.5 py-1 transition-all cursor-pointer"
+              className="flex items-center gap-2 bg-slate-950 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 rounded-lg px-2.5 py-1.5 transition-all cursor-pointer font-display"
             >
-              <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[11px] font-bold text-emerald-400">
+              <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-[11px] font-black text-emerald-300">
                 {getInitials(user?.fullName)}
               </div>
               <div className="hidden sm:flex flex-col items-start text-left">
-                <span className="text-xs font-bold text-slate-200 leading-tight">
+                <span className="text-xs font-bold text-slate-100 leading-tight">
                   {user?.fullName || 'Authenticated User'}
                 </span>
                 <span className="text-[10px] text-slate-400 leading-tight">

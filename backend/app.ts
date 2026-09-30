@@ -61,7 +61,7 @@ const handleHealthCheck = async (req: express.Request, res: express.Response) =>
 };
 
 // Health check and root ping endpoints
-app.get(['/', '/api'], (req, res) => {
+app.get(['/api', '/api/v1'], (req, res) => {
   res.json({
     status: 'success',
     service: 'KilowattIQ Backend API',
@@ -75,7 +75,7 @@ app.get('/api/v1/health', handleHealthCheck);
 app.get('/health', handleHealthCheck);
 app.get('/v1/health', handleHealthCheck);
 
-// RESTful API Routes (Mounted under /api/v1, /v1, /api, and direct root paths)
+// RESTful API Routes (Mounted under /api/v1, /v1, and /api)
 const routes = [
   { path: 'auth', router: authRoutes },
   { path: 'profile', router: profileRoutes },
@@ -96,11 +96,10 @@ for (const { path, router } of routes) {
   app.use(`/api/v1/${path}`, router);
   app.use(`/v1/${path}`, router);
   app.use(`/api/${path}`, router);
-  app.use(`/${path}`, router);
 }
 
-// Universal catch-all 404 handler for any unmatched endpoint (always returns JSON, never HTML)
-app.use((req: express.Request, res: express.Response) => {
+// Universal API 404 handler for unmatched /api requests (always returns JSON, never HTML)
+app.use(['/api', '/v1'], (req: express.Request, res: express.Response) => {
   res.status(404).json({
     status: 'error',
     statusCode: 404,

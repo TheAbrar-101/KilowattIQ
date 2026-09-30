@@ -111,9 +111,9 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer"
+            className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black font-display px-4 py-2 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer active:scale-95"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 stroke-[3]" />
             <span>Add Appliance</span>
           </button>
         </div>
@@ -160,10 +160,10 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
                         <button
                           onClick={() => handleToggle(app.id)}
                           disabled={togglingId === app.id}
-                          className={`p-1.5 rounded-lg border text-[10px] font-bold font-mono transition-all flex items-center gap-1 cursor-pointer ${
+                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-extrabold font-display transition-all flex items-center gap-1.5 cursor-pointer ${
                             isOn
-                              ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
-                              : 'bg-slate-800 border-slate-700 text-slate-400'
+                              ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 font-black shadow-sm'
+                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
                           } ${togglingId === app.id ? 'opacity-50 animate-pulse' : ''}`}
                         >
                           <Power className={`w-3 h-3 ${togglingId === app.id ? 'animate-spin' : ''}`} />
@@ -401,13 +401,13 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 font-bold rounded-xl"
+                    className="px-4 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold font-display rounded-xl cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-md"
+                    className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-display rounded-xl shadow-md cursor-pointer active:scale-95"
                   >
                     Save Appliance
                   </button>

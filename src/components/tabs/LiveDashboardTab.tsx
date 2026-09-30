@@ -128,7 +128,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             </div>
             <button
               onClick={() => onSetTotalWatts && onSetTotalWatts(1200)}
-              className="bg-rose-500 hover:bg-rose-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-all shadow-md shrink-0"
+              className="bg-rose-500 hover:bg-rose-400 text-slate-950 font-black font-display px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-md shrink-0 cursor-pointer active:scale-95"
             >
               Reduce Load Now
             </button>
@@ -244,7 +244,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             <button
               onClick={handleSurge}
               disabled={isSimulatingSurge}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-amber-400 text-xs font-bold py-2 px-3 rounded-xl transition-all shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 bg-slate-950 hover:bg-slate-800/90 border border-amber-500/30 hover:border-amber-400/60 text-amber-300 font-display font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all shadow-sm cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>{isSimulatingSurge ? 'Surge Injected...' : 'Simulate Evening Peak Surge'}</span>
@@ -252,7 +252,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             <button
               onClick={() => onSetTotalWatts && onSetTotalWatts(1200)}
               title="Reset Baseline Load"
-              className="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors"
+              className="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer font-bold"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -339,10 +339,10 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                   <button
                     key={r}
                     onClick={() => setTimeRange(r)}
-                    className={`px-2 py-0.5 rounded font-bold font-mono transition-all ${
+                    className={`px-2.5 py-1 rounded-md font-extrabold font-display transition-all cursor-pointer ${
                       timeRange === r
                         ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                     }`}
                   >
                     {r}

@@ -122,16 +122,16 @@ export const AuthPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleDemoLogin('consumer')}
-                className="group w-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 hover:border-emerald-400 rounded-xl p-3 text-left transition-all cursor-pointer flex flex-col justify-between"
+                className="group w-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 hover:border-emerald-400 rounded-xl p-3 text-left transition-all cursor-pointer flex flex-col justify-between active:scale-[0.98]"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-300 group-hover:text-emerald-200">
+                  <div className="flex items-center gap-1.5 font-extrabold font-display text-xs text-emerald-300 group-hover:text-emerald-200">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Gulshan Resident</span>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-                <span className="text-[10px] text-slate-400 group-hover:text-slate-300">
+                <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-sans">
                   Live dashboard, IoT telemetry, slab tariffs & AI advisor
                 </span>
               </button>
@@ -139,16 +139,16 @@ export const AuthPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleDemoLogin('admin')}
-                className="group w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 rounded-xl p-3 text-left transition-all cursor-pointer flex flex-col justify-between"
+                className="group w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 rounded-xl p-3 text-left transition-all cursor-pointer flex flex-col justify-between active:scale-[0.98]"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-300 group-hover:text-amber-200">
+                  <div className="flex items-center gap-1.5 font-extrabold font-display text-xs text-amber-300 group-hover:text-amber-200">
                     <Shield className="w-3.5 h-3.5 text-amber-400" />
                     <span>Grid Administrator</span>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-                <span className="text-[10px] text-slate-400 group-hover:text-slate-300">
+                <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-sans">
                   National utility grid, BERC tariffs & load stress monitor
                 </span>
               </button>
@@ -157,7 +157,7 @@ export const AuthPage: React.FC = () => {
 
           <div className="relative flex py-2 items-center mb-5">
             <div className="flex-grow border-t border-slate-800"></div>
-            <span className="flex-shrink mx-3 text-[10px] uppercase font-semibold tracking-wider text-slate-500">
+            <span className="flex-shrink mx-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 font-display">
               Or sign in with custom account
             </span>
             <div className="flex-grow border-t border-slate-800"></div>
@@ -171,9 +171,9 @@ export const AuthPage: React.FC = () => {
                 setIsRegisterMode(false);
                 setFormError(null);
               }}
-              className={`py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`py-2 text-xs font-extrabold font-display rounded-lg transition-all cursor-pointer ${
                 !isRegisterMode
-                  ? 'bg-slate-800 text-white shadow-sm'
+                  ? 'bg-slate-800 text-white shadow-sm font-black'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -185,9 +185,9 @@ export const AuthPage: React.FC = () => {
                 setIsRegisterMode(true);
                 setFormError(null);
               }}
-              className={`py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`py-2 text-xs font-extrabold font-display rounded-lg transition-all cursor-pointer ${
                 isRegisterMode
-                  ? 'bg-slate-800 text-white shadow-sm'
+                  ? 'bg-slate-800 text-white shadow-sm font-black'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -335,14 +335,14 @@ export const AuthPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full mt-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black font-display py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>{isRegisterMode ? 'Create Account & Access' : 'Sign In to Dashboard'}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span className="tracking-wide">{isRegisterMode ? 'Create Account & Access' : 'Sign In to Dashboard'}</span>
+                  <ArrowRight className="w-4 h-4 stroke-[3]" />
                 </>
               )}
             </button>

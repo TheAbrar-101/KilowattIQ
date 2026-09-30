@@ -33,16 +33,16 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
                 <button
                   key={tab.id}
                   onClick={() => onSelectTab(tab.id)}
-                  className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold tracking-wide whitespace-nowrap transition-all cursor-pointer font-display ${
                     isActive
-                      ? 'text-emerald-400'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      ? 'text-emerald-300 font-extrabold shadow-sm'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70'
                   }`}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeTabPill"
-                      className="absolute inset-0 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"
+                      className="absolute inset-0 bg-emerald-500/15 border border-emerald-500/40 rounded-xl shadow-sm"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
