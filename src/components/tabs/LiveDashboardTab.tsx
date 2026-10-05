@@ -21,6 +21,7 @@ import {
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { PowerReading } from '../../../shared/types/energy';
 import { Household, Appliance } from '../../../shared/types/household';
+import { apiClient, ApiError } from '../../lib/apiClient';
 
 interface LiveDashboardTabProps {
   household: Household;
@@ -43,6 +44,8 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
 }) => {
   const [timeRange, setTimeRange] = useState<'1H' | '12H' | '24H'>('12H');
   const [isSimulatingSurge, setIsSimulatingSurge] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
 
   const currentKw = totalActiveWatts / 1000;
   const maxKw = household.sanctionedLoadKw || 4.5;
@@ -61,6 +64,43 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
   const currentHourlyCostBDT = currentKw * 7.34; // DESCO LT-A Step 4 rate
   const estimatedDailyCostBDT = currentHourlyCostBDT * 14;
   const estimatedMonthlyCostBDT = currentKw * 18 * 30 * 6.95;
+
+  // Real-time telemetry query using typed apiClient with retry and error handling
+  const handleSyncTelemetry = async () => {
+    setIsSyncing(true);
+    setSyncFeedback(null);
+    try {
+      const response = await apiClient.get<{
+        status: string;
+        data: {
+          activePowerW: number;
+          gridVoltage: number;
+          frequencyHz: number;
+          powerFactor: number;
+          timestamp?: string;
+        };
+      }>('/telemetry/live', {
+        params: { householdId: household.id },
+      });
+
+      if (response.data && response.data.activePowerW !== undefined) {
+        if (onSetTotalWatts) {
+          onSetTotalWatts(response.data.activePowerW);
+        }
+        setSyncFeedback({ text: `Synced: ${response.data.activePowerW} W (${response.data.gridVoltage} V)` });
+        setTimeout(() => setSyncFeedback(null), 3500);
+      }
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setSyncFeedback({ text: `[${err.code}] ${err.message}`, isError: true });
+      } else {
+        setSyncFeedback({ text: 'Failed to sync with smart meter.', isError: true });
+      }
+      setTimeout(() => setSyncFeedback(null), 4000);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Generate chart data from liveReadings or dynamic fallback
   const chartData = (liveReadings.length > 0 ? liveReadings : [
@@ -155,10 +195,40 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
               </div>
             </div>
 
-            <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${statusStyle.border} ${statusStyle.text} bg-slate-950 font-mono tracking-wider uppercase`}>
-              {loadPercentage > 85 ? 'OVERLOAD RISK' : loadPercentage > 60 ? 'MODERATE LOAD' : 'OPTIMAL LOAD'}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSyncTelemetry}
+                disabled={isSyncing}
+                title="Fetch live reading via typed apiClient (/api/v1/telemetry/live)"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-400 rounded-lg text-[10px] font-bold font-display transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                <RotateCcw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+                <span>{isSyncing ? 'Syncing...' : 'Sync AMI'}</span>
+              </button>
+              <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${statusStyle.border} ${statusStyle.text} bg-slate-950 font-mono tracking-wider uppercase`}>
+                {loadPercentage > 85 ? 'OVERLOAD RISK' : loadPercentage > 60 ? 'MODERATE LOAD' : 'OPTIMAL LOAD'}
+              </span>
+            </div>
           </div>
+
+          {/* Sync API Feedback Toast/Badge */}
+          <AnimatePresence>
+            {syncFeedback && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className={`mt-2 px-3 py-1 rounded-lg text-[11px] font-mono border flex items-center gap-1.5 ${
+                  syncFeedback.isError
+                    ? 'bg-rose-950/80 border-rose-800 text-rose-300'
+                    : 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
+                }`}
+              >
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                <span>{syncFeedback.text}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Radial Power Dial Visual */}
           <div className="py-6 flex flex-col items-center justify-center relative">

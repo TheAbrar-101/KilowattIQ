@@ -128,6 +128,93 @@ router.post('/logout', (req: AuthenticatedRequest, res: Response) => {
   });
 });
 
+// POST /api/v1/auth/refresh
+router.post('/refresh', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const refreshToken = req.body?.refreshToken || req.headers['x-refresh-token'];
+    
+    // Support demo logins in mock/offline mode
+    if (req.user?.id === 'usr_admin' || req.body?.refreshToken === 'admin-refresh-token') {
+      return res.json({
+        status: 'success',
+        data: {
+          token: 'admin-jwt-token',
+          refreshToken: 'admin-refresh-token',
+          user: {
+            id: 'usr_admin',
+            email: 'admin@kilowattiq.bd',
+            fullName: 'System Administrator',
+            role: 'ADMIN',
+          },
+        },
+      });
+    }
+
+    if (req.user?.id === 'usr_dhaka_01' || req.body?.refreshToken === 'demo-refresh-token') {
+      return res.json({
+        status: 'success',
+        data: {
+          token: 'demo-jwt-token',
+          refreshToken: 'demo-refresh-token',
+          user: {
+            id: 'usr_dhaka_01',
+            email: 'demo@kilowattiq.bd',
+            fullName: 'Tanvir Hossain',
+            role: 'CONSUMER',
+          },
+        },
+      });
+    }
+
+    const serviceClient = db.getServiceClient();
+    if (refreshToken && serviceClient) {
+      const { data, error } = await serviceClient.auth.refreshSession({
+        refresh_token: String(refreshToken),
+      });
+
+      if (error || !data.session) {
+        return res.status(401).json({
+          status: 'error',
+          code: 'AUTH_REFRESH_FAILED',
+          message: 'Unable to refresh session. Please log in again.',
+        });
+      }
+
+      return res.json({
+        status: 'success',
+        data: {
+          token: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+          user: data.user,
+        },
+      });
+    }
+
+    if (req.user) {
+      const token = req.headers.authorization?.replace(/^Bearer\s+/i, '') || 'session-token';
+      return res.json({
+        status: 'success',
+        data: {
+          token,
+          user: req.user,
+        },
+      });
+    }
+
+    return res.status(401).json({
+      status: 'error',
+      code: 'AUTH_NO_TOKEN',
+      message: 'No valid refresh credentials provided.',
+    });
+  } catch (err: any) {
+    return res.status(401).json({
+      status: 'error',
+      code: 'AUTH_REFRESH_ERROR',
+      message: err?.message || 'Token refresh failed.',
+    });
+  }
+});
+
 // GET /api/v1/auth/me
 router.get('/me', async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {

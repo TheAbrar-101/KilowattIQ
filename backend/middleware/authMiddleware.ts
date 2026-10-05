@@ -21,8 +21,8 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
 
     const path = req.path.replace(/\/+$/, '') || '/';
 
-    // Root and non-API paths (e.g., static assets, Vite SPA routes)
-    if (path === '/' || path === '/api' || (!path.startsWith('/api') && !path.startsWith('/v1') && !path.startsWith('/auth') && !path.startsWith('/devices') && !path.startsWith('/telemetry') && !path.startsWith('/analytics') && !path.startsWith('/reports') && !path.startsWith('/admin') && !path.startsWith('/tariffs') && !path.startsWith('/budgets') && !path.startsWith('/profile') && !path.startsWith('/households'))) {
+    // Root and non-API paths (e.g., static assets, Vite SPA routes, API ping)
+    if (path === '/' || path === '/api' || path === '/api/v1' || path === '/v1' || (!path.startsWith('/api') && !path.startsWith('/v1') && !path.startsWith('/auth') && !path.startsWith('/devices') && !path.startsWith('/telemetry') && !path.startsWith('/analytics') && !path.startsWith('/reports') && !path.startsWith('/admin') && !path.startsWith('/tariffs') && !path.startsWith('/budgets') && !path.startsWith('/profile') && !path.startsWith('/households'))) {
       return next();
     }
 
@@ -30,9 +30,12 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     const isPublicPath =
       path === '/' ||
       path === '/api' ||
+      path === '/api/v1' ||
+      path === '/v1' ||
       path.endsWith('/health') ||
       path.endsWith('/auth/login') ||
       path.endsWith('/auth/register') ||
+      path.endsWith('/auth/refresh') ||
       path.includes('/system/');
 
     if (authHeader && authHeader.startsWith('Bearer ')) {

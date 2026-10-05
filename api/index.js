@@ -1,5 +1,5 @@
 // backend/app.ts
-import express from "express";
+import express2 from "express";
 
 // backend/middleware/logger.ts
 function requestLogger(req, res, next) {
@@ -1021,10 +1021,10 @@ async function authMiddleware(req, res, next) {
     const db12 = SupabaseService.getInstance();
     const authHeader = req.headers.authorization || (req.query.token ? `Bearer ${req.query.token}` : void 0) || (req.query.access_token ? `Bearer ${req.query.access_token}` : void 0);
     const path = req.path.replace(/\/+$/, "") || "/";
-    if (path === "/" || path === "/api" || !path.startsWith("/api") && !path.startsWith("/v1") && !path.startsWith("/auth") && !path.startsWith("/devices") && !path.startsWith("/telemetry") && !path.startsWith("/analytics") && !path.startsWith("/reports") && !path.startsWith("/admin") && !path.startsWith("/tariffs") && !path.startsWith("/budgets") && !path.startsWith("/profile") && !path.startsWith("/households")) {
+    if (path === "/" || path === "/api" || path === "/api/v1" || path === "/v1" || !path.startsWith("/api") && !path.startsWith("/v1") && !path.startsWith("/auth") && !path.startsWith("/devices") && !path.startsWith("/telemetry") && !path.startsWith("/analytics") && !path.startsWith("/reports") && !path.startsWith("/admin") && !path.startsWith("/tariffs") && !path.startsWith("/budgets") && !path.startsWith("/profile") && !path.startsWith("/households")) {
       return next();
     }
-    const isPublicPath = path === "/" || path === "/api" || path.endsWith("/health") || path.endsWith("/auth/login") || path.endsWith("/auth/register") || path.includes("/system/");
+    const isPublicPath = path === "/" || path === "/api" || path === "/api/v1" || path === "/v1" || path.endsWith("/health") || path.endsWith("/auth/login") || path.endsWith("/auth/register") || path.endsWith("/auth/refresh") || path.includes("/system/");
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
       if (token === "admin-jwt-token") {
@@ -1098,6 +1098,9 @@ async function authMiddleware(req, res, next) {
     });
   }
 }
+
+// src/server/router.ts
+import { Router as Router13 } from "express";
 
 // backend/routes/v1/auth.ts
 import { Router } from "express";
@@ -1209,6 +1212,83 @@ router.post("/logout", (req, res) => {
     status: "success",
     message: "Logged out successfully."
   });
+});
+router.post("/refresh", async (req, res) => {
+  try {
+    const refreshToken = req.body?.refreshToken || req.headers["x-refresh-token"];
+    if (req.user?.id === "usr_admin" || req.body?.refreshToken === "admin-refresh-token") {
+      return res.json({
+        status: "success",
+        data: {
+          token: "admin-jwt-token",
+          refreshToken: "admin-refresh-token",
+          user: {
+            id: "usr_admin",
+            email: "admin@kilowattiq.bd",
+            fullName: "System Administrator",
+            role: "ADMIN"
+          }
+        }
+      });
+    }
+    if (req.user?.id === "usr_dhaka_01" || req.body?.refreshToken === "demo-refresh-token") {
+      return res.json({
+        status: "success",
+        data: {
+          token: "demo-jwt-token",
+          refreshToken: "demo-refresh-token",
+          user: {
+            id: "usr_dhaka_01",
+            email: "demo@kilowattiq.bd",
+            fullName: "Tanvir Hossain",
+            role: "CONSUMER"
+          }
+        }
+      });
+    }
+    const serviceClient = db.getServiceClient();
+    if (refreshToken && serviceClient) {
+      const { data, error } = await serviceClient.auth.refreshSession({
+        refresh_token: String(refreshToken)
+      });
+      if (error || !data.session) {
+        return res.status(401).json({
+          status: "error",
+          code: "AUTH_REFRESH_FAILED",
+          message: "Unable to refresh session. Please log in again."
+        });
+      }
+      return res.json({
+        status: "success",
+        data: {
+          token: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+          user: data.user
+        }
+      });
+    }
+    if (req.user) {
+      const token = req.headers.authorization?.replace(/^Bearer\s+/i, "") || "session-token";
+      return res.json({
+        status: "success",
+        data: {
+          token,
+          user: req.user
+        }
+      });
+    }
+    return res.status(401).json({
+      status: "error",
+      code: "AUTH_NO_TOKEN",
+      message: "No valid refresh credentials provided."
+    });
+  } catch (err) {
+    return res.status(401).json({
+      status: "error",
+      code: "AUTH_REFRESH_ERROR",
+      message: err?.message || "Token refresh failed."
+    });
+  }
 });
 router.get("/me", async (req, res) => {
   if (!req.user) {
@@ -3355,18 +3435,7 @@ router12.get("/", async (req, res) => {
 });
 var budgets_default = router12;
 
-// backend/app.ts
-var app = express();
-app.use((req, res, next) => {
-  const matchedPath = req.headers["x-matched-path"] || req.headers["x-vercel-matched-path"];
-  if (matchedPath && (req.url === "/api" || req.url === "/api/") && matchedPath !== req.url) {
-    req.url = matchedPath;
-  }
-  next();
-});
-app.use(express.json());
-app.use(requestLogger);
-app.use(authMiddleware);
+// src/server/router.ts
 var handleHealthCheck = async (req, res) => {
   const db12 = SupabaseService.getInstance();
   const testResult = await db12.testDatabaseConnection();
@@ -3375,8 +3444,11 @@ var handleHealthCheck = async (req, res) => {
       success: true,
       data: {
         service: "KilowattIQ API",
+        version: "1.0.0",
+        apiVersion: "v1",
         database: "Supabase PostgreSQL",
-        databaseStatus: "connected"
+        databaseStatus: "connected",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
       }
     });
   } else {
@@ -3384,52 +3456,90 @@ var handleHealthCheck = async (req, res) => {
       success: false,
       data: {
         service: "KilowattIQ API",
+        version: "1.0.0",
+        apiVersion: "v1",
         database: "Supabase PostgreSQL",
         databaseStatus: "disconnected",
-        error: testResult.error
+        error: testResult.error,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
       }
     });
   }
 };
-app.get(["/api", "/api/v1"], (req, res) => {
-  res.json({
-    status: "success",
-    service: "KilowattIQ Backend API",
-    version: "1.0.0",
-    timestamp: (/* @__PURE__ */ new Date()).toISOString()
-  });
-});
-app.get("/api/health", handleHealthCheck);
-app.get("/api/v1/health", handleHealthCheck);
-app.get("/health", handleHealthCheck);
-app.get("/v1/health", handleHealthCheck);
-var routes = [
-  { path: "auth", router: auth_default },
-  { path: "profile", router: profile_default },
-  { path: "my-households", router: households_default },
-  { path: "households", router: households_default },
-  { path: "devices", router: devices_default },
-  { path: "telemetry", router: telemetry_default },
-  { path: "analytics", router: analytics_default },
-  { path: "recommendations", router: recommendations_default },
-  { path: "reports", router: reports_default },
-  { path: "admin", router: admin_default },
-  { path: "system", router: system_default },
-  { path: "tariffs", router: tariffs_default },
-  { path: "budgets", router: budgets_default }
-];
-for (const { path, router: router13 } of routes) {
-  app.use(`/api/v1/${path}`, router13);
-  app.use(`/v1/${path}`, router13);
-  app.use(`/api/${path}`, router13);
+function legacyApiRewriteMiddleware(req, res, next) {
+  const originalUrl = req.url;
+  if (originalUrl === "/api" || originalUrl === "/api/") {
+    res.setHeader("X-API-Deprecated", "true");
+    req.url = "/api/v1";
+    return next();
+  }
+  if (originalUrl.startsWith("/api/") && !originalUrl.startsWith("/api/v1/") && originalUrl !== "/api/v1") {
+    res.setHeader("X-API-Deprecated", "true");
+    req.url = originalUrl.replace(/^\/api\//, "/api/v1/");
+    return next();
+  }
+  if (originalUrl.startsWith("/v1/") || originalUrl === "/v1") {
+    res.setHeader("X-API-Deprecated", "true");
+    req.url = originalUrl.replace(/^\/v1/, "/api/v1");
+    return next();
+  }
+  next();
 }
-app.use(["/api", "/v1"], (req, res) => {
-  res.status(404).json({
-    status: "error",
-    statusCode: 404,
-    message: `API endpoint not found: ${req.method} ${req.originalUrl || req.url}`
+function createV1Router() {
+  const v1 = Router13();
+  v1.get("/", (req, res) => {
+    res.json({
+      status: "success",
+      service: "KilowattIQ Backend API",
+      version: "1.0.0",
+      apiVersion: "v1",
+      canonical: true,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
   });
+  v1.get("/health", handleHealthCheck);
+  v1.use("/auth", auth_default);
+  v1.use("/profile", profile_default);
+  v1.use("/households", households_default);
+  v1.use("/my-households", households_default);
+  v1.use("/devices", devices_default);
+  v1.use("/telemetry", telemetry_default);
+  v1.use("/analytics", analytics_default);
+  v1.use("/recommendations", recommendations_default);
+  v1.use("/reports", reports_default);
+  v1.use("/admin", admin_default);
+  v1.use("/system", system_default);
+  v1.use("/tariffs", tariffs_default);
+  v1.use("/budgets", budgets_default);
+  return v1;
+}
+function setupApiRouter(app2) {
+  app2.use(legacyApiRewriteMiddleware);
+  const v1Router = createV1Router();
+  app2.use("/api/v1", v1Router);
+  app2.use("/v1", v1Router);
+  app2.use(["/api", "/api/v1", "/v1"], (req, res) => {
+    res.status(404).json({
+      status: "error",
+      statusCode: 404,
+      message: `API endpoint not found: ${req.method} ${req.originalUrl || req.url}`
+    });
+  });
+}
+
+// backend/app.ts
+var app = express2();
+app.use((req, res, next) => {
+  const matchedPath = req.headers["x-matched-path"] || req.headers["x-vercel-matched-path"];
+  if (matchedPath && (req.url === "/api" || req.url === "/api/") && matchedPath !== req.url) {
+    req.url = matchedPath;
+  }
+  next();
 });
+app.use(express2.json());
+app.use(requestLogger);
+app.use(authMiddleware);
+setupApiRouter(app);
 app.use(errorHandler);
 var app_default = app;
 
