@@ -68,12 +68,14 @@ KilowattIQ bridges physical electrical hardware with cloud-native analytics. It 
 ### Metric Definitions & Units
 | Metric | Symbol | Unit | Typical Range (BD Residential) | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Active Power** | $P$ | Watts (W) | $150\text{ W} - 6,500\text{ W}$ | Actual real power consumed doing work |
-| **Voltage** | $V$ | Volts (V) | $195\text{ V} - 235\text{ V}$ AC | Single-phase RMS supply voltage |
-| **Current** | $I$ | Amperes (A) | $0.8\text{ A} - 32.0\text{ A}$ | Root Mean Square current drawn |
-| **Power Factor** | $PF$ | $\cos(\theta)$ | $0.75 - 0.99$ | Ratio of Real Power to Apparent Power ($P/S$) |
-| **Grid Frequency**| $f$ | Hertz (Hz) | $49.5\text{ Hz} - 50.5\text{ Hz}$ | Bangladesh national grid nominal frequency |
-| **Accumulated Energy** | $E$ | kWh (Units) | $100 - 800\text{ kWh/month}$ | Time integral: $\int P(t) dt$ |
+| **Active Power** | $P$ | Watts (W) | $0\text{ W} - 6,500\text{ W}$ | Actual real power consumed doing work (Live wattage range) |
+| **Voltage** | $V$ | Volts (V) | $220\text{ V} \pm 10\%\text{ (}195\text{ V} - 245\text{ V window)}$ | Single-phase RMS supply voltage |
+| **Current** | $I$ | Amperes (A) | $0.0\text{ A} - 32.0\text{ A}$ | Root Mean Square current drawn |
+| **Power Factor** | $PF$ | $\cos(\theta)$ | $0.85 - 0.99$ | Ratio of Real Power to Apparent Power ($P/S$) |
+| **Grid Frequency**| $f$ | Hertz (Hz) | $50\text{ Hz} \pm 1\%\text{ (}49.5\text{ Hz} - 50.5\text{ Hz)}$ | Bangladesh national grid nominal frequency |
+| **Standby / Vampire Power** | $P_{\text{standby}}$ | Watts (W) | $0.5\text{ W} - 15.0\text{ W}$ per device | Phantom leakage when equipment is idle/off |
+| **Accumulated Energy** | $E$ | kWh (Units) | $0 - 1,200\text{ kWh/month}$ | Time integral: $\int P(t) dt$ |
+| **Grid Carbon Factor** | $EF_{\text{grid}}$ | $\text{kg CO}_2\text{/kWh}$ | $0.62\text{ kg CO}_2\text{ per kWh}$ | Bangladesh national grid emission factor |
 
 ### Telemetry Packet Schema (MQTT / JSON)
 Devices publish payloads to topic `kilowattiq/{householdId}/telemetry`:
@@ -107,6 +109,11 @@ Bangladesh Energy Regulatory Commission (BERC) mandates a progressive slab struc
 | **Step 4** | $301 - 400\text{ kWh}$ | ৳8.02 | 100 kWh |
 | **Step 5** | $401 - 600\text{ kWh}$ | ৳12.67 | 200 kWh |
 | **Step 6** | Above $600\text{ kWh}$ | ৳14.61 | $\infty$ |
+
+### Slab Threshold Transition Metrics & Jump Penalties
+When residential consumption transitions across slab boundaries, KilowattIQ's predictive engine issues pre-emptive amber alerts based on the marginal rate penalties:
+- **Step 3 $\to$ Step 4 Transition Jump**: $\Delta R = \text{৳}1.10\text{/kWh}$ (Crosses 300 kWh threshold; prompts pre-emptive conservation alert).
+- **Step 4 $\to$ Step 5 Transition Jump**: $\Delta R = \text{৳}1.35\text{/kWh}$ (Crosses 400 kWh threshold; high-risk tariff jump entering peak pricing tiers).
 
 ### Complete Bill Computation Formula
 The total gross monthly bill $B_{\text{total}}$ is defined as:
