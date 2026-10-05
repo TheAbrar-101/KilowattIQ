@@ -19,27 +19,8 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       (req.query.token ? `Bearer ${req.query.token}` : undefined) ||
       (req.query.access_token ? `Bearer ${req.query.access_token}` : undefined);
 
-    const path = req.path.replace(/\/+$/, '') || '/';
-
-    // Root and non-API paths (e.g., static assets, Vite SPA routes, API ping)
-    if (path === '/' || path === '/api' || path === '/api/v1' || path === '/v1' || (!path.startsWith('/api') && !path.startsWith('/v1') && !path.startsWith('/auth') && !path.startsWith('/devices') && !path.startsWith('/telemetry') && !path.startsWith('/analytics') && !path.startsWith('/reports') && !path.startsWith('/admin') && !path.startsWith('/tariffs') && !path.startsWith('/budgets') && !path.startsWith('/profile') && !path.startsWith('/households'))) {
-      return next();
-    }
-
-    // Public authentication and health endpoints
-    const isPublicPath =
-      path === '/' ||
-      path === '/api' ||
-      path === '/api/v1' ||
-      path === '/v1' ||
-      path.endsWith('/health') ||
-      path.endsWith('/auth/login') ||
-      path.endsWith('/auth/register') ||
-      path.endsWith('/auth/refresh') ||
-      path.includes('/system/');
-
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+      const token = authHeader.substring(7).trim();
 
       if (token === 'admin-jwt-token') {
         req.user = {
@@ -87,11 +68,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       }
     }
 
-    if (isPublicPath) {
-      return next();
-    }
-
-    // Inject demo fallback ONLY if requested with x-demo-user header
+    // Demo header fallback
     const demoHeader = req.headers['x-demo-mode'];
     if (demoHeader === 'true') {
       req.user = {

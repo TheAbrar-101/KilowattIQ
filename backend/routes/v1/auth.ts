@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { AuthenticatedRequest } from '../../middleware/authMiddleware';
+import { AuthenticatedRequest, authMiddleware } from '../../middleware/authMiddleware';
 import { SupabaseService } from '../../services/SupabaseService';
 
 const router = Router();
@@ -215,8 +215,8 @@ router.post('/refresh', async (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-// GET /api/v1/auth/me
-router.get('/me', async (req: AuthenticatedRequest, res: Response) => {
+// GET /api/v1/auth/me (Protected)
+router.get('/me', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ status: 'error', message: 'Not authenticated' });
   }
@@ -232,8 +232,8 @@ router.get('/me', async (req: AuthenticatedRequest, res: Response) => {
   });
 });
 
-// GET /api/v1/auth/session
-router.get('/session', async (req: AuthenticatedRequest, res: Response) => {
+// GET /api/v1/auth/session (Protected)
+router.get('/session', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ status: 'error', message: 'No active session' });
   }

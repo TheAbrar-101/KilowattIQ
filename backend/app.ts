@@ -18,7 +18,6 @@ app.use((req, res, next) => {
 // Global Middlewares
 app.use(express.json());
 app.use(requestLogger);
-app.use(authMiddleware);
 
 // Canonical /api/v1 router and transparent rewrite layer
 setupApiRouter(app);

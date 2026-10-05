@@ -26,6 +26,9 @@ function errorHandler(err, req, res, next) {
   });
 }
 
+// src/server/router.ts
+import { Router as Router13 } from "express";
+
 // backend/services/SupabaseService.ts
 import { createClient } from "@supabase/supabase-js";
 var DEMO_HOUSEHOLD_UUID = "11111111-1111-4111-a111-111111111111";
@@ -1020,13 +1023,8 @@ async function authMiddleware(req, res, next) {
   try {
     const db12 = SupabaseService.getInstance();
     const authHeader = req.headers.authorization || (req.query.token ? `Bearer ${req.query.token}` : void 0) || (req.query.access_token ? `Bearer ${req.query.access_token}` : void 0);
-    const path = req.path.replace(/\/+$/, "") || "/";
-    if (path === "/" || path === "/api" || path === "/api/v1" || path === "/v1" || !path.startsWith("/api") && !path.startsWith("/v1") && !path.startsWith("/auth") && !path.startsWith("/devices") && !path.startsWith("/telemetry") && !path.startsWith("/analytics") && !path.startsWith("/reports") && !path.startsWith("/admin") && !path.startsWith("/tariffs") && !path.startsWith("/budgets") && !path.startsWith("/profile") && !path.startsWith("/households")) {
-      return next();
-    }
-    const isPublicPath = path === "/" || path === "/api" || path === "/api/v1" || path === "/v1" || path.endsWith("/health") || path.endsWith("/auth/login") || path.endsWith("/auth/register") || path.endsWith("/auth/refresh") || path.includes("/system/");
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
+      const token = authHeader.substring(7).trim();
       if (token === "admin-jwt-token") {
         req.user = {
           id: "usr_admin",
@@ -1071,9 +1069,6 @@ async function authMiddleware(req, res, next) {
         });
       }
     }
-    if (isPublicPath) {
-      return next();
-    }
     const demoHeader = req.headers["x-demo-mode"];
     if (demoHeader === "true") {
       req.user = {
@@ -1098,9 +1093,6 @@ async function authMiddleware(req, res, next) {
     });
   }
 }
-
-// src/server/router.ts
-import { Router as Router13 } from "express";
 
 // backend/routes/v1/auth.ts
 import { Router } from "express";
@@ -1290,7 +1282,7 @@ router.post("/refresh", async (req, res) => {
     });
   }
 });
-router.get("/me", async (req, res) => {
+router.get("/me", authMiddleware, async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ status: "error", message: "Not authenticated" });
   }
@@ -1303,7 +1295,7 @@ router.get("/me", async (req, res) => {
     }
   });
 });
-router.get("/session", async (req, res) => {
+router.get("/session", authMiddleware, async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ status: "error", message: "No active session" });
   }
@@ -3499,26 +3491,38 @@ function createV1Router() {
   });
   v1.get("/health", handleHealthCheck);
   v1.use("/auth", auth_default);
-  v1.use("/profile", profile_default);
-  v1.use("/households", households_default);
-  v1.use("/my-households", households_default);
-  v1.use("/devices", devices_default);
-  v1.use("/telemetry", telemetry_default);
-  v1.use("/analytics", analytics_default);
-  v1.use("/recommendations", recommendations_default);
-  v1.use("/reports", reports_default);
-  v1.use("/admin", admin_default);
   v1.use("/system", system_default);
-  v1.use("/tariffs", tariffs_default);
-  v1.use("/budgets", budgets_default);
+  v1.use("/profile", authMiddleware, profile_default);
+  v1.use("/households", authMiddleware, households_default);
+  v1.use("/my-households", authMiddleware, households_default);
+  v1.use("/devices", authMiddleware, devices_default);
+  v1.use("/telemetry", authMiddleware, telemetry_default);
+  v1.use("/analytics", authMiddleware, analytics_default);
+  v1.use("/recommendations", authMiddleware, recommendations_default);
+  v1.use("/reports", authMiddleware, reports_default);
+  v1.use("/admin", authMiddleware, admin_default);
+  v1.use("/tariffs", authMiddleware, tariffs_default);
+  v1.use("/budgets", authMiddleware, budgets_default);
   return v1;
 }
 function setupApiRouter(app2) {
   app2.use(legacyApiRewriteMiddleware);
+  app2.get(["/api", "/api/"], (req, res) => {
+    res.setHeader("X-API-Deprecated", "true");
+    res.json({
+      status: "success",
+      service: "KilowattIQ Backend API",
+      version: "1.0.0",
+      apiVersion: "v1",
+      canonical: false,
+      canonicalEndpoint: "/api/v1",
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  });
   const v1Router = createV1Router();
   app2.use("/api/v1", v1Router);
   app2.use("/v1", v1Router);
-  app2.use(["/api", "/api/v1", "/v1"], (req, res) => {
+  app2.all(["/api", "/api/*", "/v1", "/v1/*"], (req, res) => {
     res.status(404).json({
       status: "error",
       statusCode: 404,
@@ -3538,7 +3542,6 @@ app.use((req, res, next) => {
 });
 app.use(express2.json());
 app.use(requestLogger);
-app.use(authMiddleware);
 setupApiRouter(app);
 app.use(errorHandler);
 var app_default = app;
