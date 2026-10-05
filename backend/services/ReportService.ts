@@ -1,5 +1,18 @@
 import PDFDocument from 'pdfkit';
 import { FullReportData } from '../../shared/types/energy';
+import {
+  registerReportFonts,
+  renderSmartText,
+  FONT_NOTO_BENGALI,
+  FONT_NOTO_BENGALI_BOLD,
+  FONT_SOLAIMAN_LIPI,
+  FONT_JETBRAINS_MONO,
+  FONT_LATIN,
+  FONT_LATIN_BOLD,
+  hasBanglaCharacters,
+} from '../../src/server/reports/pdf/fonts';
+
+export type ReportLanguage = 'en' | 'bn' | 'both';
 
 export class ReportService {
   /**
@@ -108,9 +121,9 @@ export class ReportService {
   }
 
   /**
-   * Generates a PDF buffer using PDFKit for official energy report download
+   * Generates a PDF buffer using PDFKit with embedded Bangla and Monospace fonts
    */
-  static async generatePDFReport(data: FullReportData): Promise<Buffer> {
+  static async generatePDFReport(data: FullReportData, language: ReportLanguage = 'en'): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({
@@ -124,6 +137,9 @@ export class ReportService {
         doc.on('end', () => resolve(Buffer.concat(buffers)));
         doc.on('error', err => reject(err));
 
+        // Register custom embedded fonts (Noto Sans Bengali, SolaimanLipi, JetBrains Mono)
+        registerReportFonts(doc);
+
         const primaryColor = '#0f172a'; // slate-900
         const accentEmerald = '#059669'; // emerald-600
         const textColor = '#1e293b'; // slate-800
@@ -131,32 +147,73 @@ export class ReportService {
         const tableBgHeader = '#f1f5f9'; // slate-100
         const tableBgAlt = '#f8fafc'; // slate-50
 
+        // Helper for smart typography rendering
+        const draw = (
+          text: string,
+          x?: number,
+          y?: number,
+          opts: {
+            isBold?: boolean;
+            isNumeric?: boolean;
+            fontSize?: number;
+            color?: string;
+            align?: 'left' | 'center' | 'right' | 'justify';
+            width?: number;
+          } = {}
+        ) => {
+          renderSmartText(doc, text, x, y, opts);
+        };
+
+        const isBangla = language === 'bn';
+        const isBoth = language === 'both';
+
         // --- HEADER BANNER ---
-        doc.rect(36, 36, 523, 60).fill(primaryColor);
-        
-        doc.fillColor('#ffffff').fontSize(18).font('Helvetica-Bold').text('KILOWATTIQ', 50, 48);
-        doc.fillColor('#10b981').fontSize(11).font('Helvetica-Bold').text('ENERGY AUDIT & ANALYTICS REPORT', 50, 68);
+        doc.rect(36, 36, 523, 64).fill(primaryColor);
 
-        doc.fillColor('#94a3b8').fontSize(9).font('Helvetica').text(`Reporting Period: ${data.reportingPeriod}`, 320, 50, { align: 'right', width: 220 });
-        doc.text(`Generated: ${data.generatedAt}`, 320, 65, { align: 'right', width: 220 });
+        // Header Title
+        if (isBangla) {
+          draw('কিলোওয়াট আইকিউ', 50, 46, { isBold: true, fontSize: 16, color: '#ffffff' });
+          draw('এনার্জি অ্যানালাইসিস রিপোর্ট — ৳১২,৪৫০', 50, 68, { isBold: true, fontSize: 11, color: '#10b981' });
+        } else if (isBoth) {
+          draw('KILOWATTIQ • কিলোওয়াট আইকিউ', 50, 46, { isBold: true, fontSize: 15, color: '#ffffff' });
+          draw('ENERGY AUDIT REPORT • এনার্জি অ্যানালাইসিস রিপোর্ট — ৳১২,৪৫০', 50, 68, { isBold: true, fontSize: 9.5, color: '#10b981' });
+        } else {
+          draw('KILOWATTIQ', 50, 46, { isBold: true, fontSize: 18, color: '#ffffff' });
+          draw('ENERGY AUDIT & ANALYTICS REPORT', 50, 68, { isBold: true, fontSize: 11, color: '#10b981' });
+        }
 
-        let y = 110;
+        const periodLabel = isBangla ? `রিপোর্টিং সময়কাল: ${data.reportingPeriod}` : `Reporting Period: ${data.reportingPeriod}`;
+        const genLabel = isBangla ? `তৈরির তারিখ: ${data.generatedAt}` : `Generated: ${data.generatedAt}`;
+
+        draw(periodLabel, 300, 48, { fontSize: 8.5, color: '#94a3b8', align: 'right', width: 240 });
+        draw(genLabel, 300, 64, { fontSize: 8.5, color: '#94a3b8', align: 'right', width: 240, isNumeric: true });
+
+        let y = 114;
 
         // --- HOUSEHOLD METADATA BOX ---
         doc.rect(36, y, 523, 65).fillAndStroke('#f8fafc', '#cbd5e1');
-        doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text('HOUSEHOLD INFORMATION', 48, y + 10);
+        const hhTitle = isBangla ? 'গ্রাহকের বিবরণী (Household Information)' : isBoth ? 'HOUSEHOLD INFORMATION • গ্রাহকের বিবরণী' : 'HOUSEHOLD INFORMATION';
+        draw(hhTitle, 48, y + 10, { isBold: true, fontSize: 10.5, color: primaryColor });
 
-        doc.fontSize(9).font('Helvetica').fillColor(textColor);
-        doc.text(`Household Name: ${data.household.name}`, 48, y + 28);
-        doc.text(`Account Serial: ${data.household.accountNumber}`, 48, y + 42);
+        const nameLabel = isBangla ? `গ্রাহক / বাসা: ${data.household.name}` : `Household Name: ${data.household.name}`;
+        const accLabel = isBangla ? `হিসাব নম্বর: ${data.household.accountNumber}` : `Account Serial: ${data.household.accountNumber}`;
+        const utilLabel = isBangla ? `বিদ্যুৎ বিতরণ সংস্থা: ${data.household.utilityProvider}` : `Utility Provider: ${data.household.utilityProvider}`;
+        const loadLabel = isBangla ? `অনুমোদিত লোড: ${data.household.sanctionedLoadKw} kW` : `Sanctioned Capacity: ${data.household.sanctionedLoadKw} kW`;
 
-        doc.text(`Utility Provider: ${data.household.utilityProvider}`, 300, y + 28);
-        doc.text(`Sanctioned Capacity: ${data.household.sanctionedLoadKw} kW`, 300, y + 42);
+        draw(nameLabel, 48, y + 28, { fontSize: 9, color: textColor });
+        draw(accLabel, 48, y + 42, { fontSize: 9, color: textColor, isNumeric: true });
+        draw(utilLabel, 300, y + 28, { fontSize: 9, color: textColor });
+        draw(loadLabel, 300, y + 42, { fontSize: 9, color: textColor, isNumeric: true });
 
         y += 80;
 
         // --- SECTION 1: EXECUTIVE ENERGY & FINANCIAL SUMMARY ---
-        doc.fillColor(accentEmerald).fontSize(12).font('Helvetica-Bold').text('1. Executive Energy & Billing Summary', 36, y);
+        const sec1Title = isBangla
+          ? '১. নির্বাহী এনার্জি ও বিলিং সারসংক্ষেপ'
+          : isBoth
+          ? '1. Executive Energy & Billing Summary (সারসংক্ষেপ)'
+          : '1. Executive Energy & Billing Summary';
+        draw(sec1Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
 
         const summaryBoxWidth = 120;
@@ -164,37 +221,41 @@ export class ReportService {
 
         // Box 1: Total Consumption
         doc.rect(36, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, '#e2e8f0');
-        doc.fillColor(mutedTextColor).fontSize(8).font('Helvetica-Bold').text('TOTAL CONSUMPTION', 42, y + 8);
-        doc.fillColor(primaryColor).fontSize(13).font('Helvetica-Bold').text(`${data.energySummary.totalMonthlyKwh} kWh`, 42, y + 24);
+        draw(isBangla ? 'মোট ব্যবহার' : 'TOTAL CONSUMPTION', 42, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`${data.energySummary.totalMonthlyKwh} kWh`, 42, y + 24, { isBold: true, fontSize: 12, color: primaryColor, isNumeric: true });
 
         // Box 2: Projected Bill
         doc.rect(170, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, '#e2e8f0');
-        doc.fillColor(mutedTextColor).fontSize(8).font('Helvetica-Bold').text('PROJECTED BILL (BDT)', 176, y + 8);
-        doc.fillColor(accentEmerald).fontSize(13).font('Helvetica-Bold').text(`BDT ${data.costAnalysis.grossTotalBDT}`, 176, y + 24);
+        draw(isBangla ? 'প্রাক্কলিত বিল (BDT)' : 'PROJECTED BILL (BDT)', 176, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`৳ ${data.costAnalysis.grossTotalBDT}`, 176, y + 24, { isBold: true, fontSize: 12, color: accentEmerald, isNumeric: true });
 
         // Box 3: Monthly Budget
         doc.rect(304, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, '#e2e8f0');
-        doc.fillColor(mutedTextColor).fontSize(8).font('Helvetica-Bold').text('MONTHLY BUDGET', 310, y + 8);
-        doc.fillColor('#d97706').fontSize(13).font('Helvetica-Bold').text(`BDT ${data.household.monthlyBudgetBDT}`, 310, y + 24);
+        draw(isBangla ? 'মাসিক বাজেট' : 'MONTHLY BUDGET', 310, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`৳ ${data.household.monthlyBudgetBDT}`, 310, y + 24, { isBold: true, fontSize: 12, color: '#d97706', isNumeric: true });
 
         // Box 4: Effective Rate
         doc.rect(438, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, '#e2e8f0');
-        doc.fillColor(mutedTextColor).fontSize(8).font('Helvetica-Bold').text('EFFECTIVE RATE', 444, y + 8);
-        doc.fillColor(textColor).fontSize(13).font('Helvetica-Bold').text(`BDT ${data.costAnalysis.effectiveRatePerKwh}/kWh`, 444, y + 24);
+        draw(isBangla ? 'কার্যকর রেট' : 'EFFECTIVE RATE', 444, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`৳ ${data.costAnalysis.effectiveRatePerKwh}/kWh`, 444, y + 24, { isBold: true, fontSize: 11.5, color: textColor, isNumeric: true });
 
         y += 65;
 
         // --- SECTION 2: TARIFF SLAB BREAKDOWN ---
-        doc.fillColor(accentEmerald).fontSize(12).font('Helvetica-Bold').text('2. DESCO/DPDC LT-A Tariff Step Breakdown', 36, y);
+        const sec2Title = isBangla
+          ? '২. ডেসকো/ডিপিডিসি বিইআরসি স্ল্যাব ধাপভিত্তিক খরচ'
+          : isBoth
+          ? '2. DESCO/DPDC LT-A Tariff Step Breakdown (স্ল্যাব বিশ্লেষণ)'
+          : '2. DESCO/DPDC LT-A Tariff Step Breakdown';
+        draw(sec2Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
 
         // Table Header
         doc.rect(36, y, 523, 20).fill(tableBgHeader);
-        doc.fillColor(primaryColor).fontSize(9).font('Helvetica-Bold');
-        doc.text('Slab Tier', 46, y + 5);
-        doc.text('kWh in Slab', 200, y + 5);
-        doc.text('Rate (BDT/kWh)', 330, y + 5);
-        doc.text('Cost in Slab (BDT)', 440, y + 5);
+        draw(isBangla ? 'স্ল্যাব ধাপ' : 'Slab Tier', 46, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'ব্যবহৃত ইউনিট' : 'kWh in Slab', 200, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'রেট (টাকা/kWh)' : 'Rate (BDT/kWh)', 330, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'ধাপের খরচ (টাকা)' : 'Cost in Slab (BDT)', 440, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
         y += 20;
 
         if (data.costAnalysis.slabBreakdown) {
@@ -202,44 +263,48 @@ export class ReportService {
             if (i % 2 === 1) {
               doc.rect(36, y, 523, 18).fill(tableBgAlt);
             }
-            doc.fillColor(textColor).fontSize(8.5).font('Helvetica');
-            doc.text(slab.stepName, 46, y + 4);
-            doc.text(`${slab.kwhInSlab} kWh`, 200, y + 4);
-            doc.text(`BDT ${slab.rate.toFixed(2)}`, 330, y + 4);
-            doc.text(`BDT ${slab.costBDT.toFixed(2)}`, 440, y + 4);
+            draw(slab.stepName, 46, y + 4, { fontSize: 8.5, color: textColor });
+            draw(`${slab.kwhInSlab} kWh`, 200, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+            draw(`৳ ${slab.rate.toFixed(2)}`, 330, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+            draw(`৳ ${slab.costBDT.toFixed(2)}`, 440, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
             y += 18;
           });
         }
 
         // Bill Charges Row
         y += 5;
-        doc.fontSize(8.5).font('Helvetica').fillColor(mutedTextColor);
-        doc.text(`Energy Charge: BDT ${data.costAnalysis.energyCostBDT} | Demand Charge: BDT ${data.costAnalysis.demandChargeBDT} | Meter Rent: BDT ${data.costAnalysis.meterRentBDT} | VAT (5%): BDT ${data.costAnalysis.vatBDT}`, 46, y);
+        const chargesText = isBangla
+          ? `এনার্জি চার্জ: ৳ ${data.costAnalysis.energyCostBDT} | ডিমান্ড চার্জ: ৳ ${data.costAnalysis.demandChargeBDT} | মিটার ভাড়া: ৳ ${data.costAnalysis.meterRentBDT} | ভ্যাট (৫%): ৳ ${data.costAnalysis.vatBDT}`
+          : `Energy Charge: BDT ${data.costAnalysis.energyCostBDT} | Demand Charge: BDT ${data.costAnalysis.demandChargeBDT} | Meter Rent: BDT ${data.costAnalysis.meterRentBDT} | VAT (5%): BDT ${data.costAnalysis.vatBDT}`;
+        draw(chargesText, 46, y, { fontSize: 8, color: mutedTextColor, isNumeric: true });
         y += 25;
 
         // --- SECTION 3: APPLIANCE ENERGY AUDIT ---
-        doc.fillColor(accentEmerald).fontSize(12).font('Helvetica-Bold').text('3. Household Appliance Energy Breakdown', 36, y);
+        const sec3Title = isBangla
+          ? '৩. গৃহস্থালি যন্ত্রপাতিভিত্তিক বিদ্যুৎ ব্যবহার'
+          : isBoth
+          ? '3. Household Appliance Energy Breakdown (যন্ত্রপাতিভিত্তিক ব্যবহার)'
+          : '3. Household Appliance Energy Breakdown';
+        draw(sec3Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
 
         doc.rect(36, y, 523, 20).fill(tableBgHeader);
-        doc.fillColor(primaryColor).fontSize(9).font('Helvetica-Bold');
-        doc.text('Appliance', 46, y + 5);
-        doc.text('Room', 180, y + 5);
-        doc.text('Power (W)', 280, y + 5);
-        doc.text('Est. Monthly kWh', 370, y + 5);
-        doc.text('Est. Cost (BDT)', 470, y + 5);
+        draw(isBangla ? 'যন্ত্রের নাম' : 'Appliance', 46, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'রুম/কক্ষ' : 'Room', 180, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'ক্ষমতা (W)' : 'Power (W)', 280, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'মাসিক ইউনিট' : 'Est. Monthly kWh', 370, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'মাসিক খরচ' : 'Est. Cost (BDT)', 470, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
         y += 20;
 
         data.applianceAnalysis.slice(0, 6).forEach((app, i) => {
           if (i % 2 === 1) {
             doc.rect(36, y, 523, 18).fill(tableBgAlt);
           }
-          doc.fillColor(textColor).fontSize(8.5).font('Helvetica');
-          doc.text(app.name, 46, y + 4);
-          doc.text(app.roomName, 180, y + 4);
-          doc.text(`${app.ratedPowerW} W`, 280, y + 4);
-          doc.text(`${app.estimatedMonthlyKwh} kWh`, 370, y + 4);
-          doc.text(`BDT ${app.estimatedMonthlyCostBDT}`, 470, y + 4);
+          draw(app.name, 46, y + 4, { fontSize: 8.5, color: textColor });
+          draw(app.roomName, 180, y + 4, { fontSize: 8.5, color: textColor });
+          draw(`${app.ratedPowerW} W`, 280, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`${app.estimatedMonthlyKwh} kWh`, 370, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`৳ ${app.estimatedMonthlyCostBDT}`, 470, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
           y += 18;
         });
 
@@ -251,63 +316,79 @@ export class ReportService {
 
         // Header Banner for Page 2
         doc.rect(36, y, 523, 30).fill(primaryColor);
-        doc.fillColor('#ffffff').fontSize(11).font('Helvetica-Bold').text('KILOWATTIQ • VAMPIRE AUDIT & AI ADVISORY', 48, y + 10);
+        const p2Header = isBangla
+          ? 'কিলোওয়াট আইকিউ • ভ্যাম্পায়ার অডিট ও এআই অ্যাডভাইজরি'
+          : 'KILOWATTIQ • VAMPIRE AUDIT & AI ADVISORY';
+        draw(p2Header, 48, y + 10, { isBold: true, fontSize: 10.5, color: '#ffffff' });
         y += 45;
 
         // --- SECTION 4: VAMPIRE POWER AUDIT ---
-        doc.fillColor(accentEmerald).fontSize(12).font('Helvetica-Bold').text('4. Vampire / Standby Power Loss Audit', 36, y);
+        const sec4Title = isBangla
+          ? '৪. ভ্যাম্পায়ার / স্ট্যান্ডবাই পাওয়ার অপচয় অডিট'
+          : isBoth
+          ? '4. Vampire / Standby Power Loss Audit (স্ট্যান্ডবাই অপচয়)'
+          : '4. Vampire / Standby Power Loss Audit';
+        draw(sec4Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
 
         doc.rect(36, y, 523, 20).fill(tableBgHeader);
-        doc.fillColor(primaryColor).fontSize(9).font('Helvetica-Bold');
-        doc.text('Appliance', 46, y + 5);
-        doc.text('Room', 180, y + 5);
-        doc.text('Standby W', 270, y + 5);
-        doc.text('Monthly Loss (BDT)', 360, y + 5);
-        doc.text('Annual Loss (BDT)', 460, y + 5);
+        draw(isBangla ? 'যন্ত্রের নাম' : 'Appliance', 46, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'রুম' : 'Room', 180, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'স্ট্যান্ডবাই W' : 'Standby W', 270, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'মাসিক অপচয়' : 'Monthly Loss (BDT)', 360, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? 'বাৎসরিক অপচয়' : 'Annual Loss (BDT)', 460, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
         y += 20;
 
         data.vampirePowerAudit.reports.forEach((v, i) => {
           if (i % 2 === 1) {
             doc.rect(36, y, 523, 18).fill(tableBgAlt);
           }
-          doc.fillColor(textColor).fontSize(8.5).font('Helvetica');
-          doc.text(v.applianceName, 46, y + 4);
-          doc.text(v.roomName, 180, y + 4);
-          doc.text(`${v.standbyWatts} W`, 270, y + 4);
-          doc.text(`BDT ${v.monthlyWastedBDT}`, 360, y + 4);
-          doc.text(`BDT ${v.annualWastedBDT}`, 460, y + 4);
+          draw(v.applianceName, 46, y + 4, { fontSize: 8.5, color: textColor });
+          draw(v.roomName, 180, y + 4, { fontSize: 8.5, color: textColor });
+          draw(`${v.standbyWatts} W`, 270, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`৳ ${v.monthlyWastedBDT}`, 360, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`৳ ${v.annualWastedBDT}`, 460, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
           y += 18;
         });
 
         y += 10;
         doc.rect(36, y, 523, 22).fillAndStroke('#fef2f2', '#fca5a5');
-        doc.fillColor('#b91c1c').fontSize(9).font('Helvetica-Bold');
-        doc.text(`Total Standby Waste: ${data.vampirePowerAudit.totalStandbyWatts} W  |  Monthly Loss: BDT ${data.vampirePowerAudit.totalMonthlyWastedBDT}  |  Annual Wasted: BDT ${data.vampirePowerAudit.totalAnnualWastedBDT}`, 46, y + 6);
+        const lossSummary = isBangla
+          ? `মোট স্ট্যান্ডবাই লোড: ${data.vampirePowerAudit.totalStandbyWatts} W  |  মাসিক অপচয়: ৳ ${data.vampirePowerAudit.totalMonthlyWastedBDT}  |  বাৎসরিক ক্ষতি: ৳ ${data.vampirePowerAudit.totalAnnualWastedBDT}`
+          : `Total Standby Waste: ${data.vampirePowerAudit.totalStandbyWatts} W  |  Monthly Loss: BDT ${data.vampirePowerAudit.totalMonthlyWastedBDT}  |  Annual Wasted: BDT ${data.vampirePowerAudit.totalAnnualWastedBDT}`;
+        draw(lossSummary, 46, y + 6, { isBold: true, fontSize: 8.5, color: '#b91c1c', isNumeric: true });
         y += 35;
 
         // --- SECTION 5: RECOMMENDATIONS ---
-        doc.fillColor(accentEmerald).fontSize(12).font('Helvetica-Bold').text('5. Deterministic Recommendations', 36, y);
+        const sec5Title = isBangla
+          ? '৫. সুনির্দিষ্ট সুপারিশ ও সাশ্রয়ের কৌশল'
+          : isBoth
+          ? '5. Deterministic Recommendations (বিদ্যুৎ সাশ্রয়ী পদক্ষেপ)'
+          : '5. Deterministic Recommendations';
+        draw(sec5Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
 
         data.recommendations.forEach((rec) => {
-          doc.rect(36, y, 523, 35).fillAndStroke(tableBgAlt, '#e2e8f0');
-          doc.fillColor(primaryColor).fontSize(9).font('Helvetica-Bold').text(`[${rec.priority}] ${rec.title}`, 44, y + 6);
-          doc.fillColor(accentEmerald).fontSize(9).font('Helvetica-Bold').text(`Save BDT ${rec.estimatedMonthlySavingsBDT}/mo`, 380, y + 6, { align: 'right', width: 170 });
-          doc.fillColor(textColor).fontSize(8).font('Helvetica').text(rec.actionableStep, 44, y + 20, { width: 500 });
-          y += 40;
+          doc.rect(36, y, 523, 36).fillAndStroke(tableBgAlt, '#e2e8f0');
+          draw(`[${rec.priority}] ${rec.title}`, 44, y + 6, { isBold: true, fontSize: 9, color: primaryColor });
+          draw(`সাশ্রয়: ৳ ${rec.estimatedMonthlySavingsBDT}/মাস`, 360, y + 6, { isBold: true, fontSize: 9, color: accentEmerald, align: 'right', width: 190 });
+          draw(rec.actionableStep, 44, y + 21, { fontSize: 8, color: textColor, width: 500 });
+          y += 42;
         });
 
         y += 10;
 
         // --- SECTION 6: AI ADVISOR INSIGHTS (IF AVAILABLE) ---
         if (data.aiAdvice) {
-          doc.fillColor(accentEmerald).fontSize(12).font('Helvetica-Bold').text('6. Server-Side Gemini AI Energy Advisory', 36, y);
+          const sec6Title = isBangla
+            ? '৬. সার্ভার-সাইড জেমিনি এআই এনার্জি অ্যাডভাইজরি'
+            : '6. Server-Side Gemini AI Energy Advisory';
+          draw(sec6Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
           y += 18;
 
           doc.rect(36, y, 523, 80).fillAndStroke('#f0fdf4', '#86efac');
-          doc.fillColor('#166534').fontSize(9.5).font('Helvetica-Bold').text('Executive AI Advisory Summary', 46, y + 8);
-          doc.fillColor(textColor).fontSize(8.5).font('Helvetica').text(data.aiAdvice.summary, 46, y + 22, { width: 503 });
+          draw(isBangla ? 'জেমিনি এআই এনার্জি অ্যাডভাইজরি সারসংক্ষেপ' : 'Executive AI Advisory Summary', 46, y + 8, { isBold: true, fontSize: 9.5, color: '#166534' });
+          draw(data.aiAdvice.summary, 46, y + 22, { fontSize: 8.5, color: textColor, width: 503 });
 
           y += 90;
         }
@@ -316,16 +397,10 @@ export class ReportService {
         const range = doc.bufferedPageRange();
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i);
-          doc.fontSize(8).font('Helvetica').fillColor(mutedTextColor);
-          doc.text(
-            'KilowattIQ Smart Energy Management Platform • Verified DESCO/DPDC Tariff Slabs • Page ' +
-              (i + 1) +
-              ' of ' +
-              range.count,
-            36,
-            800,
-            { align: 'center', width: 523 }
-          );
+          const footerText = isBangla
+            ? `কিলোওয়াট আইকিউ স্মার্ট এনার্জি ম্যানেজমেন্ট প্ল্যাটফর্ম • বিইআরসি অনুমোদিত স্ল্যাব রেট • পৃষ্ঠা ${i + 1} / ${range.count}`
+            : `KilowattIQ Smart Energy Management Platform • Verified DESCO/DPDC Tariff Slabs • Page ${i + 1} of ${range.count}`;
+          draw(footerText, 36, 800, { fontSize: 7.5, color: mutedTextColor, align: 'center', width: 523 });
         }
 
         doc.end();

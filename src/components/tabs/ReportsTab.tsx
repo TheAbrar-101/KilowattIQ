@@ -16,7 +16,8 @@ import {
   Building2,
   Receipt,
   Layers,
-  Sparkle
+  Sparkle,
+  Globe
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -49,6 +50,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [exportLanguage, setExportLanguage] = useState<'en' | 'bn' | 'both'>('both');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -100,7 +102,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/v1/reports/export?householdId=${household.id}&format=${format}`, {
+      const langParam = format === 'pdf' ? `&language=${exportLanguage}` : '';
+      const res = await fetch(`/api/v1/reports/export?householdId=${household.id}&format=${format}${langParam}`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
         },
@@ -122,7 +125,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      setSuccessMsg(`Official KilowattIQ ${format.toUpperCase()} energy audit report downloaded successfully!`);
+      const langLabel = exportLanguage === 'bn' ? 'বাংলা' : exportLanguage === 'both' ? 'Bilingual (বাংলা + English)' : 'English';
+      setSuccessMsg(`Official KilowattIQ ${format.toUpperCase()} energy audit report (${format === 'pdf' ? langLabel : 'CSV'}) downloaded successfully!`);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error exporting report file.');
     } finally {
@@ -178,29 +182,49 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             <button
               onClick={() => handleDownloadExport('csv')}
               disabled={isExportingCsv}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0 active:scale-95"
+              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-3.5 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0 active:scale-95"
             >
               {isExportingCsv ? (
                 <RefreshCw className="w-4 h-4 animate-spin stroke-[2.5]" />
               ) : (
                 <Download className="w-4 h-4 text-slate-950 stroke-[2.5]" />
               )}
-              <span>{isExportingCsv ? 'Generating CSV...' : 'Export CSV'}</span>
+              <span>{isExportingCsv ? 'Generating...' : 'Export CSV'}</span>
             </button>
 
-            {/* PDF Download */}
-            <button
-              onClick={() => handleDownloadExport('pdf')}
-              disabled={isExportingPdf}
-              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0 active:scale-95"
-            >
-              {isExportingPdf ? (
-                <RefreshCw className="w-4 h-4 animate-spin stroke-[2.5]" />
-              ) : (
-                <FileText className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-              )}
-              <span>{isExportingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
-            </button>
+            {/* Language Selector + PDF Download Group */}
+            <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-1 shadow-md">
+              <label htmlFor="report-lang-select" className="flex items-center gap-1 px-2 text-slate-300">
+                <Globe className="w-3.5 h-3.5 text-sky-400" />
+                <span className="text-[11px] font-bold font-display text-slate-400 uppercase tracking-wider hidden sm:inline">
+                  Language:
+                </span>
+                <select
+                  id="report-lang-select"
+                  aria-label="PDF Report Language"
+                  value={exportLanguage}
+                  onChange={(e) => setExportLanguage(e.target.value as 'en' | 'bn' | 'both')}
+                  className="bg-slate-950 text-white text-xs font-semibold rounded-lg px-2 py-1 border border-slate-700 focus:outline-none focus:border-sky-500 cursor-pointer font-display"
+                >
+                  <option value="both">Both (দ্বিভাষিক)</option>
+                  <option value="bn">বাংলা (Bengali)</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+
+              <button
+                onClick={() => handleDownloadExport('pdf')}
+                disabled={isExportingPdf}
+                className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-3.5 py-1.5 rounded-lg transition-all shadow-md cursor-pointer shrink-0 active:scale-95 ml-1"
+              >
+                {isExportingPdf ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin stroke-[2.5]" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5 text-slate-950 stroke-[2.5]" />
+                )}
+                <span>{isExportingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
+              </button>
+            </div>
 
             {/* Print View */}
             <button

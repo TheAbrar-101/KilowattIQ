@@ -15,6 +15,7 @@
     "test": "tsx src/server/tests/checkpoints.ts",
     "test:checkpoints": "tsx src/server/tests/checkpoints.ts",
     "test: checkpoints": "tsx src/server/tests/checkpoints.ts",
+    "test:pdf": "tsx src/server/tests/pdfBangla.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

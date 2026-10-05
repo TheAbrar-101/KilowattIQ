@@ -173,8 +173,11 @@ router.get(['/export', '/export/:format'], async (req: AuthenticatedRequest, res
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+    const language = (req.query?.language as string) || 'en';
+    const reportLang = language === 'bn' ? 'bn' : language === 'both' ? 'both' : 'en';
+
     if (format === 'pdf') {
-      const pdfBuffer = await ReportService.generatePDFReport(reportData);
+      const pdfBuffer = await ReportService.generatePDFReport(reportData, reportLang);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=kilowattiq-energy-report-${dateStr}.pdf`);
       return res.status(200).send(pdfBuffer);
