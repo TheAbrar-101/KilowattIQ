@@ -28,6 +28,39 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet" />
 
+    <!-- Suppress harmless Vite HMR WebSocket connection notices in preview iframe -->
+    <script>
+      (function() {
+        var isViteWsError = function(msg) {
+          if (!msg) return false;
+          var s = String(msg && msg.message ? msg.message : msg);
+          return s.indexOf('WebSocket') !== -1 || s.indexOf('ws:') !== -1 || (s.indexOf('vite') !== -1 && s.indexOf('connect') !== -1);
+        };
+        window.addEventListener('error', function(e) {
+          if (isViteWsError(e.message) || isViteWsError(e.filename) || isViteWsError(e.error)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = e.reason && (e.reason.message || e.reason);
+          if (isViteWsError(reason)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+        var origConsoleError = console.error;
+        console.error = function() {
+          for (var i = 0; i < arguments.length; i++) {
+            if (isViteWsError(arguments[i])) return;
+          }
+          origConsoleError.apply(console, arguments);
+        };
+      })();
+    </script>
+
     <!-- Zero White Flash Immediate Theme Setup -->
     <script>
       (function() {
