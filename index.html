@@ -31,6 +31,58 @@
     <!-- Suppress harmless Vite HMR WebSocket connection notices in preview iframe -->
     <script>
       (function() {
+        if (typeof window !== 'undefined' && window.WebSocket) {
+          var NativeWS = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            var urlStr = String(url || '');
+            var isViteHmr = urlStr.indexOf('token=') !== -1 || urlStr.indexOf('vite-hmr') !== -1 || protocols === 'vite-hmr' || (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1);
+            if (isViteHmr) {
+              var handlers = {};
+              return {
+                url: urlStr,
+                protocol: 'vite-hmr',
+                readyState: 1, // OPEN
+                binaryType: 'blob',
+                bufferedAmount: 0,
+                extensions: '',
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+                send: function() {},
+                close: function() {},
+                addEventListener: function(type, listener) {
+                  if (!handlers[type]) handlers[type] = [];
+                  handlers[type].push(listener);
+                  if (type === 'open') {
+                    setTimeout(function() {
+                      try { listener(new Event('open')); } catch(e) {}
+                    }, 0);
+                  }
+                },
+                removeEventListener: function(type, listener) {
+                  if (handlers[type]) {
+                    handlers[type] = handlers[type].filter(function(l) { return l !== listener; });
+                  }
+                },
+                dispatchEvent: function(event) {
+                  var list = handlers[event.type] || [];
+                  for (var i = 0; i < list.length; i++) {
+                    try { list[i](event); } catch(e) {}
+                  }
+                  return true;
+                }
+              };
+            }
+            return new NativeWS(url, protocols);
+          };
+          window.WebSocket.prototype = NativeWS.prototype;
+          window.WebSocket.CONNECTING = 0;
+          window.WebSocket.OPEN = 1;
+          window.WebSocket.CLOSING = 2;
+          window.WebSocket.CLOSED = 3;
+        }
+
         var isViteWsError = function(msg) {
           if (!msg) return false;
           var s = String(msg && msg.message ? msg.message : msg);
