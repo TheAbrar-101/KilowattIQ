@@ -10,6 +10,7 @@ import { AppliancesTab } from './components/tabs/AppliancesTab';
 import { IoTDevicesTab } from './components/tabs/IoTDevicesTab';
 import { RecommendationsTab } from './components/tabs/RecommendationsTab';
 import { ReportsTab } from './components/tabs/ReportsTab';
+import { AlertsTab } from './components/tabs/AlertsTab';
 import { AdminTab } from './components/tabs/AdminTab';
 
 import { Household, Room, Appliance } from '../shared/types/household';
@@ -358,6 +359,10 @@ function MainAppContent() {
 
             {activeTab === 'REPORTS' && activeHousehold && (
               <ReportsTab household={activeHousehold} />
+            )}
+
+            {activeTab === 'ALERTS' && activeHousehold && (
+              <AlertsTab household={activeHousehold} />
             )}
 
             {activeTab === 'ADMIN' && isAdminMode && (

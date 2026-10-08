@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Activity, Calculator, Home, Cpu, Lightbulb, FileSpreadsheet, ShieldAlert } from 'lucide-react';
+import { Activity, Calculator, Home, Cpu, Lightbulb, FileSpreadsheet, Bell, ShieldAlert } from 'lucide-react';
 
-export type TabType = 'LIVE' | 'COST' | 'APPLIANCES' | 'DEVICES' | 'RECOMMENDATIONS' | 'REPORTS' | 'ADMIN';
+export type TabType = 'LIVE' | 'COST' | 'APPLIANCES' | 'DEVICES' | 'RECOMMENDATIONS' | 'REPORTS' | 'ALERTS' | 'ADMIN';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -18,6 +18,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
     { id: 'DEVICES', label: 'IoT Adapters', icon: <Cpu className="w-3.5 h-3.5" /> },
     { id: 'RECOMMENDATIONS', label: 'Saving Insights', icon: <Lightbulb className="w-3.5 h-3.5" /> },
     { id: 'REPORTS', label: 'Audit Reports', icon: <FileSpreadsheet className="w-3.5 h-3.5" /> },
+    { id: 'ALERTS', label: 'Alerts & Rules', icon: <Bell className="w-3.5 h-3.5" /> },
     { id: 'ADMIN', label: 'Admin Console', icon: <ShieldAlert className="w-3.5 h-3.5" />, adminOnly: true },
   ];
 
