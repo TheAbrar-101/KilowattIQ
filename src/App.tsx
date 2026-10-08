@@ -173,14 +173,14 @@ function MainAppContent() {
             setTotalActiveWatts(parsed.totalActivePowerW);
             setLiveReadings(prev => {
               const point: PowerReading = {
-                id: `pt_${Date.now()}`,
                 deviceId: 'dev_stream',
                 timestamp: parsed.timestamp || new Date().toISOString(),
-                powerWatts: parsed.totalActivePowerW,
                 voltage: parsed.gridVoltage || 220,
-                currentAmps: parsed.totalCurrentA || 8.2,
-                frequencyHz: parsed.frequencyHz || 50,
+                current: parsed.totalCurrentA || 8.2,
+                activePowerW: parsed.totalActivePowerW,
+                energyKwh: parsed.totalEnergyKwh || 0,
                 powerFactor: parsed.powerFactor || 0.95,
+                frequency: parsed.frequencyHz || 50,
               };
               return [...prev.slice(-19), point];
             });

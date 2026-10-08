@@ -106,20 +106,23 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
 
   // Generate chart data from liveReadings or dynamic fallback
   const chartData = (liveReadings.length > 0 ? liveReadings : [
-    { timestamp: '12:00', powerWatts: 820 },
-    { timestamp: '13:00', powerWatts: 950 },
-    { timestamp: '14:00', powerWatts: 1200 },
-    { timestamp: '15:00', powerWatts: 1650 },
-    { timestamp: '16:00', powerWatts: 1400 },
-    { timestamp: '17:00', powerWatts: 2100 },
-    { timestamp: '18:00', powerWatts: 3200 },
-    { timestamp: '19:00', powerWatts: 2800 },
-    { timestamp: '20:00', powerWatts: totalActiveWatts },
-  ]).map((r, i) => ({
-    time: typeof r.timestamp === 'string' ? r.timestamp.slice(-5) : `${i * 2}:00`,
-    watts: r.powerWatts || totalActiveWatts,
-    kw: Number(((r.powerWatts || totalActiveWatts) / 1000).toFixed(2)),
-  }));
+    { timestamp: '12:00', activePowerW: 820 },
+    { timestamp: '13:00', activePowerW: 950 },
+    { timestamp: '14:00', activePowerW: 1200 },
+    { timestamp: '15:00', activePowerW: 1650 },
+    { timestamp: '16:00', activePowerW: 1400 },
+    { timestamp: '17:00', activePowerW: 2100 },
+    { timestamp: '18:00', activePowerW: 3200 },
+    { timestamp: '19:00', activePowerW: 2800 },
+    { timestamp: '20:00', activePowerW: totalActiveWatts },
+  ]).map((r: any, i) => {
+    const val = typeof r.activePowerW === 'number' ? r.activePowerW : (typeof r.powerWatts === 'number' ? r.powerWatts : totalActiveWatts);
+    return {
+      time: typeof r.timestamp === 'string' ? r.timestamp.slice(-5) : `${i * 2}:00`,
+      watts: val,
+      kw: Number((val / 1000).toFixed(2)),
+    };
+  });
 
   // Handle surge trigger
   const handleSurge = () => {
