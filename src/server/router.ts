@@ -27,6 +27,7 @@ import systemRoutes from '../../backend/routes/v1/system';
 import tariffRoutes from '../../backend/routes/v1/tariffs';
 import budgetRoutes from '../../backend/routes/v1/budgets';
 import alertRoutes from '../../backend/routes/v1/alerts';
+import billRoutes from '../../backend/routes/v1/bills';
 
 /**
  * Health check handler verifying live Supabase connection status
@@ -140,7 +141,7 @@ export function createV1Router(): Router {
   v1.use('/tariffs', authMiddleware, tariffRoutes);
   v1.use('/budgets', authMiddleware, budgetRoutes);
   v1.use('/alerts', authMiddleware, alertRoutes);
-  v1.use('/alerts', authMiddleware, alertRoutes);
+  v1.use('/bills', authMiddleware, billRoutes);
 
   return v1;
 }

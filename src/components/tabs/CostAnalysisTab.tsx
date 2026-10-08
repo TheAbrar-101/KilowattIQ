@@ -19,12 +19,14 @@ import { TariffType, CostCalculation, BudgetStatus, SlabThresholdAnalysis } from
 import { Household } from '../../../shared/types/household';
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 import { BudgetEngine } from '../../../backend/engine/BudgetEngine';
+import { VerifyBillSection } from '../bills/VerifyBillSection';
 
 interface CostAnalysisTabProps {
   household: Household;
 }
 
 export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) => {
+  const [activeSection, setActiveSection] = useState<'VERIFY' | 'SIMULATOR'>('VERIFY');
   const [kwhInput, setKwhInput] = useState<number>(285);
   const [selectedTariffType, setSelectedTariffType] = useState<TariffType>('SLAB');
   const [daysPassedInput, setDaysPassedInput] = useState<number>(18);
@@ -57,9 +59,48 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
 
   return (
     <div className="space-y-5">
-      
-      {/* Top Controller Bar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4 transition-colors">
+      {/* Primary Section Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-xs transition-colors">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          <button
+            onClick={() => setActiveSection('VERIFY')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-display transition-all cursor-pointer ${
+              activeSection === 'VERIFY'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>Verify My Bill (OCR & Dispute)</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-600 text-white dark:bg-amber-400 dark:text-slate-950 font-bold font-mono">
+              NEW
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSection('SIMULATOR')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-display transition-all cursor-pointer ${
+              activeSection === 'SIMULATOR'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Calculator className="w-4 h-4" />
+            <span>Tariff Simulator & Slabs</span>
+          </button>
+        </div>
+
+        <div className="hidden md:flex items-center gap-2 pr-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+          <span>DESCO / DPDC Official LT-A Schedule</span>
+        </div>
+      </div>
+
+      {activeSection === 'VERIFY' ? (
+        <VerifyBillSection household={household} />
+      ) : (
+        <>
+          {/* Top Controller Bar */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4 transition-colors">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
@@ -412,6 +453,8 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
           </div>
         </div>
       </div>
+        </>
+      )}
 
     </div>
   );
