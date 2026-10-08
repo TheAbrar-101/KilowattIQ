@@ -311,10 +311,10 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
 
   if (isLoading) {
     return (
-      <div className="p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-3">
-        <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
-        <p className="text-xs font-bold text-slate-200 font-display">Loading Energy Alert Subsystem...</p>
-        <p className="text-[11px] text-slate-400 font-mono">
+      <div className="p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center space-y-3">
+        <RefreshCw className="w-8 h-8 text-amber-500 dark:text-amber-400 animate-spin mx-auto" />
+        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 font-display">Loading Energy Alert Subsystem...</p>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
           Verifying BERC LT-A thresholds, channel gateways & scheduled quiet hours
         </p>
       </div>
@@ -334,43 +334,43 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
             exit={{ opacity: 0, y: -20 }}
             className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl border shadow-xl flex items-center gap-2.5 text-xs font-bold font-display ${
               toastMessage.type === 'success'
-                ? 'bg-emerald-950/90 text-emerald-200 border-emerald-700/80'
+                ? 'bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700/80'
                 : toastMessage.type === 'error'
-                ? 'bg-rose-950/90 text-rose-200 border-rose-700/80'
-                : 'bg-amber-950/90 text-amber-200 border-amber-700/80'
+                ? 'bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-700/80'
+                : 'bg-amber-50 dark:bg-amber-950/90 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700/80'
             }`}
           >
-            {toastMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
-            {toastMessage.type === 'error' && <XCircle className="w-4 h-4 text-rose-400 shrink-0" />}
-            {toastMessage.type === 'info' && <BellRing className="w-4 h-4 text-amber-400 shrink-0" />}
+            {toastMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />}
+            {toastMessage.type === 'error' && <XCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />}
+            {toastMessage.type === 'info' && <BellRing className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />}
             <span>{toastMessage.text}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Top Banner & Calm Header */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="bg-white dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-lg space-y-4 transition-colors">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white flex items-center gap-2 font-display">
-                <Bell className="w-5 h-5 text-amber-400" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
+                <Bell className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                 <span>Unified Alerts & Notification Engine</span>
               </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-400 border border-amber-800/80 font-mono">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80 font-mono">
                 CALM AMBER PROTOCOL
               </span>
               {activeAlertsCount > 0 ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 font-mono">
                   {activeAlertsCount} ACTIVE
                 </span>
               ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-mono">
                   ALL CALM
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed font-sans">
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-sans">
               Non-alarming energy intelligence warnings for slab jumps, overage pacing, and vampire leaks.
               Designed with quiet hours so your rest is never disturbed.
             </p>
@@ -381,9 +381,9 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
             <button
               onClick={handleRunEvaluation}
               disabled={isEvaluating}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold font-display px-3.5 py-2 rounded-xl border border-slate-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold font-display px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isEvaluating ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-500 dark:text-amber-400 ${isEvaluating ? 'animate-spin' : ''}`} />
               <span>{isEvaluating ? 'Evaluating...' : 'Evaluate Rules'}</span>
             </button>
 
@@ -404,19 +404,19 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
 
         {/* Quiet Hours Summary Card */}
         {preferences && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 text-xs">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-950/60 border border-indigo-800/60 rounded-lg text-indigo-300 shrink-0">
-                <Moon className="w-4 h-4 text-indigo-400" />
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 rounded-lg text-indigo-600 dark:text-indigo-300 shrink-0">
+                <Moon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               </div>
               <div className="space-y-0.5">
-                <p className="font-bold text-white font-display flex items-center gap-1.5">
+                <p className="font-bold text-slate-900 dark:text-white font-display flex items-center gap-1.5">
                   <span>Nighttime Quiet Hours</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${preferences.quietHours.enabled ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${preferences.quietHours.enabled ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                     {preferences.quietHours.enabled ? 'ACTIVE' : 'DISABLED'}
                   </span>
                 </p>
-                <p className="text-[11px] text-slate-400 font-sans">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
                   {preferences.quietHours.enabled
                     ? `Silences non-critical chimes between ${preferences.quietHours.startTime} and ${preferences.quietHours.endTime} (${preferences.quietHours.timezone}).`
                     : 'Alert notifications will be sent at all hours.'}
@@ -424,9 +424,9 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-auto font-mono text-[11px] text-slate-300">
+            <div className="flex items-center gap-2 self-end sm:self-auto font-mono text-[11px] text-slate-700 dark:text-slate-300">
               <span className="text-slate-500 font-sans">Window:</span>
-              <span className="px-2 py-1 bg-slate-900 border border-slate-800 rounded-md text-amber-300 font-bold">
+              <span className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-amber-700 dark:text-amber-300 font-bold">
                 {preferences.quietHours.startTime} – {preferences.quietHours.endTime}
               </span>
             </div>
@@ -438,13 +438,13 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column (2 Cols): 6 Rules Toggle List */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2 font-display">
-                <Sliders className="w-4 h-4 text-amber-400" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-lg space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
+                <Sliders className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                 <span>Deterministic Alert Rules (Evaluated Every 5 Minutes)</span>
               </h4>
-              <span className="text-[10px] font-bold text-slate-400 font-mono">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 font-mono">
                 6 RULES CONFIGURED
               </span>
             </div>
@@ -468,23 +468,23 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                       }}
                       className={`min-h-[58px] p-3.5 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-3 select-none ${
                         isEnabled
-                          ? 'bg-slate-950/80 border-slate-700/90 hover:border-amber-500/50'
-                          : 'bg-slate-950/30 border-slate-800/50 opacity-60 hover:opacity-80'
+                          ? 'bg-slate-50 dark:bg-slate-950/80 border-slate-300 dark:border-slate-700/90 hover:border-amber-500/50'
+                          : 'bg-slate-50/40 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800/50 opacity-60 hover:opacity-80'
                       }`}
                     >
                       <div className="space-y-1 pr-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-white font-display">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white font-display">
                             {rule.title}
                           </span>
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono border border-slate-300 dark:border-slate-700">
                             {rule.badge}
                           </span>
                         </div>
-                        <p className="text-[11px] text-amber-300/90 font-sans leading-normal">
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300/90 font-sans leading-normal font-medium">
                           {rule.titleBn}
                         </p>
-                        <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans leading-relaxed">
                           {rule.desc}
                         </p>
                       </div>
@@ -493,18 +493,18 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                       <div className="shrink-0 pt-0.5">
                         <div
                           className={`w-12 h-6 rounded-full transition-colors relative flex items-center p-0.5 ${
-                            isEnabled ? 'bg-amber-500' : 'bg-slate-800'
+                            isEnabled ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-800'
                           }`}
                         >
                           <motion.div
                             animate={{ x: isEnabled ? 24 : 2 }}
                             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                            className="w-5 h-5 bg-slate-950 rounded-full shadow-md flex items-center justify-center"
+                            className="w-5 h-5 bg-white dark:bg-slate-950 rounded-full shadow-md flex items-center justify-center"
                           >
                             {isEnabled ? (
-                              <Check className="w-3 h-3 text-amber-400 stroke-[3]" />
+                              <Check className="w-3 h-3 text-amber-500 dark:text-amber-400 stroke-[3]" />
                             ) : (
-                              <EyeOff className="w-2.5 h-2.5 text-slate-500" />
+                              <EyeOff className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500" />
                             )}
                           </motion.div>
                         </div>
@@ -519,13 +519,13 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
         {/* Right Column (1 Col): Notification Channels & Quiet Hours Picker */}
         <div className="space-y-6">
           {/* Notification Channels */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-            <div className="border-b border-slate-800 pb-3">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2 font-display">
-                <Radio className="w-4 h-4 text-sky-400" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-lg space-y-4">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
+                <Radio className="w-4 h-4 text-sky-500 dark:text-sky-400" />
                 <span>Delivery Channels</span>
               </h4>
-              <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans mt-0.5">
                 Choose how you want notifications delivered.
               </p>
             </div>
@@ -539,20 +539,20 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                   tabIndex={0}
                   className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                     preferences.enabledChannels.EMAIL
-                      ? 'bg-slate-950 border-slate-700 text-white'
-                      : 'bg-slate-950/40 border-slate-800/60 text-slate-500'
+                      ? 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                      : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/60 text-slate-400 dark:text-slate-500'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Mail className="w-4 h-4 text-emerald-400" />
+                    <Mail className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                     <div>
                       <p className="font-bold font-display">Email (Resend)</p>
-                      <p className="text-[10px] text-slate-400 font-mono">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                         {preferences.contacts.email || 'Configured in account'}
                       </p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.EMAIL ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.EMAIL ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
                     {preferences.enabledChannels.EMAIL ? 'ON' : 'OFF'}
                   </span>
                 </div>
@@ -564,20 +564,20 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                   tabIndex={0}
                   className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                     preferences.enabledChannels.SMS
-                      ? 'bg-slate-950 border-slate-700 text-white'
-                      : 'bg-slate-950/40 border-slate-800/60 text-slate-500'
+                      ? 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                      : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/60 text-slate-400 dark:text-slate-500'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Smartphone className="w-4 h-4 text-amber-400" />
+                    <Smartphone className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                     <div>
                       <p className="font-bold font-display">SMS (BD Gateway)</p>
-                      <p className="text-[10px] text-slate-400 font-mono">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                         {preferences.contacts.phone || '+880 Mobile'}
                       </p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.SMS ? 'bg-amber-950 text-amber-400' : 'bg-slate-800 text-slate-500'}`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.SMS ? 'bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
                     {preferences.enabledChannels.SMS ? 'ON' : 'OFF'}
                   </span>
                 </div>
@@ -589,18 +589,18 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                   tabIndex={0}
                   className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                     preferences.enabledChannels.WHATSAPP
-                      ? 'bg-slate-950 border-slate-700 text-white'
-                      : 'bg-slate-950/40 border-slate-800/60 text-slate-500'
+                      ? 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                      : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/60 text-slate-400 dark:text-slate-500'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <MessageSquare className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                     <div>
                       <p className="font-bold font-display">WhatsApp (Twilio)</p>
-                      <p className="text-[10px] text-slate-400 font-mono">Verified Business</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Verified Business</p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.WHATSAPP ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.WHATSAPP ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
                     {preferences.enabledChannels.WHATSAPP ? 'ON' : 'OFF'}
                   </span>
                 </div>
@@ -612,18 +612,18 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                   tabIndex={0}
                   className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                     preferences.enabledChannels.WEB_PUSH
-                      ? 'bg-slate-950 border-slate-700 text-white'
-                      : 'bg-slate-950/40 border-slate-800/60 text-slate-500'
+                      ? 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                      : 'bg-slate-50/50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/60 text-slate-400 dark:text-slate-500'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <BellRing className="w-4 h-4 text-sky-400" />
+                    <BellRing className="w-4 h-4 text-sky-500 dark:text-sky-400" />
                     <div>
                       <p className="font-bold font-display">Web Push (VAPID)</p>
-                      <p className="text-[10px] text-slate-400 font-mono">Instant Browser Banners</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Instant Browser Banners</p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.WEB_PUSH ? 'bg-sky-950 text-sky-400' : 'bg-slate-800 text-slate-500'}`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${preferences.enabledChannels.WEB_PUSH ? 'bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
                     {preferences.enabledChannels.WEB_PUSH ? 'ON' : 'OFF'}
                   </span>
                 </div>
@@ -633,10 +633,10 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
 
           {/* Quiet Hours Picker */}
           {preferences && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h4 className="text-sm font-bold text-white flex items-center gap-2 font-display">
-                  <Moon className="w-4 h-4 text-indigo-400" />
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-lg space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
+                  <Moon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                   <span>Quiet Hours Schedule</span>
                 </h4>
                 <input
@@ -649,39 +649,39 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
               </div>
 
               <div className="space-y-3 text-xs">
-                <p className="text-slate-400 leading-relaxed font-sans text-[11px]">
+                <p className="text-slate-500 dark:text-slate-400 leading-relaxed font-sans text-[11px]">
                   Silence non-critical notifications during sleep. Essential safety alerts will still record in your dashboard feed.
                 </p>
 
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 font-display mb-1 uppercase tracking-wider">
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 font-display mb-1 uppercase tracking-wider">
                       Sleep Time (Start)
                     </label>
-                    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-500 mr-2 shrink-0" />
+                    <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
                       <input
                         type="time"
                         value={preferences.quietHours.startTime}
                         disabled={!preferences.quietHours.enabled}
                         onChange={e => handleQuietHoursChange({ startTime: e.target.value })}
-                        className="bg-transparent text-white font-mono text-xs focus:outline-none w-full disabled:opacity-50"
+                        className="bg-transparent text-slate-800 dark:text-white font-mono text-xs focus:outline-none w-full disabled:opacity-50"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 font-display mb-1 uppercase tracking-wider">
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 font-display mb-1 uppercase tracking-wider">
                       Wake Time (End)
                     </label>
-                    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-500 mr-2 shrink-0" />
+                    <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
                       <input
                         type="time"
                         value={preferences.quietHours.endTime}
                         disabled={!preferences.quietHours.enabled}
                         onChange={e => handleQuietHoursChange({ endTime: e.target.value })}
-                        className="bg-transparent text-white font-mono text-xs focus:outline-none w-full disabled:opacity-50"
+                        className="bg-transparent text-slate-800 dark:text-white font-mono text-xs focus:outline-none w-full disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -689,7 +689,7 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
 
                 <div className="pt-2 text-[10px] text-slate-500 flex items-center justify-between font-mono">
                   <span>Timezone</span>
-                  <span className="text-slate-300 font-bold">{preferences.quietHours.timezone}</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-bold">{preferences.quietHours.timezone}</span>
                 </div>
               </div>
             </div>
@@ -698,29 +698,29 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
       </div>
 
       {/* Recent Alerts Feed Section */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-lg space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div>
-            <h4 className="text-sm font-bold text-white flex items-center gap-2 font-display">
-              <BellRing className="w-4 h-4 text-amber-400" />
+            <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
+              <BellRing className="w-4 h-4 text-amber-500 dark:text-amber-400" />
               <span>Recent Energy Alerts & Advisory Feed</span>
             </h4>
-            <p className="text-[11px] text-slate-400 font-sans">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
               Acknowledge alerts once reviewed, or dismiss them from your active console.
             </p>
           </div>
-          <span className="text-xs text-slate-400 font-mono self-start sm:self-auto">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono self-start sm:self-auto">
             {alerts.length} Records in Feed
           </span>
         </div>
 
         {alerts.length === 0 ? (
-          <div className="p-8 text-center bg-slate-950/40 border border-slate-800/60 rounded-xl space-y-2">
-            <ShieldCheck className="w-8 h-8 text-emerald-400 mx-auto" />
-            <p className="text-xs font-bold text-slate-200 font-display">
+          <div className="p-8 text-center bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/60 rounded-xl space-y-2">
+            <ShieldCheck className="w-8 h-8 text-emerald-500 dark:text-emerald-400 mx-auto" />
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 font-display">
               All Systems Calm & Nominal
             </p>
-            <p className="text-[11px] text-slate-400 font-sans max-w-md mx-auto">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans max-w-md mx-auto">
               Your household is operating within safe voltage windows, balanced tariff buffers, and normal budget bounds.
             </p>
           </div>
@@ -739,8 +739,8 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                   key={item.id}
                   className={`p-4 rounded-xl border transition-all ${
                     item.acknowledged
-                      ? 'bg-slate-950/40 border-slate-800/60 text-slate-400'
-                      : 'bg-amber-950/20 border-amber-600/40 text-slate-200 shadow-sm'
+                      ? 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/60 text-slate-500 dark:text-slate-400'
+                      : 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-300 dark:border-amber-600/40 text-slate-800 dark:text-slate-200 shadow-xs'
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -749,40 +749,40 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                         <span
                           className={`text-[9px] font-bold px-2 py-0.5 rounded font-mono uppercase tracking-wider ${
                             item.severity === 'CRITICAL'
-                              ? 'bg-amber-600 text-slate-950 font-black'
+                              ? 'bg-amber-500 text-slate-950 font-black'
                               : item.severity === 'WARNING'
-                              ? 'bg-amber-900/60 text-amber-300 border border-amber-700/60'
-                              : 'bg-sky-950 text-sky-400 border border-sky-800/60'
+                              ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60'
+                              : 'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-400 border border-sky-300 dark:border-sky-800/60'
                           }`}
                         >
                           {item.severity}
                         </span>
 
-                        <h5 className="text-xs font-bold text-white font-display">
+                        <h5 className="text-xs font-bold text-slate-900 dark:text-white font-display">
                           {item.title}
                         </h5>
 
                         {item.acknowledged && (
-                          <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-1 font-bold">
                             <CheckCircle2 className="w-3 h-3" />
                             ACKNOWLEDGED
                           </span>
                         )}
                       </div>
 
-                      <p className="text-xs text-amber-200/90 font-sans font-medium">
+                      <p className="text-xs text-amber-800 dark:text-amber-200/90 font-sans font-medium">
                         {item.titleBn}
                       </p>
 
-                      <p className="text-xs text-slate-300 font-sans leading-relaxed">
+                      <p className="text-xs text-slate-700 dark:text-slate-300 font-sans leading-relaxed">
                         {item.message}
                       </p>
 
-                      <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-sans leading-relaxed">
                         {item.messageBn}
                       </p>
 
-                      <div className="flex items-center gap-3 pt-1 text-[10px] text-slate-500 font-mono">
+                      <div className="flex items-center gap-3 pt-1 text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                         <span>Recorded: {formattedTime}</span>
                         {item.channelsSent && item.channelsSent.length > 0 && (
                           <span>Dispatched via: {item.channelsSent.join(', ')}</span>
@@ -795,16 +795,16 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({ household }) => {
                       {!item.acknowledged && (
                         <button
                           onClick={() => handleAcknowledge(item.id)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold font-display rounded-lg border border-slate-700 transition-all cursor-pointer active:scale-95"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold font-display rounded-lg border border-slate-300 dark:border-slate-700 transition-all cursor-pointer active:scale-95"
                         >
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                           <span>Acknowledge</span>
                         </button>
                       )}
 
                       <button
                         onClick={() => handleDismiss(item.id)}
-                        className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs font-bold font-display rounded-lg border border-slate-800 transition-all cursor-pointer active:scale-95"
+                        className="px-2.5 py-1.5 bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-bold font-display rounded-lg border border-slate-200 dark:border-slate-800 transition-all cursor-pointer active:scale-95"
                       >
                         Dismiss
                       </button>

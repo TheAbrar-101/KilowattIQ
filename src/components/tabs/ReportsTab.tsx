@@ -35,6 +35,7 @@ import {
 import { Household } from '../../../shared/types/household';
 import { FullReportData } from '../../../shared/types/energy';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ReportsTabProps {
   household: Household;
@@ -44,6 +45,7 @@ const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4
 
 export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
   const { token } = useAuth();
+  const { isDark } = useTheme();
 
   const [reportData, setReportData] = useState<FullReportData | null>(null);
   const [monthlyTrend, setMonthlyTrend] = useState<any[]>([]);
@@ -98,23 +100,22 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
     if (format === 'csv') setIsExportingCsv(true);
     else setIsExportingPdf(true);
 
-    setErrorMsg(null);
     setSuccessMsg(null);
+    setErrorMsg(null);
 
     try {
-      const langParam = format === 'pdf' ? `&language=${exportLanguage}` : '';
-      const res = await fetch(`/api/v1/reports/export?householdId=${household.id}&format=${format}${langParam}`, {
+      const urlWithLang = `/api/v1/reports/export/${format}?householdId=${household.id}&lang=${exportLanguage}`;
+      const response = await fetch(urlWithLang, {
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
         },
       });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Failed to export ${format.toUpperCase()} report`);
+      if (!response.ok) {
+        throw new Error(`Failed to generate ${format.toUpperCase()} export`);
       }
 
-      const blob = await res.blob();
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -141,10 +142,10 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
 
   if (isLoading) {
     return (
-      <div className="p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-3">
-        <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
-        <p className="text-xs font-bold text-slate-200">Compiling Household Energy Audit Data...</p>
-        <p className="text-[11px] text-slate-400 font-mono">
+      <div className="p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center space-y-3">
+        <RefreshCw className="w-8 h-8 text-amber-500 dark:text-amber-400 animate-spin mx-auto" />
+        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 font-display">Compiling Household Energy Audit Data...</p>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
           Calculating tariff steps, vampire standby waste & 6-month historical trends
         </p>
       </div>
@@ -159,95 +160,81 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
   return (
     <div className="space-y-6">
       {/* Top Banner & Export Actions */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="bg-white dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-lg space-y-4 transition-colors">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
+                <FileSpreadsheet className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                 <span>KilowattIQ Energy Audit & Analytics Reports</span>
               </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-mono">
                 DESCO / DPDC COMPLIANT
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">
               Generate official energy audit summaries, tariff step logs, and 6-month consumption analytics
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* CSV Export */}
+            {/* Language Selector for PDF */}
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-2.5 py-1.5 text-xs">
+              <Globe className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+              <label htmlFor="report-lang-select" className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Language:</label>
+              <select
+                id="report-lang-select"
+                aria-label="Export Language"
+                value={exportLanguage}
+                onChange={(e) => setExportLanguage(e.target.value as any)}
+                className="bg-transparent text-slate-900 dark:text-slate-200 text-xs font-bold font-display focus:outline-none cursor-pointer"
+              >
+                <option value="both" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold">Bilingual (বাংলা + EN)</option>
+                <option value="bn" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold">বাংলা (Bengali)</option>
+                <option value="en" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold">English</option>
+              </select>
+            </div>
+
             <button
               onClick={() => handleDownloadExport('csv')}
               disabled={isExportingCsv}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-3.5 py-2 rounded-xl transition-all shadow-md cursor-pointer shrink-0 active:scale-95"
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold font-display px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
-              {isExportingCsv ? (
-                <RefreshCw className="w-4 h-4 animate-spin stroke-[2.5]" />
-              ) : (
-                <Download className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-              )}
-              <span>{isExportingCsv ? 'Generating...' : 'Export CSV'}</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+              <span>{isExportingCsv ? 'Exporting CSV...' : 'Download CSV'}</span>
             </button>
 
-            {/* Language Selector + PDF Download Group */}
-            <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-1 shadow-md">
-              <label htmlFor="report-lang-select" className="flex items-center gap-1 px-2 text-slate-300">
-                <Globe className="w-3.5 h-3.5 text-sky-400" />
-                <span className="text-[11px] font-bold font-display text-slate-400 uppercase tracking-wider hidden sm:inline">
-                  Language:
-                </span>
-                <select
-                  id="report-lang-select"
-                  aria-label="PDF Report Language"
-                  value={exportLanguage}
-                  onChange={(e) => setExportLanguage(e.target.value as 'en' | 'bn' | 'both')}
-                  className="bg-slate-950 text-white text-xs font-semibold rounded-lg px-2 py-1 border border-slate-700 focus:outline-none focus:border-sky-500 cursor-pointer font-display"
-                >
-                  <option value="both">Both (দ্বিভাষিক)</option>
-                  <option value="bn">বাংলা (Bengali)</option>
-                  <option value="en">English</option>
-                </select>
-              </label>
+            <button
+              onClick={() => handleDownloadExport('pdf')}
+              disabled={isExportingPdf}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black font-display px-3.5 py-2 rounded-xl transition-all shadow-md cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{isExportingPdf ? 'Exporting PDF...' : 'Download PDF Audit'}</span>
+            </button>
 
-              <button
-                onClick={() => handleDownloadExport('pdf')}
-                disabled={isExportingPdf}
-                className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-black font-display px-3.5 py-1.5 rounded-lg transition-all shadow-md cursor-pointer shrink-0 active:scale-95 ml-1"
-              >
-                {isExportingPdf ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin stroke-[2.5]" />
-                ) : (
-                  <FileText className="w-3.5 h-3.5 text-slate-950 stroke-[2.5]" />
-                )}
-                <span>{isExportingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
-              </button>
-            </div>
-
-            {/* Print View */}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold font-display px-3.5 py-2 rounded-xl border border-slate-700/80 transition-all cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold font-display px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95"
             >
-              <Printer className="w-4 h-4 text-slate-300" />
-              <span>Print Report</span>
+              <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              <span>Print</span>
             </button>
           </div>
         </div>
 
         {/* Status Toast Notifications */}
         {successMsg && (
-          <div className="p-3 bg-emerald-950/60 border border-emerald-800/80 rounded-xl flex items-center gap-2 text-emerald-300 text-xs">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 rounded-xl flex items-center gap-2 text-emerald-800 dark:text-emerald-300 text-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
 
         {errorMsg && (
-          <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-center gap-2 text-rose-300 text-xs">
-            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/80 rounded-xl flex items-center gap-2 text-rose-800 dark:text-rose-300 text-xs">
+            <AlertTriangle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
@@ -255,38 +242,38 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
         {/* Report Overview Header Cards */}
         {reportData && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
-            <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Household Profile</span>
-              <p className="font-bold text-white text-sm truncate">{reportData.household.name}</p>
-              <p className="text-[11px] text-slate-400 font-mono">
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-display">Household Profile</span>
+              <p className="font-bold text-slate-900 dark:text-white text-sm truncate font-display">{reportData.household.name}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                 {reportData.household.utilityProvider} • {reportData.household.accountNumber}
               </p>
             </div>
 
-            <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Est. Monthly Bill</span>
-              <p className="font-bold text-emerald-400 text-sm">৳{reportData.costAnalysis.grossTotalBDT.toLocaleString()}</p>
-              <p className="text-[11px] text-slate-400 font-mono">
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-display">Est. Monthly Bill</span>
+              <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm font-mono">৳{reportData.costAnalysis.grossTotalBDT.toLocaleString()}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                 {reportData.energySummary.totalMonthlyKwh} kWh @ ৳{reportData.costAnalysis.effectiveRatePerKwh}/kWh
               </p>
             </div>
 
-            <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Budget Utilization</span>
-              <p className={`font-bold text-sm ${reportData.budgetAnalysis.isOverBudget ? 'text-rose-400' : 'text-amber-400'}`}>
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-display">Budget Utilization</span>
+              <p className={`font-bold text-sm font-mono ${reportData.budgetAnalysis.isOverBudget ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`}>
                 {reportData.budgetAnalysis.budgetUtilizationPct}% ({reportData.budgetAnalysis.isOverBudget ? 'OVER BUDGET' : 'WITHIN BUDGET'})
               </p>
-              <p className="text-[11px] text-slate-400 font-mono">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                 Target: ৳{reportData.household.monthlyBudgetBDT.toLocaleString()}
               </p>
             </div>
 
-            <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Vampire Standby Waste</span>
-              <p className="font-bold text-rose-400 text-sm">
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-display">Vampire Standby Waste</span>
+              <p className="font-bold text-rose-600 dark:text-rose-400 text-sm font-mono">
                 ৳{reportData.vampirePowerAudit.totalMonthlyWastedBDT}/mo
               </p>
-              <p className="text-[11px] text-slate-400 font-mono">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                 {reportData.vampirePowerAudit.totalStandbyWatts} W continuous loss
               </p>
             </div>
@@ -297,32 +284,39 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
       {/* Historical Analytics Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* 6-Month Energy & Bill Trend Chart */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              <BarChart3 className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
                 6-Month Energy Consumption & Cost Trend
               </h4>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">BDT & kWh History</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">BDT & kWh History</span>
           </div>
 
           {monthlyTrend.length > 0 ? (
             <div className="h-64 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyTrend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
-                  <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} />
+                  <XAxis dataKey="month" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={11} tickLine={false} />
+                  <YAxis stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={11} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '11px' }}
-                    labelStyle={{ color: '#f8fafc', fontWeight: 'bold' }}
+                    contentStyle={{
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      borderColor: isDark ? '#334155' : '#cbd5e1',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      color: isDark ? '#f8fafc' : '#0f172a',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    }}
+                    labelStyle={{ color: isDark ? '#f8fafc' : '#0f172a', fontWeight: 'bold' }}
                   />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="consumptionKwh" name="Energy (kWh)" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="costBDT" name="Projected Bill (BDT)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="budgetBDT" name="Target Budget (BDT)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px', color: isDark ? '#cbd5e1' : '#475569' }} />
+                  <Bar dataKey="consumptionKwh" name="Energy (kWh)" fill="#34d399" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="costBDT" name="Projected Bill (BDT)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="budgetBDT" name="Target Budget (BDT)" fill="#fbbf24" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -334,15 +328,15 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
         </div>
 
         {/* Appliance Consumption Share Chart */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div className="flex items-center gap-2">
-              <PieChartIcon className="w-4 h-4 text-blue-400" />
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              <PieChartIcon className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
                 Appliance Energy Share
               </h4>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">kWh Distribution</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">kWh Distribution</span>
           </div>
 
           {appliancePieData.length > 0 ? (
@@ -363,7 +357,14 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '11px' }}
+                    contentStyle={{
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      borderColor: isDark ? '#334155' : '#cbd5e1',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      color: isDark ? '#f8fafc' : '#0f172a',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    }}
                     formatter={(val: any) => [`${val} kWh`, 'Monthly Consumption']}
                   />
                 </PieChart>
@@ -375,12 +376,12 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono border-t border-slate-800 pt-3">
+          <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono border-t border-slate-200 dark:border-slate-800 pt-3">
             {appliancePieData.slice(0, 4).map((entry, idx) => (
               <div key={idx} className="flex items-center gap-1.5 truncate">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
-                <span className="text-slate-300 truncate">{entry.name}:</span>
-                <span className="text-white font-bold">{entry.value} kWh</span>
+                <span className="text-slate-600 dark:text-slate-300 truncate">{entry.name}:</span>
+                <span className="text-slate-900 dark:text-white font-bold">{entry.value} kWh</span>
               </div>
             ))}
           </div>
@@ -391,15 +392,15 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
       {reportData && (
         <div className="space-y-6">
           {/* DESCO Tariff Step Breakdown Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-emerald-400" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                <Receipt className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
                   DESCO / DPDC Tariff Slab Step Breakdown
                 </h4>
               </div>
-              <span className="text-[10px] text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-900 font-mono font-bold">
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900 font-mono font-bold">
                 LT-A RESIDENTIAL
               </span>
             </div>
@@ -407,45 +408,45 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-bold text-[10px] uppercase font-mono bg-slate-950">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase font-mono bg-slate-50 dark:bg-slate-950">
                     <th className="p-2.5">Slab Step Name</th>
                     <th className="p-2.5 text-right">Units in Slab (kWh)</th>
                     <th className="p-2.5 text-right">Rate (BDT / kWh)</th>
                     <th className="p-2.5 text-right">Cost in Slab (BDT)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono text-[11px] text-slate-200">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px] text-slate-800 dark:text-slate-200">
                   {reportData.costAnalysis.slabBreakdown?.map((step, idx) => (
-                    <tr key={idx} className="hover:bg-slate-800/30">
-                      <td className="p-2.5 font-sans font-bold text-slate-200">{step.stepName}</td>
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                      <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-slate-200">{step.stepName}</td>
                       <td className="p-2.5 text-right">{step.kwhInSlab} kWh</td>
-                      <td className="p-2.5 text-right text-slate-400">৳{step.rate.toFixed(2)}</td>
-                      <td className="p-2.5 text-right font-bold text-emerald-400">৳{step.costBDT.toFixed(2)}</td>
+                      <td className="p-2.5 text-right text-slate-500 dark:text-slate-400">৳{step.rate.toFixed(2)}</td>
+                      <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">৳{step.costBDT.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <div className="bg-slate-950 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-400 border border-slate-800">
+            <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
               <span>Energy Charge: ৳{reportData.costAnalysis.energyCostBDT}</span>
               <span>Demand Charge: ৳{reportData.costAnalysis.demandChargeBDT}</span>
               <span>Meter Rent: ৳{reportData.costAnalysis.meterRentBDT}</span>
               <span>VAT (5%): ৳{reportData.costAnalysis.vatBDT}</span>
-              <span className="text-white font-bold text-xs">Gross Bill: ৳{reportData.costAnalysis.grossTotalBDT}</span>
+              <span className="text-slate-900 dark:text-white font-bold text-xs">Gross Bill: ৳{reportData.costAnalysis.grossTotalBDT}</span>
             </div>
           </div>
 
           {/* Appliance Energy Breakdown Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-blue-400" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                <Layers className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
                   Appliance Energy & Cost Consumption Analysis
                 </h4>
               </div>
-              <span className="text-[10px] text-slate-400 font-mono">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                 {reportData.applianceAnalysis.length} Appliances Registered
               </span>
             </div>
@@ -453,7 +454,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-bold text-[10px] uppercase font-mono bg-slate-950">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase font-mono bg-slate-50 dark:bg-slate-950">
                     <th className="p-2.5">Appliance Name</th>
                     <th className="p-2.5">Room Location</th>
                     <th className="p-2.5 text-right">Power Rating</th>
@@ -462,20 +463,20 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
                     <th className="p-2.5 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono text-[11px] text-slate-200">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px] text-slate-800 dark:text-slate-200">
                   {reportData.applianceAnalysis.map(app => (
-                    <tr key={app.id} className="hover:bg-slate-800/30">
-                      <td className="p-2.5 font-sans font-bold text-white">{app.name}</td>
-                      <td className="p-2.5 font-sans text-slate-400">{app.roomName}</td>
-                      <td className="p-2.5 text-right text-slate-300">{app.ratedPowerW} W</td>
-                      <td className="p-2.5 text-right font-bold text-emerald-400">{app.estimatedMonthlyKwh} kWh</td>
-                      <td className="p-2.5 text-right font-bold text-slate-200">৳{app.estimatedMonthlyCostBDT}</td>
+                    <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                      <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{app.name}</td>
+                      <td className="p-2.5 font-sans text-slate-500 dark:text-slate-400">{app.roomName}</td>
+                      <td className="p-2.5 text-right text-slate-600 dark:text-slate-300">{app.ratedPowerW} W</td>
+                      <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">{app.estimatedMonthlyKwh} kWh</td>
+                      <td className="p-2.5 text-right font-bold text-slate-900 dark:text-slate-200">৳{app.estimatedMonthlyCostBDT}</td>
                       <td className="p-2.5 text-center">
                         <span
                           className={`text-[9px] font-bold px-2 py-0.5 rounded-full font-mono ${
                             app.isOn
-                              ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                              : 'bg-slate-800 text-slate-500'
+                              ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                           }`}
                         >
                           {app.isOn ? 'ON' : 'OFF'}
@@ -489,15 +490,15 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
           </div>
 
           {/* Vampire Standby Power Audit Section */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-rose-400" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                <Zap className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
                   Vampire / Standby Phantom Power Loss Audit
                 </h4>
               </div>
-              <span className="text-[10px] text-rose-400 bg-rose-950 px-2 py-0.5 rounded border border-rose-900 font-mono font-bold">
+              <span className="text-[10px] text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900 font-mono font-bold">
                 CONTINUOUS PHANTOM LOSS
               </span>
             </div>
@@ -505,7 +506,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-bold text-[10px] uppercase font-mono bg-slate-950">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase font-mono bg-slate-50 dark:bg-slate-950">
                     <th className="p-2.5">Appliance</th>
                     <th className="p-2.5">Room</th>
                     <th className="p-2.5 text-right">Standby Load (W)</th>
@@ -514,22 +515,22 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
                     <th className="p-2.5 text-center">Severity</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono text-[11px] text-slate-200">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px] text-slate-800 dark:text-slate-200">
                   {reportData.vampirePowerAudit.reports.map((v, i) => (
-                    <tr key={i} className="hover:bg-slate-800/30">
-                      <td className="p-2.5 font-sans font-bold text-white">{v.applianceName}</td>
-                      <td className="p-2.5 font-sans text-slate-400">{v.roomName}</td>
-                      <td className="p-2.5 text-right text-rose-400 font-bold">{v.standbyWatts} W</td>
-                      <td className="p-2.5 text-right text-rose-300 font-bold">৳{v.monthlyWastedBDT}</td>
-                      <td className="p-2.5 text-right text-rose-400 font-bold">৳{v.annualWastedBDT}</td>
+                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                      <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{v.applianceName}</td>
+                      <td className="p-2.5 font-sans text-slate-500 dark:text-slate-400">{v.roomName}</td>
+                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-bold">{v.standbyWatts} W</td>
+                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-300 font-bold">৳{v.monthlyWastedBDT}</td>
+                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-bold">৳{v.annualWastedBDT}</td>
                       <td className="p-2.5 text-center">
                         <span
                           className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${
                             v.severity === 'HIGH'
-                              ? 'bg-rose-950 text-rose-400 border-rose-900'
+                              ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900'
                               : v.severity === 'MEDIUM'
-                              ? 'bg-amber-950 text-amber-400 border-amber-900'
-                              : 'bg-emerald-950 text-emerald-400 border-emerald-900'
+                              ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900'
+                              : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'
                           }`}
                         >
                           {v.severity}
@@ -541,7 +542,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
               </table>
             </div>
 
-            <div className="bg-rose-950/30 border border-rose-900/60 rounded-xl p-3 flex flex-wrap items-center justify-between text-xs text-rose-300 font-mono">
+            <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 rounded-xl p-3 flex flex-wrap items-center justify-between text-xs text-rose-800 dark:text-rose-300 font-mono">
               <span>Total Standby Load: <strong>{reportData.vampirePowerAudit.totalStandbyWatts} W</strong></span>
               <span>Monthly Waste: <strong>৳{reportData.vampirePowerAudit.totalMonthlyWastedBDT}</strong></span>
               <span>Annual Wasted Energy: <strong>৳{reportData.vampirePowerAudit.totalAnnualWastedBDT}</strong></span>

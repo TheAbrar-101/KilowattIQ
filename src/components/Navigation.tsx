@@ -23,7 +23,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
   ];
 
   return (
-    <nav className="bg-slate-900 border-b border-slate-800 shadow-inner">
+    <nav className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xs transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center space-x-2 overflow-x-auto py-2 scrollbar-none">
           {tabs
@@ -34,16 +34,16 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
                 <button
                   key={tab.id}
                   onClick={() => onSelectTab(tab.id)}
-                  className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold tracking-wide whitespace-nowrap transition-all cursor-pointer font-display ${
+                  className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold tracking-wide whitespace-nowrap transition-all cursor-pointer font-display ${
                     isActive
-                      ? 'text-emerald-300 font-extrabold shadow-sm'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70'
+                      ? 'text-amber-800 dark:text-amber-300 font-extrabold'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/70'
                   }`}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeTabPill"
-                      className="absolute inset-0 bg-emerald-500/15 border border-emerald-500/40 rounded-xl shadow-sm"
+                      className="absolute inset-0 bg-amber-500/15 border border-amber-500/40 rounded-xl shadow-xs"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}

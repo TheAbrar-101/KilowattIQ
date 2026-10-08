@@ -1,3 +1,440 @@
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// src/server/alerts/channels/emailResend.ts
+var EmailResendChannel;
+var init_emailResend = __esm({
+  "src/server/alerts/channels/emailResend.ts"() {
+    EmailResendChannel = class {
+      constructor() {
+        this.apiKey = process.env.RESEND_API_KEY || "";
+        this.senderEmail = process.env.RESEND_FROM_EMAIL || "KilowattIQ Alerts <alerts@kilowattiq.com>";
+      }
+      async send(recipientEmail, alert) {
+        const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+        const subject = `KilowattIQ Notice: ${alert.title}`;
+        const htmlBody = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; background: #0f172a; color: #cbd5e1; border-radius: 16px; padding: 28px; border: 1px solid #1e293b;">
+        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 16px; margin-bottom: 20px;">
+          <h2 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;">KILOWATTIQ \u2022 \u0995\u09BF\u09B2\u09CB\u0993\u09DF\u09BE\u099F \u0986\u0987\u0995\u09BF\u0989</h2>
+          <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 12px;">Residential Energy Intelligence & Tariff Optimization</p>
+        </div>
+        
+        <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+          <span style="display: inline-block; background: #d97706; color: #ffffff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; margin-bottom: 8px;">
+            ${alert.severity} NOTICE
+          </span>
+          <h3 style="margin: 0 0 6px 0; color: #fbbf24; font-size: 16px; font-weight: 700;">${alert.title}</h3>
+          <p style="margin: 0; color: #e2e8f0; font-size: 13px; line-height: 1.6;">${alert.message}</p>
+          <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 13px; line-height: 1.6;">${alert.messageBn}</p>
+        </div>
+
+        <div style="font-family: 'Courier New', monospace; font-size: 11px; color: #64748b; border-top: 1px solid #1e293b; padding-top: 14px;">
+          Alert ID: ${alert.id} \u2022 Rule: ${alert.ruleType} \u2022 Time: ${alert.timestamp}
+        </div>
+      </div>
+    `;
+        if (this.apiKey) {
+          try {
+            const response = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${this.apiKey}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                from: this.senderEmail,
+                to: [recipientEmail],
+                subject,
+                html: htmlBody
+              })
+            });
+            const data = await response.json();
+            if (response.ok) {
+              return {
+                channel: "EMAIL",
+                success: true,
+                provider: "Resend",
+                messageId: data.id,
+                timestamp
+              };
+            } else {
+              return {
+                channel: "EMAIL",
+                success: false,
+                provider: "Resend",
+                error: data.message || "Resend API returned an error",
+                timestamp
+              };
+            }
+          } catch (err) {
+            return {
+              channel: "EMAIL",
+              success: false,
+              provider: "Resend",
+              error: err.message || "Network error reaching Resend API",
+              timestamp
+            };
+          }
+        }
+        return {
+          channel: "EMAIL",
+          success: true,
+          provider: "Resend (Simulated/Mock)",
+          messageId: `resend-sim-${Date.now()}`,
+          timestamp
+        };
+      }
+    };
+  }
+});
+
+// src/server/alerts/channels/smsBdGateway.ts
+var SmsBdGatewayChannel;
+var init_smsBdGateway = __esm({
+  "src/server/alerts/channels/smsBdGateway.ts"() {
+    SmsBdGatewayChannel = class {
+      constructor() {
+        this.apiUrl = process.env.BD_SMS_GATEWAY_URL || "https://api.sms-bangladesh.com/v1/send";
+        this.apiKey = process.env.BD_SMS_API_KEY || "";
+        this.senderId = process.env.BD_SMS_SENDER_ID || "KilowattIQ";
+      }
+      async send(recipientPhone, alert) {
+        const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+        let formattedPhone = recipientPhone.replace(/[\s\-()]/g, "");
+        if (formattedPhone.startsWith("01")) {
+          formattedPhone = `+88${formattedPhone}`;
+        } else if (formattedPhone.startsWith("8801")) {
+          formattedPhone = `+${formattedPhone}`;
+        }
+        const smsContent = `[KilowattIQ] ${alert.title}: ${alert.message}. \u09B6\u09BE\u09A8\u09CD\u09A4\u09AD\u09BE\u09AC\u09C7 \u09B8\u09AE\u09BE\u09A7\u09BE\u09A8 \u0995\u09B0\u09A4\u09C7 \u0985\u09CD\u09AF\u09BE\u09AA \u09A6\u09C7\u0996\u09C1\u09A8\u0964`;
+        if (this.apiKey) {
+          try {
+            const response = await fetch(this.apiUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "api-key": this.apiKey
+              },
+              body: JSON.stringify({
+                recipient: formattedPhone,
+                sender_id: this.senderId,
+                message: smsContent,
+                type: "unicode"
+              })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (response.ok) {
+              return {
+                channel: "SMS",
+                success: true,
+                provider: "Local BD SMS Gateway",
+                messageId: data.message_id || `bd-sms-${Date.now()}`,
+                timestamp
+              };
+            } else {
+              return {
+                channel: "SMS",
+                success: false,
+                provider: "Local BD SMS Gateway",
+                error: data.message || "SMS Gateway rejected request",
+                timestamp
+              };
+            }
+          } catch (err) {
+            return {
+              channel: "SMS",
+              success: false,
+              provider: "Local BD SMS Gateway",
+              error: err.message || "SMS connection failed",
+              timestamp
+            };
+          }
+        }
+        return {
+          channel: "SMS",
+          success: true,
+          provider: "Local BD SMS Gateway (Simulated)",
+          messageId: `bd-sms-sim-${Date.now()}`,
+          timestamp
+        };
+      }
+    };
+  }
+});
+
+// src/server/alerts/channels/whatsAppTwilio.ts
+var WhatsAppTwilioChannel;
+var init_whatsAppTwilio = __esm({
+  "src/server/alerts/channels/whatsAppTwilio.ts"() {
+    WhatsAppTwilioChannel = class {
+      constructor() {
+        this.accountSid = process.env.TWILIO_ACCOUNT_SID || "";
+        this.authToken = process.env.TWILIO_AUTH_TOKEN || "";
+        this.fromNumber = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
+      }
+      async send(recipientPhone, alert) {
+        const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+        let formattedPhone = recipientPhone.replace(/[\s\-()]/g, "");
+        if (formattedPhone.startsWith("01")) {
+          formattedPhone = `+88${formattedPhone}`;
+        }
+        const toNumber = formattedPhone.startsWith("whatsapp:") ? formattedPhone : `whatsapp:${formattedPhone}`;
+        const body = `*\u26A1 KilowattIQ Energy Notice*
+*${alert.title}*
+
+${alert.message}
+_${alert.messageBn}_
+
+\u{1F4CA} Severity: ${alert.severity}
+\u{1F552} Recorded: ${new Date(alert.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+Tap your KilowattIQ dashboard for calm, optimal recommendations.`;
+        if (this.accountSid && this.authToken) {
+          try {
+            const url = `https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`;
+            const params = new URLSearchParams();
+            params.append("From", this.fromNumber);
+            params.append("To", toNumber);
+            params.append("Body", body);
+            const basicAuth = Buffer.from(`${this.accountSid}:${this.authToken}`).toString("base64");
+            const response = await fetch(url, {
+              method: "POST",
+              headers: {
+                Authorization: `Basic ${basicAuth}`,
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              body: params.toString()
+            });
+            const data = await response.json();
+            if (response.ok) {
+              return {
+                channel: "WHATSAPP",
+                success: true,
+                provider: "Twilio WhatsApp",
+                messageId: data.sid,
+                timestamp
+              };
+            } else {
+              return {
+                channel: "WHATSAPP",
+                success: false,
+                provider: "Twilio WhatsApp",
+                error: data.message || "Twilio WhatsApp error",
+                timestamp
+              };
+            }
+          } catch (err) {
+            return {
+              channel: "WHATSAPP",
+              success: false,
+              provider: "Twilio WhatsApp",
+              error: err.message || "Twilio connection failed",
+              timestamp
+            };
+          }
+        }
+        return {
+          channel: "WHATSAPP",
+          success: true,
+          provider: "Twilio WhatsApp (Simulated)",
+          messageId: `twilio-wa-sim-${Date.now()}`,
+          timestamp
+        };
+      }
+    };
+  }
+});
+
+// src/server/alerts/channels/webPushVapid.ts
+var WebPushVapidChannel;
+var init_webPushVapid = __esm({
+  "src/server/alerts/channels/webPushVapid.ts"() {
+    WebPushVapidChannel = class {
+      constructor() {
+        this.publicKey = process.env.VAPID_PUBLIC_KEY || "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjZJuGT00TQwT5EGnLuh2D_OO8_8U";
+        this.privateKey = process.env.VAPID_PRIVATE_KEY || "";
+        this.subject = process.env.VAPID_SUBJECT || "mailto:alerts@kilowattiq.com";
+      }
+      async send(subscription, alert) {
+        const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+        const payload = JSON.stringify({
+          title: alert.title,
+          body: `${alert.message} (${alert.messageBn})`,
+          icon: "/favicon.ico",
+          badge: "/favicon.ico",
+          tag: `kilowattiq-alert-${alert.ruleType.toLowerCase()}`,
+          data: {
+            alertId: alert.id,
+            ruleType: alert.ruleType,
+            severity: alert.severity,
+            url: "/#alerts",
+            timestamp: alert.timestamp
+          }
+        });
+        if (subscription && subscription.endpoint && this.privateKey) {
+          try {
+            const response = await fetch(subscription.endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                TTL: "86400"
+              },
+              body: payload
+            });
+            if (response.ok) {
+              return {
+                channel: "WEB_PUSH",
+                success: true,
+                provider: "Web Push (VAPID)",
+                messageId: `vapid-${Date.now()}`,
+                timestamp
+              };
+            } else {
+              return {
+                channel: "WEB_PUSH",
+                success: false,
+                provider: "Web Push (VAPID)",
+                error: `Push service rejected status ${response.status}`,
+                timestamp
+              };
+            }
+          } catch (err) {
+            return {
+              channel: "WEB_PUSH",
+              success: false,
+              provider: "Web Push (VAPID)",
+              error: err.message || "Push transmission error",
+              timestamp
+            };
+          }
+        }
+        return {
+          channel: "WEB_PUSH",
+          success: true,
+          provider: "Web Push (VAPID Simulated)",
+          messageId: `vapid-sim-${Date.now()}`,
+          timestamp
+        };
+      }
+    };
+  }
+});
+
+// src/server/alerts/channels/channelDispatcher.ts
+var channelDispatcher_exports = {};
+__export(channelDispatcher_exports, {
+  ChannelDispatcher: () => ChannelDispatcher
+});
+var ChannelDispatcher;
+var init_channelDispatcher = __esm({
+  "src/server/alerts/channels/channelDispatcher.ts"() {
+    init_emailResend();
+    init_smsBdGateway();
+    init_whatsAppTwilio();
+    init_webPushVapid();
+    ChannelDispatcher = class {
+      constructor() {
+        this.emailChannel = new EmailResendChannel();
+        this.smsChannel = new SmsBdGatewayChannel();
+        this.whatsAppChannel = new WhatsAppTwilioChannel();
+        this.webPushChannel = new WebPushVapidChannel();
+      }
+      /**
+       * Evaluates if the current local time falls within configured quiet hours.
+       * Quiet hours often cross midnight (e.g. 23:00 to 07:00).
+       */
+      isQuietHoursActive(quietHours, date = /* @__PURE__ */ new Date()) {
+        if (!quietHours || !quietHours.enabled) return false;
+        try {
+          const tz = quietHours.timezone || "Asia/Dhaka";
+          const timeStr = date.toLocaleTimeString("en-US", {
+            timeZone: tz,
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+          const [curH, curM] = timeStr.split(":").map(Number);
+          const [startH, startM] = quietHours.startTime.split(":").map(Number);
+          const [endH, endM] = quietHours.endTime.split(":").map(Number);
+          const curMinutes = curH * 60 + curM;
+          const startMinutes = startH * 60 + startM;
+          const endMinutes = endH * 60 + endM;
+          if (startMinutes <= endMinutes) {
+            return curMinutes >= startMinutes && curMinutes <= endMinutes;
+          } else {
+            return curMinutes >= startMinutes || curMinutes <= endMinutes;
+          }
+        } catch {
+          return false;
+        }
+      }
+      /**
+       * Dispatches an alert record to all enabled notification channels for a user.
+       * If quiet hours are active, suppresses audible channels (SMS, WhatsApp) unless CRITICAL.
+       */
+      async dispatch(alert, preferences) {
+        const deliveries = [];
+        const isQuiet = this.isQuietHoursActive(preferences.quietHours);
+        const allowAudible = !isQuiet || alert.severity === "CRITICAL";
+        const defaultEmail = preferences.contacts.email || "consumer@kilowattiq.local";
+        const defaultPhone = preferences.contacts.phone || "+8801711000000";
+        const defaultWhatsApp = preferences.contacts.whatsappNumber || defaultPhone;
+        if (preferences.enabledChannels.EMAIL) {
+          const res = await this.emailChannel.send(defaultEmail, alert);
+          deliveries.push(res);
+          if (res.success) alert.channelsSent.push("EMAIL");
+        }
+        if (preferences.enabledChannels.SMS) {
+          if (allowAudible) {
+            const res = await this.smsChannel.send(defaultPhone, alert);
+            deliveries.push(res);
+            if (res.success) alert.channelsSent.push("SMS");
+          } else {
+            deliveries.push({
+              channel: "SMS",
+              success: false,
+              provider: "Local BD SMS Gateway",
+              error: "Suppressed due to active Quiet Hours (23:00 - 07:00)",
+              timestamp: (/* @__PURE__ */ new Date()).toISOString()
+            });
+          }
+        }
+        if (preferences.enabledChannels.WHATSAPP) {
+          if (allowAudible) {
+            const res = await this.whatsAppChannel.send(defaultWhatsApp, alert);
+            deliveries.push(res);
+            if (res.success) alert.channelsSent.push("WHATSAPP");
+          } else {
+            deliveries.push({
+              channel: "WHATSAPP",
+              success: false,
+              provider: "Twilio WhatsApp",
+              error: "Suppressed due to active Quiet Hours (23:00 - 07:00)",
+              timestamp: (/* @__PURE__ */ new Date()).toISOString()
+            });
+          }
+        }
+        if (preferences.enabledChannels.WEB_PUSH) {
+          const res = await this.webPushChannel.send(preferences.contacts.pushSubscription, alert);
+          deliveries.push(res);
+          if (res.success) alert.channelsSent.push("WEB_PUSH");
+        }
+        return {
+          deliveries,
+          quietHoursSuppressed: isQuiet && !allowAudible
+        };
+      }
+    };
+  }
+});
+
 // backend/app.ts
 import express2 from "express";
 
@@ -27,7 +464,7 @@ function errorHandler(err, req, res, next) {
 }
 
 // src/server/router.ts
-import { Router as Router13 } from "express";
+import { Router as Router14 } from "express";
 
 // backend/services/SupabaseService.ts
 import { createClient } from "@supabase/supabase-js";
@@ -51,6 +488,7 @@ var SupabaseService = class _SupabaseService {
       ["33333333-3333-4333-a333-333333333309", true]
     ]);
     this.deviceStates = /* @__PURE__ */ new Map();
+    this.profileMap = /* @__PURE__ */ new Map();
     const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const rawServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
     const rawAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
@@ -546,20 +984,45 @@ var SupabaseService = class _SupabaseService {
     }));
   }
   async getProfile(userId) {
+    if (this.profileMap.has(userId)) {
+      return this.profileMap.get(userId);
+    }
     if (!this.client) return null;
-    const { data } = await this.client.from("profiles").select("*").eq("id", userId).single();
-    return data;
+    try {
+      const { data } = await this.client.from("profiles").select("*").eq("id", userId).single();
+      if (data) {
+        this.profileMap.set(userId, data);
+        return data;
+      }
+    } catch {
+    }
+    return null;
   }
   async updateProfile(userId, updates) {
-    if (!this.client) return null;
-    const { data, error } = await this.client.from("profiles").update({
-      full_name: updates.fullName,
-      phone: updates.phone,
-      role: updates.role,
+    const existing = await this.getProfile(userId) || { id: userId };
+    const merged = {
+      ...existing,
+      ...updates.fullName !== void 0 ? { full_name: updates.fullName } : {},
+      ...updates.phone !== void 0 ? { phone: updates.phone } : {},
+      ...updates.role !== void 0 ? { role: updates.role } : {},
+      ...updates.theme !== void 0 ? { theme: updates.theme } : {},
       updated_at: (/* @__PURE__ */ new Date()).toISOString()
-    }).eq("id", userId).select().single();
-    if (error) throw error;
-    return data;
+    };
+    this.profileMap.set(userId, merged);
+    if (this.client) {
+      try {
+        const updatePayload = {
+          updated_at: merged.updated_at
+        };
+        if (updates.fullName !== void 0) updatePayload.full_name = updates.fullName;
+        if (updates.phone !== void 0) updatePayload.phone = updates.phone;
+        if (updates.role !== void 0) updatePayload.role = updates.role;
+        const { data } = await this.client.from("profiles").update(updatePayload).eq("id", userId).select().single();
+        if (data) return { ...data, theme: merged.theme };
+      } catch (e) {
+      }
+    }
+    return merged;
   }
   // --- HOUSEHOLDS, ROOMS, APPLIANCES, DEVICES, TELEMETRY ---
   async getHouseholds(userId) {
@@ -1336,8 +1799,8 @@ router2.put("/", async (req, res) => {
     return res.status(401).json({ status: "error", message: "Unauthorized" });
   }
   try {
-    const { fullName, phone, role } = req.body;
-    const updated = await db2.updateProfile(req.user.id, { fullName, phone, role });
+    const { fullName, phone, role, theme } = req.body;
+    const updated = await db2.updateProfile(req.user.id, { fullName, phone, role, theme });
     res.json({
       status: "success",
       message: "Profile updated successfully.",
@@ -2919,7 +3382,157 @@ var recommendations_default = router7;
 import { Router as Router8 } from "express";
 
 // backend/services/ReportService.ts
+import PDFDocument2 from "pdfkit";
+
+// src/server/reports/pdf/fonts.ts
+import path from "path";
+import fs from "fs";
 import PDFDocument from "pdfkit";
+var FONT_NOTO_BENGALI = "NotoSansBengali";
+var FONT_NOTO_BENGALI_BOLD = "NotoSansBengali-Bold";
+var FONT_SOLAIMAN_LIPI = "SolaimanLipi";
+var FONT_JETBRAINS_MONO = "JetBrainsMono";
+var FONT_LATIN = "Helvetica";
+var FONT_LATIN_BOLD = "Helvetica-Bold";
+var ASSET_DIR = path.resolve(process.cwd(), "src/server/reports/pdf/assets");
+var FONT_PATHS = {
+  notoBengaliRegular: path.join(ASSET_DIR, "NotoSansBengali-Regular.ttf"),
+  notoBengaliBold: path.join(ASSET_DIR, "NotoSansBengali-Bold.ttf"),
+  solaimanLipi: path.join(ASSET_DIR, "SolaimanLipi.ttf"),
+  jetBrainsMono: path.join(ASSET_DIR, "JetBrainsMono-Regular.ttf")
+};
+var BANGLA_UNICODE_REGEX = /[\u0980-\u09FF]/;
+function hasBanglaCharacters(text) {
+  if (!text) return false;
+  return BANGLA_UNICODE_REGEX.test(text);
+}
+function isBanglaCodePoint(cp) {
+  return cp >= 2432 && cp <= 2559;
+}
+function registerReportFonts(doc) {
+  try {
+    if (fs.existsSync(FONT_PATHS.notoBengaliRegular)) {
+      doc.registerFont(FONT_NOTO_BENGALI, FONT_PATHS.notoBengaliRegular);
+    }
+    if (fs.existsSync(FONT_PATHS.notoBengaliBold)) {
+      doc.registerFont(FONT_NOTO_BENGALI_BOLD, FONT_PATHS.notoBengaliBold);
+    }
+    if (fs.existsSync(FONT_PATHS.solaimanLipi)) {
+      doc.registerFont(FONT_SOLAIMAN_LIPI, FONT_PATHS.solaimanLipi);
+    }
+    if (fs.existsSync(FONT_PATHS.jetBrainsMono)) {
+      doc.registerFont(FONT_JETBRAINS_MONO, FONT_PATHS.jetBrainsMono);
+    }
+  } catch (err) {
+    console.warn("[PDF Fonts] Font registration warning:", err);
+  }
+}
+function segmentTextRuns(text, options = {}) {
+  if (!text) return [];
+  const { isBold = false, preferSolaiman = false, isNumeric = false, isNumericColumn = false } = options;
+  const banglaFont = preferSolaiman ? FONT_SOLAIMAN_LIPI : isBold ? FONT_NOTO_BENGALI_BOLD : FONT_NOTO_BENGALI;
+  const latinFont = isNumeric || isNumericColumn ? FONT_JETBRAINS_MONO : isBold ? FONT_LATIN_BOLD : FONT_LATIN;
+  if (hasBanglaCharacters(text) && !/[a-zA-Z]/.test(text)) {
+    if (preferSolaiman && text.includes("\u2014")) {
+    } else {
+      return [{ text, font: banglaFont }];
+    }
+  }
+  if (!hasBanglaCharacters(text) && !text.includes("\u09F3")) {
+    return [{ text, font: latinFont }];
+  }
+  const segments = [];
+  let currentText = "";
+  let currentFont = null;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const cp = char.codePointAt(0) || 0;
+    let targetFont = latinFont;
+    if (isBanglaCodePoint(cp)) {
+      targetFont = banglaFont;
+    } else if (cp === 8212) {
+      targetFont = isBold ? FONT_NOTO_BENGALI_BOLD : FONT_NOTO_BENGALI;
+    } else if (char === "\u09F3") {
+      targetFont = isBold ? FONT_NOTO_BENGALI_BOLD : FONT_NOTO_BENGALI;
+    } else if (currentFont && (currentFont === FONT_NOTO_BENGALI || currentFont === FONT_NOTO_BENGALI_BOLD) && !/[a-zA-Z]/.test(char) && /[\s0-9,.:;%()/\-+]/.test(char)) {
+      targetFont = currentFont;
+    } else if (isNumeric || isNumericColumn) {
+      targetFont = FONT_JETBRAINS_MONO;
+    } else {
+      targetFont = latinFont;
+    }
+    if (char === " " && currentFont) {
+      targetFont = currentFont;
+    }
+    if (targetFont === currentFont) {
+      currentText += char;
+    } else {
+      if (currentText) {
+        segments.push({ text: currentText, font: currentFont });
+      }
+      currentText = char;
+      currentFont = targetFont;
+    }
+  }
+  if (currentText && currentFont) {
+    segments.push({ text: currentText, font: currentFont });
+  }
+  return segments;
+}
+function renderSmartText(doc, text, x, y, options = {}) {
+  if (!text) return;
+  const {
+    isBold = false,
+    isNumeric = false,
+    preferSolaiman = false,
+    fontSize,
+    color,
+    align = "left",
+    width
+  } = options;
+  if (fontSize) doc.fontSize(fontSize);
+  if (color) doc.fillColor(color);
+  const segments = segmentTextRuns(text, {
+    isBold,
+    isNumeric,
+    preferSolaiman
+  });
+  if (segments.length === 0) return;
+  if (segments.length === 1) {
+    doc.font(segments[0].font);
+    if (x !== void 0 && y !== void 0) {
+      if (width) {
+        doc.text(segments[0].text, x, y, { width, align });
+      } else {
+        doc.text(segments[0].text, x, y);
+      }
+    } else {
+      if (width) {
+        doc.text(segments[0].text, { width, align });
+      } else {
+        doc.text(segments[0].text);
+      }
+    }
+    return;
+  }
+  for (let i = 0; i < segments.length; i++) {
+    const isFirst = i === 0;
+    const isLast = i === segments.length - 1;
+    doc.font(segments[i].font);
+    const pdfOpts = {
+      continued: !isLast,
+      ...width ? { width } : {},
+      ...align ? { align } : {}
+    };
+    if (isFirst && x !== void 0 && y !== void 0) {
+      doc.text(segments[i].text, x, y, pdfOpts);
+    } else {
+      doc.text(segments[i].text, pdfOpts);
+    }
+  }
+}
+
+// backend/services/ReportService.ts
 var ReportService = class {
   /**
    * Generates formatted CSV energy audit report string for export
@@ -3014,12 +3627,12 @@ var ReportService = class {
     return lines.join("\n");
   }
   /**
-   * Generates a PDF buffer using PDFKit for official energy report download
+   * Generates a PDF buffer using PDFKit with embedded Bangla and Monospace fonts
    */
-  static async generatePDFReport(data) {
+  static async generatePDFReport(data, language = "en") {
     return new Promise((resolve, reject) => {
       try {
-        const doc = new PDFDocument({
+        const doc = new PDFDocument2({
           size: "A4",
           margin: 36,
           bufferPages: true
@@ -3028,152 +3641,168 @@ var ReportService = class {
         doc.on("data", (b) => buffers.push(b));
         doc.on("end", () => resolve(Buffer.concat(buffers)));
         doc.on("error", (err) => reject(err));
+        registerReportFonts(doc);
         const primaryColor = "#0f172a";
         const accentEmerald = "#059669";
         const textColor = "#1e293b";
         const mutedTextColor = "#64748b";
         const tableBgHeader = "#f1f5f9";
         const tableBgAlt = "#f8fafc";
-        doc.rect(36, 36, 523, 60).fill(primaryColor);
-        doc.fillColor("#ffffff").fontSize(18).font("Helvetica-Bold").text("KILOWATTIQ", 50, 48);
-        doc.fillColor("#10b981").fontSize(11).font("Helvetica-Bold").text("ENERGY AUDIT & ANALYTICS REPORT", 50, 68);
-        doc.fillColor("#94a3b8").fontSize(9).font("Helvetica").text(`Reporting Period: ${data.reportingPeriod}`, 320, 50, { align: "right", width: 220 });
-        doc.text(`Generated: ${data.generatedAt}`, 320, 65, { align: "right", width: 220 });
-        let y = 110;
+        const draw = (text, x, y2, opts = {}) => {
+          renderSmartText(doc, text, x, y2, opts);
+        };
+        const isBangla = language === "bn";
+        const isBoth = language === "both";
+        doc.rect(36, 36, 523, 64).fill(primaryColor);
+        if (isBangla) {
+          draw("\u0995\u09BF\u09B2\u09CB\u0993\u09DF\u09BE\u099F \u0986\u0987\u0995\u09BF\u0989", 50, 46, { isBold: true, fontSize: 16, color: "#ffffff" });
+          draw("\u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u0985\u09CD\u09AF\u09BE\u09A8\u09BE\u09B2\u09BE\u0987\u09B8\u09BF\u09B8 \u09B0\u09BF\u09AA\u09CB\u09B0\u09CD\u099F \u2014 \u09F3\u09E7\u09E8,\u09EA\u09EB\u09E6", 50, 68, { isBold: true, fontSize: 11, color: "#10b981" });
+        } else if (isBoth) {
+          draw("KILOWATTIQ \u2022 \u0995\u09BF\u09B2\u09CB\u0993\u09DF\u09BE\u099F \u0986\u0987\u0995\u09BF\u0989", 50, 46, { isBold: true, fontSize: 15, color: "#ffffff" });
+          draw("ENERGY AUDIT REPORT \u2022 \u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u0985\u09CD\u09AF\u09BE\u09A8\u09BE\u09B2\u09BE\u0987\u09B8\u09BF\u09B8 \u09B0\u09BF\u09AA\u09CB\u09B0\u09CD\u099F \u2014 \u09F3\u09E7\u09E8,\u09EA\u09EB\u09E6", 50, 68, { isBold: true, fontSize: 9.5, color: "#10b981" });
+        } else {
+          draw("KILOWATTIQ", 50, 46, { isBold: true, fontSize: 18, color: "#ffffff" });
+          draw("ENERGY AUDIT & ANALYTICS REPORT", 50, 68, { isBold: true, fontSize: 11, color: "#10b981" });
+        }
+        const periodLabel = isBangla ? `\u09B0\u09BF\u09AA\u09CB\u09B0\u09CD\u099F\u09BF\u0982 \u09B8\u09AE\u09AF\u09BC\u0995\u09BE\u09B2: ${data.reportingPeriod}` : `Reporting Period: ${data.reportingPeriod}`;
+        const genLabel = isBangla ? `\u09A4\u09C8\u09B0\u09BF\u09B0 \u09A4\u09BE\u09B0\u09BF\u0996: ${data.generatedAt}` : `Generated: ${data.generatedAt}`;
+        draw(periodLabel, 300, 48, { fontSize: 8.5, color: "#94a3b8", align: "right", width: 240 });
+        draw(genLabel, 300, 64, { fontSize: 8.5, color: "#94a3b8", align: "right", width: 240, isNumeric: true });
+        let y = 114;
         doc.rect(36, y, 523, 65).fillAndStroke("#f8fafc", "#cbd5e1");
-        doc.fillColor(primaryColor).fontSize(11).font("Helvetica-Bold").text("HOUSEHOLD INFORMATION", 48, y + 10);
-        doc.fontSize(9).font("Helvetica").fillColor(textColor);
-        doc.text(`Household Name: ${data.household.name}`, 48, y + 28);
-        doc.text(`Account Serial: ${data.household.accountNumber}`, 48, y + 42);
-        doc.text(`Utility Provider: ${data.household.utilityProvider}`, 300, y + 28);
-        doc.text(`Sanctioned Capacity: ${data.household.sanctionedLoadKw} kW`, 300, y + 42);
+        const hhTitle = isBangla ? "\u0997\u09CD\u09B0\u09BE\u09B9\u0995\u09C7\u09B0 \u09AC\u09BF\u09AC\u09B0\u09A3\u09C0 (Household Information)" : isBoth ? "HOUSEHOLD INFORMATION \u2022 \u0997\u09CD\u09B0\u09BE\u09B9\u0995\u09C7\u09B0 \u09AC\u09BF\u09AC\u09B0\u09A3\u09C0" : "HOUSEHOLD INFORMATION";
+        draw(hhTitle, 48, y + 10, { isBold: true, fontSize: 10.5, color: primaryColor });
+        const nameLabel = isBangla ? `\u0997\u09CD\u09B0\u09BE\u09B9\u0995 / \u09AC\u09BE\u09B8\u09BE: ${data.household.name}` : `Household Name: ${data.household.name}`;
+        const accLabel = isBangla ? `\u09B9\u09BF\u09B8\u09BE\u09AC \u09A8\u09AE\u09CD\u09AC\u09B0: ${data.household.accountNumber}` : `Account Serial: ${data.household.accountNumber}`;
+        const utilLabel = isBangla ? `\u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u09AC\u09BF\u09A4\u09B0\u09A3 \u09B8\u0982\u09B8\u09CD\u09A5\u09BE: ${data.household.utilityProvider}` : `Utility Provider: ${data.household.utilityProvider}`;
+        const loadLabel = isBangla ? `\u0985\u09A8\u09C1\u09AE\u09CB\u09A6\u09BF\u09A4 \u09B2\u09CB\u09A1: ${data.household.sanctionedLoadKw} kW` : `Sanctioned Capacity: ${data.household.sanctionedLoadKw} kW`;
+        draw(nameLabel, 48, y + 28, { fontSize: 9, color: textColor });
+        draw(accLabel, 48, y + 42, { fontSize: 9, color: textColor, isNumeric: true });
+        draw(utilLabel, 300, y + 28, { fontSize: 9, color: textColor });
+        draw(loadLabel, 300, y + 42, { fontSize: 9, color: textColor, isNumeric: true });
         y += 80;
-        doc.fillColor(accentEmerald).fontSize(12).font("Helvetica-Bold").text("1. Executive Energy & Billing Summary", 36, y);
+        const sec1Title = isBangla ? "\u09E7. \u09A8\u09BF\u09B0\u09CD\u09AC\u09BE\u09B9\u09C0 \u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u0993 \u09AC\u09BF\u09B2\u09BF\u0982 \u09B8\u09BE\u09B0\u09B8\u0982\u0995\u09CD\u09B7\u09C7\u09AA" : isBoth ? "1. Executive Energy & Billing Summary (\u09B8\u09BE\u09B0\u09B8\u0982\u0995\u09CD\u09B7\u09C7\u09AA)" : "1. Executive Energy & Billing Summary";
+        draw(sec1Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
         const summaryBoxWidth = 120;
         const summaryBoxHeight = 50;
         doc.rect(36, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, "#e2e8f0");
-        doc.fillColor(mutedTextColor).fontSize(8).font("Helvetica-Bold").text("TOTAL CONSUMPTION", 42, y + 8);
-        doc.fillColor(primaryColor).fontSize(13).font("Helvetica-Bold").text(`${data.energySummary.totalMonthlyKwh} kWh`, 42, y + 24);
+        draw(isBangla ? "\u09AE\u09CB\u099F \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0" : "TOTAL CONSUMPTION", 42, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`${data.energySummary.totalMonthlyKwh} kWh`, 42, y + 24, { isBold: true, fontSize: 12, color: primaryColor, isNumeric: true });
         doc.rect(170, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, "#e2e8f0");
-        doc.fillColor(mutedTextColor).fontSize(8).font("Helvetica-Bold").text("PROJECTED BILL (BDT)", 176, y + 8);
-        doc.fillColor(accentEmerald).fontSize(13).font("Helvetica-Bold").text(`BDT ${data.costAnalysis.grossTotalBDT}`, 176, y + 24);
+        draw(isBangla ? "\u09AA\u09CD\u09B0\u09BE\u0995\u09CD\u0995\u09B2\u09BF\u09A4 \u09AC\u09BF\u09B2 (BDT)" : "PROJECTED BILL (BDT)", 176, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`\u09F3 ${data.costAnalysis.grossTotalBDT}`, 176, y + 24, { isBold: true, fontSize: 12, color: accentEmerald, isNumeric: true });
         doc.rect(304, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, "#e2e8f0");
-        doc.fillColor(mutedTextColor).fontSize(8).font("Helvetica-Bold").text("MONTHLY BUDGET", 310, y + 8);
-        doc.fillColor("#d97706").fontSize(13).font("Helvetica-Bold").text(`BDT ${data.household.monthlyBudgetBDT}`, 310, y + 24);
+        draw(isBangla ? "\u09AE\u09BE\u09B8\u09BF\u0995 \u09AC\u09BE\u099C\u09C7\u099F" : "MONTHLY BUDGET", 310, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`\u09F3 ${data.household.monthlyBudgetBDT}`, 310, y + 24, { isBold: true, fontSize: 12, color: "#d97706", isNumeric: true });
         doc.rect(438, y, summaryBoxWidth, summaryBoxHeight).fillAndStroke(tableBgAlt, "#e2e8f0");
-        doc.fillColor(mutedTextColor).fontSize(8).font("Helvetica-Bold").text("EFFECTIVE RATE", 444, y + 8);
-        doc.fillColor(textColor).fontSize(13).font("Helvetica-Bold").text(`BDT ${data.costAnalysis.effectiveRatePerKwh}/kWh`, 444, y + 24);
+        draw(isBangla ? "\u0995\u09BE\u09B0\u09CD\u09AF\u0995\u09B0 \u09B0\u09C7\u099F" : "EFFECTIVE RATE", 444, y + 8, { isBold: true, fontSize: 8, color: mutedTextColor });
+        draw(`\u09F3 ${data.costAnalysis.effectiveRatePerKwh}/kWh`, 444, y + 24, { isBold: true, fontSize: 11.5, color: textColor, isNumeric: true });
         y += 65;
-        doc.fillColor(accentEmerald).fontSize(12).font("Helvetica-Bold").text("2. DESCO/DPDC LT-A Tariff Step Breakdown", 36, y);
+        const sec2Title = isBangla ? "\u09E8. \u09A1\u09C7\u09B8\u0995\u09CB/\u09A1\u09BF\u09AA\u09BF\u09A1\u09BF\u09B8\u09BF \u09AC\u09BF\u0987\u0986\u09B0\u09B8\u09BF \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09A7\u09BE\u09AA\u09AD\u09BF\u09A4\u09CD\u09A4\u09BF\u0995 \u0996\u09B0\u099A" : isBoth ? "2. DESCO/DPDC LT-A Tariff Step Breakdown (\u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09AC\u09BF\u09B6\u09CD\u09B2\u09C7\u09B7\u09A3)" : "2. DESCO/DPDC LT-A Tariff Step Breakdown";
+        draw(sec2Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
         doc.rect(36, y, 523, 20).fill(tableBgHeader);
-        doc.fillColor(primaryColor).fontSize(9).font("Helvetica-Bold");
-        doc.text("Slab Tier", 46, y + 5);
-        doc.text("kWh in Slab", 200, y + 5);
-        doc.text("Rate (BDT/kWh)", 330, y + 5);
-        doc.text("Cost in Slab (BDT)", 440, y + 5);
+        draw(isBangla ? "\u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09A7\u09BE\u09AA" : "Slab Tier", 46, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09AC\u09CD\u09AF\u09AC\u09B9\u09C3\u09A4 \u0987\u0989\u09A8\u09BF\u099F" : "kWh in Slab", 200, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09B0\u09C7\u099F (\u099F\u09BE\u0995\u09BE/kWh)" : "Rate (BDT/kWh)", 330, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09A7\u09BE\u09AA\u09C7\u09B0 \u0996\u09B0\u099A (\u099F\u09BE\u0995\u09BE)" : "Cost in Slab (BDT)", 440, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
         y += 20;
         if (data.costAnalysis.slabBreakdown) {
           data.costAnalysis.slabBreakdown.forEach((slab, i) => {
             if (i % 2 === 1) {
               doc.rect(36, y, 523, 18).fill(tableBgAlt);
             }
-            doc.fillColor(textColor).fontSize(8.5).font("Helvetica");
-            doc.text(slab.stepName, 46, y + 4);
-            doc.text(`${slab.kwhInSlab} kWh`, 200, y + 4);
-            doc.text(`BDT ${slab.rate.toFixed(2)}`, 330, y + 4);
-            doc.text(`BDT ${slab.costBDT.toFixed(2)}`, 440, y + 4);
+            draw(slab.stepName, 46, y + 4, { fontSize: 8.5, color: textColor });
+            draw(`${slab.kwhInSlab} kWh`, 200, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+            draw(`\u09F3 ${slab.rate.toFixed(2)}`, 330, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+            draw(`\u09F3 ${slab.costBDT.toFixed(2)}`, 440, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
             y += 18;
           });
         }
         y += 5;
-        doc.fontSize(8.5).font("Helvetica").fillColor(mutedTextColor);
-        doc.text(`Energy Charge: BDT ${data.costAnalysis.energyCostBDT} | Demand Charge: BDT ${data.costAnalysis.demandChargeBDT} | Meter Rent: BDT ${data.costAnalysis.meterRentBDT} | VAT (5%): BDT ${data.costAnalysis.vatBDT}`, 46, y);
+        const chargesText = isBangla ? `\u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u099A\u09BE\u09B0\u09CD\u099C: \u09F3 ${data.costAnalysis.energyCostBDT} | \u09A1\u09BF\u09AE\u09BE\u09A8\u09CD\u09A1 \u099A\u09BE\u09B0\u09CD\u099C: \u09F3 ${data.costAnalysis.demandChargeBDT} | \u09AE\u09BF\u099F\u09BE\u09B0 \u09AD\u09BE\u09A1\u09BC\u09BE: \u09F3 ${data.costAnalysis.meterRentBDT} | \u09AD\u09CD\u09AF\u09BE\u099F (\u09EB%): \u09F3 ${data.costAnalysis.vatBDT}` : `Energy Charge: BDT ${data.costAnalysis.energyCostBDT} | Demand Charge: BDT ${data.costAnalysis.demandChargeBDT} | Meter Rent: BDT ${data.costAnalysis.meterRentBDT} | VAT (5%): BDT ${data.costAnalysis.vatBDT}`;
+        draw(chargesText, 46, y, { fontSize: 8, color: mutedTextColor, isNumeric: true });
         y += 25;
-        doc.fillColor(accentEmerald).fontSize(12).font("Helvetica-Bold").text("3. Household Appliance Energy Breakdown", 36, y);
+        const sec3Title = isBangla ? "\u09E9. \u0997\u09C3\u09B9\u09B8\u09CD\u09A5\u09BE\u09B2\u09BF \u09AF\u09A8\u09CD\u09A4\u09CD\u09B0\u09AA\u09BE\u09A4\u09BF\u09AD\u09BF\u09A4\u09CD\u09A4\u09BF\u0995 \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0" : isBoth ? "3. Household Appliance Energy Breakdown (\u09AF\u09A8\u09CD\u09A4\u09CD\u09B0\u09AA\u09BE\u09A4\u09BF\u09AD\u09BF\u09A4\u09CD\u09A4\u09BF\u0995 \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0)" : "3. Household Appliance Energy Breakdown";
+        draw(sec3Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
         doc.rect(36, y, 523, 20).fill(tableBgHeader);
-        doc.fillColor(primaryColor).fontSize(9).font("Helvetica-Bold");
-        doc.text("Appliance", 46, y + 5);
-        doc.text("Room", 180, y + 5);
-        doc.text("Power (W)", 280, y + 5);
-        doc.text("Est. Monthly kWh", 370, y + 5);
-        doc.text("Est. Cost (BDT)", 470, y + 5);
+        draw(isBangla ? "\u09AF\u09A8\u09CD\u09A4\u09CD\u09B0\u09C7\u09B0 \u09A8\u09BE\u09AE" : "Appliance", 46, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09B0\u09C1\u09AE/\u0995\u0995\u09CD\u09B7" : "Room", 180, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u0995\u09CD\u09B7\u09AE\u09A4\u09BE (W)" : "Power (W)", 280, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09AE\u09BE\u09B8\u09BF\u0995 \u0987\u0989\u09A8\u09BF\u099F" : "Est. Monthly kWh", 370, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09AE\u09BE\u09B8\u09BF\u0995 \u0996\u09B0\u099A" : "Est. Cost (BDT)", 470, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
         y += 20;
         data.applianceAnalysis.slice(0, 6).forEach((app2, i) => {
           if (i % 2 === 1) {
             doc.rect(36, y, 523, 18).fill(tableBgAlt);
           }
-          doc.fillColor(textColor).fontSize(8.5).font("Helvetica");
-          doc.text(app2.name, 46, y + 4);
-          doc.text(app2.roomName, 180, y + 4);
-          doc.text(`${app2.ratedPowerW} W`, 280, y + 4);
-          doc.text(`${app2.estimatedMonthlyKwh} kWh`, 370, y + 4);
-          doc.text(`BDT ${app2.estimatedMonthlyCostBDT}`, 470, y + 4);
+          draw(app2.name, 46, y + 4, { fontSize: 8.5, color: textColor });
+          draw(app2.roomName, 180, y + 4, { fontSize: 8.5, color: textColor });
+          draw(`${app2.ratedPowerW} W`, 280, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`${app2.estimatedMonthlyKwh} kWh`, 370, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`\u09F3 ${app2.estimatedMonthlyCostBDT}`, 470, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
           y += 18;
         });
         y += 20;
         doc.addPage();
         y = 36;
         doc.rect(36, y, 523, 30).fill(primaryColor);
-        doc.fillColor("#ffffff").fontSize(11).font("Helvetica-Bold").text("KILOWATTIQ \u2022 VAMPIRE AUDIT & AI ADVISORY", 48, y + 10);
+        const p2Header = isBangla ? "\u0995\u09BF\u09B2\u09CB\u0993\u09DF\u09BE\u099F \u0986\u0987\u0995\u09BF\u0989 \u2022 \u09AD\u09CD\u09AF\u09BE\u09AE\u09CD\u09AA\u09BE\u09AF\u09BC\u09BE\u09B0 \u0985\u09A1\u09BF\u099F \u0993 \u098F\u0986\u0987 \u0985\u09CD\u09AF\u09BE\u09A1\u09AD\u09BE\u0987\u099C\u09B0\u09BF" : "KILOWATTIQ \u2022 VAMPIRE AUDIT & AI ADVISORY";
+        draw(p2Header, 48, y + 10, { isBold: true, fontSize: 10.5, color: "#ffffff" });
         y += 45;
-        doc.fillColor(accentEmerald).fontSize(12).font("Helvetica-Bold").text("4. Vampire / Standby Power Loss Audit", 36, y);
+        const sec4Title = isBangla ? "\u09EA. \u09AD\u09CD\u09AF\u09BE\u09AE\u09CD\u09AA\u09BE\u09AF\u09BC\u09BE\u09B0 / \u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u09AA\u09BE\u0993\u09AF\u09BC\u09BE\u09B0 \u0985\u09AA\u099A\u09AF\u09BC \u0985\u09A1\u09BF\u099F" : isBoth ? "4. Vampire / Standby Power Loss Audit (\u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u0985\u09AA\u099A\u09AF\u09BC)" : "4. Vampire / Standby Power Loss Audit";
+        draw(sec4Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
         doc.rect(36, y, 523, 20).fill(tableBgHeader);
-        doc.fillColor(primaryColor).fontSize(9).font("Helvetica-Bold");
-        doc.text("Appliance", 46, y + 5);
-        doc.text("Room", 180, y + 5);
-        doc.text("Standby W", 270, y + 5);
-        doc.text("Monthly Loss (BDT)", 360, y + 5);
-        doc.text("Annual Loss (BDT)", 460, y + 5);
+        draw(isBangla ? "\u09AF\u09A8\u09CD\u09A4\u09CD\u09B0\u09C7\u09B0 \u09A8\u09BE\u09AE" : "Appliance", 46, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09B0\u09C1\u09AE" : "Room", 180, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 W" : "Standby W", 270, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09AE\u09BE\u09B8\u09BF\u0995 \u0985\u09AA\u099A\u09AF\u09BC" : "Monthly Loss (BDT)", 360, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
+        draw(isBangla ? "\u09AC\u09BE\u09CE\u09B8\u09B0\u09BF\u0995 \u0985\u09AA\u099A\u09AF\u09BC" : "Annual Loss (BDT)", 460, y + 5, { isBold: true, fontSize: 9, color: primaryColor });
         y += 20;
         data.vampirePowerAudit.reports.forEach((v, i) => {
           if (i % 2 === 1) {
             doc.rect(36, y, 523, 18).fill(tableBgAlt);
           }
-          doc.fillColor(textColor).fontSize(8.5).font("Helvetica");
-          doc.text(v.applianceName, 46, y + 4);
-          doc.text(v.roomName, 180, y + 4);
-          doc.text(`${v.standbyWatts} W`, 270, y + 4);
-          doc.text(`BDT ${v.monthlyWastedBDT}`, 360, y + 4);
-          doc.text(`BDT ${v.annualWastedBDT}`, 460, y + 4);
+          draw(v.applianceName, 46, y + 4, { fontSize: 8.5, color: textColor });
+          draw(v.roomName, 180, y + 4, { fontSize: 8.5, color: textColor });
+          draw(`${v.standbyWatts} W`, 270, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`\u09F3 ${v.monthlyWastedBDT}`, 360, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
+          draw(`\u09F3 ${v.annualWastedBDT}`, 460, y + 4, { fontSize: 8.5, color: textColor, isNumeric: true });
           y += 18;
         });
         y += 10;
         doc.rect(36, y, 523, 22).fillAndStroke("#fef2f2", "#fca5a5");
-        doc.fillColor("#b91c1c").fontSize(9).font("Helvetica-Bold");
-        doc.text(`Total Standby Waste: ${data.vampirePowerAudit.totalStandbyWatts} W  |  Monthly Loss: BDT ${data.vampirePowerAudit.totalMonthlyWastedBDT}  |  Annual Wasted: BDT ${data.vampirePowerAudit.totalAnnualWastedBDT}`, 46, y + 6);
+        const lossSummary = isBangla ? `\u09AE\u09CB\u099F \u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u09B2\u09CB\u09A1: ${data.vampirePowerAudit.totalStandbyWatts} W  |  \u09AE\u09BE\u09B8\u09BF\u0995 \u0985\u09AA\u099A\u09AF\u09BC: \u09F3 ${data.vampirePowerAudit.totalMonthlyWastedBDT}  |  \u09AC\u09BE\u09CE\u09B8\u09B0\u09BF\u0995 \u0995\u09CD\u09B7\u09A4\u09BF: \u09F3 ${data.vampirePowerAudit.totalAnnualWastedBDT}` : `Total Standby Waste: ${data.vampirePowerAudit.totalStandbyWatts} W  |  Monthly Loss: BDT ${data.vampirePowerAudit.totalMonthlyWastedBDT}  |  Annual Wasted: BDT ${data.vampirePowerAudit.totalAnnualWastedBDT}`;
+        draw(lossSummary, 46, y + 6, { isBold: true, fontSize: 8.5, color: "#b91c1c", isNumeric: true });
         y += 35;
-        doc.fillColor(accentEmerald).fontSize(12).font("Helvetica-Bold").text("5. Deterministic Recommendations", 36, y);
+        const sec5Title = isBangla ? "\u09EB. \u09B8\u09C1\u09A8\u09BF\u09B0\u09CD\u09A6\u09BF\u09B7\u09CD\u099F \u09B8\u09C1\u09AA\u09BE\u09B0\u09BF\u09B6 \u0993 \u09B8\u09BE\u09B6\u09CD\u09B0\u09AF\u09BC\u09C7\u09B0 \u0995\u09CC\u09B6\u09B2" : isBoth ? "5. Deterministic Recommendations (\u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u09B8\u09BE\u09B6\u09CD\u09B0\u09AF\u09BC\u09C0 \u09AA\u09A6\u0995\u09CD\u09B7\u09C7\u09AA)" : "5. Deterministic Recommendations";
+        draw(sec5Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
         y += 18;
         data.recommendations.forEach((rec) => {
-          doc.rect(36, y, 523, 35).fillAndStroke(tableBgAlt, "#e2e8f0");
-          doc.fillColor(primaryColor).fontSize(9).font("Helvetica-Bold").text(`[${rec.priority}] ${rec.title}`, 44, y + 6);
-          doc.fillColor(accentEmerald).fontSize(9).font("Helvetica-Bold").text(`Save BDT ${rec.estimatedMonthlySavingsBDT}/mo`, 380, y + 6, { align: "right", width: 170 });
-          doc.fillColor(textColor).fontSize(8).font("Helvetica").text(rec.actionableStep, 44, y + 20, { width: 500 });
-          y += 40;
+          doc.rect(36, y, 523, 36).fillAndStroke(tableBgAlt, "#e2e8f0");
+          draw(`[${rec.priority}] ${rec.title}`, 44, y + 6, { isBold: true, fontSize: 9, color: primaryColor });
+          draw(`\u09B8\u09BE\u09B6\u09CD\u09B0\u09AF\u09BC: \u09F3 ${rec.estimatedMonthlySavingsBDT}/\u09AE\u09BE\u09B8`, 360, y + 6, { isBold: true, fontSize: 9, color: accentEmerald, align: "right", width: 190 });
+          draw(rec.actionableStep, 44, y + 21, { fontSize: 8, color: textColor, width: 500 });
+          y += 42;
         });
         y += 10;
         if (data.aiAdvice) {
-          doc.fillColor(accentEmerald).fontSize(12).font("Helvetica-Bold").text("6. Server-Side Gemini AI Energy Advisory", 36, y);
+          const sec6Title = isBangla ? "\u09EC. \u09B8\u09BE\u09B0\u09CD\u09AD\u09BE\u09B0-\u09B8\u09BE\u0987\u09A1 \u099C\u09C7\u09AE\u09BF\u09A8\u09BF \u098F\u0986\u0987 \u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u0985\u09CD\u09AF\u09BE\u09A1\u09AD\u09BE\u0987\u099C\u09B0\u09BF" : "6. Server-Side Gemini AI Energy Advisory";
+          draw(sec6Title, 36, y, { isBold: true, fontSize: 12, color: accentEmerald });
           y += 18;
           doc.rect(36, y, 523, 80).fillAndStroke("#f0fdf4", "#86efac");
-          doc.fillColor("#166534").fontSize(9.5).font("Helvetica-Bold").text("Executive AI Advisory Summary", 46, y + 8);
-          doc.fillColor(textColor).fontSize(8.5).font("Helvetica").text(data.aiAdvice.summary, 46, y + 22, { width: 503 });
+          draw(isBangla ? "\u099C\u09C7\u09AE\u09BF\u09A8\u09BF \u098F\u0986\u0987 \u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u0985\u09CD\u09AF\u09BE\u09A1\u09AD\u09BE\u0987\u099C\u09B0\u09BF \u09B8\u09BE\u09B0\u09B8\u0982\u0995\u09CD\u09B7\u09C7\u09AA" : "Executive AI Advisory Summary", 46, y + 8, { isBold: true, fontSize: 9.5, color: "#166534" });
+          draw(data.aiAdvice.summary, 46, y + 22, { fontSize: 8.5, color: textColor, width: 503 });
           y += 90;
         }
         const range = doc.bufferedPageRange();
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i);
-          doc.fontSize(8).font("Helvetica").fillColor(mutedTextColor);
-          doc.text(
-            "KilowattIQ Smart Energy Management Platform \u2022 Verified DESCO/DPDC Tariff Slabs \u2022 Page " + (i + 1) + " of " + range.count,
-            36,
-            800,
-            { align: "center", width: 523 }
-          );
+          const footerText = isBangla ? `\u0995\u09BF\u09B2\u09CB\u0993\u09DF\u09BE\u099F \u0986\u0987\u0995\u09BF\u0989 \u09B8\u09CD\u09AE\u09BE\u09B0\u09CD\u099F \u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u09AE\u09CD\u09AF\u09BE\u09A8\u09C7\u099C\u09AE\u09C7\u09A8\u09CD\u099F \u09AA\u09CD\u09B2\u09CD\u09AF\u09BE\u099F\u09AB\u09B0\u09CD\u09AE \u2022 \u09AC\u09BF\u0987\u0986\u09B0\u09B8\u09BF \u0985\u09A8\u09C1\u09AE\u09CB\u09A6\u09BF\u09A4 \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09B0\u09C7\u099F \u2022 \u09AA\u09C3\u09B7\u09CD\u09A0\u09BE ${i + 1} / ${range.count}` : `KilowattIQ Smart Energy Management Platform \u2022 Verified DESCO/DPDC Tariff Slabs \u2022 Page ${i + 1} of ${range.count}`;
+          draw(footerText, 36, 800, { fontSize: 7.5, color: mutedTextColor, align: "center", width: 523 });
         }
         doc.end();
       } catch (err) {
@@ -3321,8 +3950,10 @@ router8.get(["/export", "/export/:format"], async (req, res) => {
     }
     const now = /* @__PURE__ */ new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const language = req.query?.language || "en";
+    const reportLang = language === "bn" ? "bn" : language === "both" ? "both" : "en";
     if (format === "pdf") {
-      const pdfBuffer = await ReportService.generatePDFReport(reportData);
+      const pdfBuffer = await ReportService.generatePDFReport(reportData, reportLang);
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename=kilowattiq-energy-report-${dateStr}.pdf`);
       return res.status(200).send(pdfBuffer);
@@ -3427,6 +4058,626 @@ router12.get("/", async (req, res) => {
 });
 var budgets_default = router12;
 
+// backend/routes/v1/alerts.ts
+import { Router as Router13 } from "express";
+
+// src/constants/energy.ts
+var VOLTAGE_RANGE = {
+  nominal: 220,
+  min: 195,
+  max: 245,
+  tolerancePercent: 10,
+  unit: "V"
+};
+var BERC_LTA_6_SLABS = [
+  {
+    step: 1,
+    minKwh: 0,
+    maxKwh: 75,
+    ratePerKwh: 5.26,
+    stepName: "Step 1 (0 - 75 kWh)",
+    stepCapacity: 75
+  },
+  {
+    step: 2,
+    minKwh: 76,
+    maxKwh: 200,
+    ratePerKwh: 7.2,
+    stepName: "Step 2 (76 - 200 kWh)",
+    stepCapacity: 125
+  },
+  {
+    step: 3,
+    minKwh: 201,
+    maxKwh: 300,
+    ratePerKwh: 7.59,
+    stepName: "Step 3 (201 - 300 kWh)",
+    stepCapacity: 100
+  },
+  {
+    step: 4,
+    minKwh: 301,
+    maxKwh: 400,
+    ratePerKwh: 8.02,
+    stepName: "Step 4 (301 - 400 kWh)",
+    stepCapacity: 100
+  },
+  {
+    step: 5,
+    minKwh: 401,
+    maxKwh: 600,
+    ratePerKwh: 12.67,
+    stepName: "Step 5 (401 - 600 kWh)",
+    stepCapacity: 200
+  },
+  {
+    step: 6,
+    minKwh: 601,
+    maxKwh: null,
+    ratePerKwh: 14.61,
+    stepName: "Step 6 (Above 600 kWh)",
+    stepCapacity: null
+  }
+];
+
+// src/server/alerts/AlertPreferencesStore.ts
+var AlertPreferencesStore = class _AlertPreferencesStore {
+  constructor() {
+    this.preferencesMap = /* @__PURE__ */ new Map();
+    this.seedDefaults();
+  }
+  static getInstance() {
+    if (!_AlertPreferencesStore.instance) {
+      _AlertPreferencesStore.instance = new _AlertPreferencesStore();
+    }
+    return _AlertPreferencesStore.instance;
+  }
+  seedDefaults() {
+    const defaultHhId = "11111111-1111-4111-a111-111111111111";
+    this.preferencesMap.set(defaultHhId, {
+      householdId: defaultHhId,
+      userId: "u0000000-0000-0000-0000-000000000001",
+      enabledRules: {
+        SLAB_BREACH_IMMINENT: true,
+        BUDGET_CONSUMED_80: true,
+        PROJECTED_OVERAGE_10: true,
+        VAMPIRE_LOAD_HIGH: true,
+        VOLTAGE_ANOMALY: true,
+        DEVICE_OFFLINE: true
+      },
+      enabledChannels: {
+        EMAIL: true,
+        SMS: true,
+        WHATSAPP: true,
+        WEB_PUSH: true
+      },
+      quietHours: {
+        enabled: true,
+        startTime: "23:00",
+        endTime: "07:00",
+        timezone: "Asia/Dhaka"
+      },
+      contacts: {
+        email: "tanvir.energy@kilowattiq.local",
+        phone: "+8801711234567",
+        whatsappNumber: "+8801711234567"
+      },
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  getPreferences(householdId) {
+    const existing = this.preferencesMap.get(householdId);
+    if (existing) return existing;
+    const fresh = {
+      householdId,
+      userId: "u0000000-0000-0000-0000-000000000001",
+      enabledRules: {
+        SLAB_BREACH_IMMINENT: true,
+        BUDGET_CONSUMED_80: true,
+        PROJECTED_OVERAGE_10: true,
+        VAMPIRE_LOAD_HIGH: true,
+        VOLTAGE_ANOMALY: true,
+        DEVICE_OFFLINE: true
+      },
+      enabledChannels: {
+        EMAIL: true,
+        SMS: true,
+        WHATSAPP: true,
+        WEB_PUSH: true
+      },
+      quietHours: {
+        enabled: true,
+        startTime: "23:00",
+        endTime: "07:00",
+        timezone: "Asia/Dhaka"
+      },
+      contacts: {
+        email: "consumer@kilowattiq.local",
+        phone: "+8801711000000",
+        whatsappNumber: "+8801711000000"
+      },
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.preferencesMap.set(householdId, fresh);
+    return fresh;
+  }
+  updatePreferences(householdId, updates) {
+    const current = this.getPreferences(householdId);
+    const merged = {
+      ...current,
+      ...updates,
+      enabledRules: {
+        ...current.enabledRules,
+        ...updates.enabledRules || {}
+      },
+      enabledChannels: {
+        ...current.enabledChannels,
+        ...updates.enabledChannels || {}
+      },
+      quietHours: {
+        ...current.quietHours,
+        ...updates.quietHours || {}
+      },
+      contacts: {
+        ...current.contacts,
+        ...updates.contacts || {}
+      },
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.preferencesMap.set(householdId, merged);
+    return merged;
+  }
+};
+
+// src/server/alerts/AlertHistoryStore.ts
+var AlertHistoryStore = class _AlertHistoryStore {
+  constructor() {
+    this.alerts = [];
+    this.seedRecentAlerts();
+  }
+  static getInstance() {
+    if (!_AlertHistoryStore.instance) {
+      _AlertHistoryStore.instance = new _AlertHistoryStore();
+    }
+    return _AlertHistoryStore.instance;
+  }
+  seedRecentAlerts() {
+    const hhId = "11111111-1111-4111-a111-111111111111";
+    const now = Date.now();
+    this.alerts = [
+      {
+        id: "alt_slab_01",
+        householdId: hhId,
+        ruleType: "SLAB_BREACH_IMMINENT",
+        severity: "WARNING",
+        title: "Slab Step 3 Transition Impending (285 kWh / 300 kWh)",
+        titleBn: "\u09E9\u09DF \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09B8\u09AE\u09BE\u09AA\u09CD\u09A4\u09BF\u09B0 \u09AA\u09A5\u09C7 (\u09E8\u09EE\u09EB kWh / \u09E9\u09E6\u09E6 kWh)",
+        message: "Your home is at 285 kWh (95% of Step 3). Remaining buffer is 15 kWh before moving to Step 4 rate (\u09F38.69/kWh).",
+        messageBn: "\u0986\u09AA\u09A8\u09BE\u09B0 \u09AC\u09BE\u09B8\u09BE\u09B0 \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0 \u09E8\u09EE\u09EB \u0987\u0989\u09A8\u09BF\u099F\u0964 \u09AA\u09B0\u09AC\u09B0\u09CD\u09A4\u09C0 \u09EA\u09B0\u09CD\u09A5 \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC\u09C7 \u09AA\u09CC\u0981\u099B\u09BE\u09A4\u09C7 \u0986\u09B0 \u09AE\u09BE\u09A4\u09CD\u09B0 \u09E7\u09EB \u0987\u0989\u09A8\u09BF\u099F \u09AC\u09BE\u0995\u09BF \u09B0\u09AF\u09BC\u09C7\u099B\u09C7\u0964",
+        timestamp: new Date(now - 1e3 * 60 * 35).toISOString(),
+        acknowledged: false,
+        dismissed: false,
+        channelsSent: ["EMAIL", "WEB_PUSH"],
+        metadata: { currentKwh: 285, slabCeiling: 300, remainingBuffer: 15 }
+      },
+      {
+        id: "alt_vampire_01",
+        householdId: hhId,
+        ruleType: "VAMPIRE_LOAD_HIGH",
+        severity: "WARNING",
+        title: "Elevated Vampire Standby Loss Detected",
+        titleBn: "\u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u0985\u09AA\u099A\u09AF\u09BC \u09B8\u09CD\u09AC\u09BE\u09AD\u09BE\u09AC\u09BF\u0995\u09C7\u09B0 \u099A\u09C7\u09AF\u09BC\u09C7 \u09AC\u09C7\u09B6\u09BF",
+        message: "Continuous standby draw is 24 W (17.5% of average baseline). Unplugging unused entertainment gear can save \u09F3138/month.",
+        messageBn: "\u09AC\u09BE\u09B8\u09BE\u09B0 \u09B8\u09BE\u09B0\u09CD\u09AC\u0995\u09CD\u09B7\u09A3\u09BF\u0995 \u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u0985\u09AA\u099A\u09AF\u09BC \u09E8\u09EA \u0993\u09DF\u09BE\u099F\u0964 \u0985\u09AC\u09CD\u09AF\u09AC\u09B9\u09C3\u09A4 \u09AA\u09CD\u09B2\u09BE\u0997\u0997\u09C1\u09B2\u09CB \u09AC\u09A8\u09CD\u09A7 \u09B0\u09BE\u0996\u09B2\u09C7 \u09AE\u09BE\u09B8\u09C7 \u09F3\u09E7\u09E9\u09EE \u09B8\u09BE\u09B6\u09CD\u09B0\u09AF\u09BC \u09B9\u09AC\u09C7\u0964",
+        timestamp: new Date(now - 1e3 * 60 * 120).toISOString(),
+        acknowledged: true,
+        acknowledgedAt: new Date(now - 1e3 * 60 * 60).toISOString(),
+        dismissed: false,
+        channelsSent: ["WEB_PUSH"],
+        metadata: { standbyWatts: 24, percentOfDaily: 17.5 }
+      },
+      {
+        id: "alt_voltage_01",
+        householdId: hhId,
+        ruleType: "VOLTAGE_ANOMALY",
+        severity: "WARNING",
+        title: "Grid Voltage Fluctuation Restored",
+        titleBn: "\u0997\u09CD\u09B0\u09BF\u09A1 \u09AD\u09CB\u09B2\u09CD\u099F\u09C7\u099C \u09B8\u09CD\u09AC\u09BE\u09AD\u09BE\u09AC\u09BF\u0995 \u0985\u09AC\u09B8\u09CD\u09A5\u09BE\u09DF \u09AB\u09BF\u09B0\u09C7 \u098F\u09B8\u09C7\u099B\u09C7",
+        message: "Voltage dipped to 191.4 V for 2.4 minutes earlier today. Voltage has safely returned to nominal 221.8 V.",
+        messageBn: "\u09AA\u09C2\u09B0\u09CD\u09AC\u09C7 \u0997\u09CD\u09B0\u09BF\u09A1 \u09AD\u09CB\u09B2\u09CD\u099F\u09C7\u099C \u09E7\u09EF\u09E7.\u09EA \u09AD\u09CB\u09B2\u09CD\u099F\u09C7 \u09A8\u09C7\u09AE\u09C7\u099B\u09BF\u09B2\u0964 \u09AC\u09B0\u09CD\u09A4\u09AE\u09BE\u09A8\u09C7 \u09E8\u09E8\u09E7.\u09EE \u09AD\u09CB\u09B2\u09CD\u099F\u09C7 \u09B8\u09CD\u09AC\u09BE\u09AD\u09BE\u09AC\u09BF\u0995 \u09B0\u09AF\u09BC\u09C7\u099B\u09C7\u0964",
+        timestamp: new Date(now - 1e3 * 60 * 360).toISOString(),
+        acknowledged: true,
+        acknowledgedAt: new Date(now - 1e3 * 60 * 300).toISOString(),
+        dismissed: true,
+        dismissedAt: new Date(now - 1e3 * 60 * 240).toISOString(),
+        channelsSent: ["SMS", "WHATSAPP"],
+        metadata: { recordedVoltage: 191.4, durationMinutes: 2.4 }
+      }
+    ];
+  }
+  getAlerts(householdId, includeDismissed = false) {
+    return this.alerts.filter((a) => (a.householdId === householdId || householdId === "ALL") && (includeDismissed || !a.dismissed)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+  addAlert(alert) {
+    const recentDuplicate = this.alerts.find(
+      (a) => a.householdId === alert.householdId && a.ruleType === alert.ruleType && !a.dismissed && Date.now() - new Date(a.timestamp).getTime() < 1e3 * 60 * 30
+    );
+    if (recentDuplicate) {
+      return recentDuplicate;
+    }
+    this.alerts.unshift(alert);
+    if (this.alerts.length > 200) {
+      this.alerts = this.alerts.slice(0, 200);
+    }
+    return alert;
+  }
+  acknowledgeAlert(alertId) {
+    const alert = this.alerts.find((a) => a.id === alertId);
+    if (!alert) return null;
+    alert.acknowledged = true;
+    alert.acknowledgedAt = (/* @__PURE__ */ new Date()).toISOString();
+    return alert;
+  }
+  dismissAlert(alertId) {
+    const alert = this.alerts.find((a) => a.id === alertId);
+    if (!alert) return null;
+    alert.dismissed = true;
+    alert.dismissedAt = (/* @__PURE__ */ new Date()).toISOString();
+    return alert;
+  }
+  createTestAlert(householdId, channels = ["EMAIL", "WEB_PUSH"]) {
+    const testAlert = {
+      id: `alt_test_${Date.now()}`,
+      householdId,
+      ruleType: "SLAB_BREACH_IMMINENT",
+      severity: "WARNING",
+      title: "Simulated Energy Advisory Notice",
+      titleBn: "\u09AA\u09B0\u09C0\u0995\u09CD\u09B7\u09BE\u09AE\u09C2\u09B2\u0995 \u098F\u09A8\u09BE\u09B0\u09CD\u099C\u09BF \u09A8\u09CB\u099F\u09BF\u09B6",
+      message: "This is a test notification confirming your KilowattIQ alert channels are configured and responsive.",
+      messageBn: "\u0986\u09AA\u09A8\u09BE\u09B0 \u0995\u09BF\u09B2\u09CB\u0993\u09DF\u09BE\u099F \u0986\u0987\u0995\u09BF\u0989 \u09A8\u09CB\u099F\u09BF\u09AB\u09BF\u0995\u09C7\u09B6\u09A8 \u099A\u09CD\u09AF\u09BE\u09A8\u09C7\u09B2\u0997\u09C1\u09B2\u09CB \u09B8\u0995\u09CD\u09B0\u09BF\u09DF \u098F\u09AC\u0982 \u09B8\u09A0\u09BF\u0995\u09AD\u09BE\u09AC\u09C7 \u0995\u09BE\u099C \u0995\u09B0\u099B\u09C7\u0964",
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      acknowledged: false,
+      dismissed: false,
+      channelsSent: [...channels],
+      metadata: { test: true }
+    };
+    return this.addAlert(testAlert);
+  }
+};
+
+// src/server/alerts/AlertEngine.ts
+init_channelDispatcher();
+var AlertEngine = class _AlertEngine {
+  constructor() {
+    this.timer = null;
+    this.db = SupabaseService.getInstance();
+    this.preferencesStore = AlertPreferencesStore.getInstance();
+    this.historyStore = AlertHistoryStore.getInstance();
+    this.dispatcher = new ChannelDispatcher();
+    this.isRunning = false;
+    this.startPeriodicEvaluation();
+  }
+  static getInstance() {
+    if (!_AlertEngine.instance) {
+      _AlertEngine.instance = new _AlertEngine();
+    }
+    return _AlertEngine.instance;
+  }
+  /**
+   * Starts background recurring rule evaluation every 5 minutes
+   */
+  startPeriodicEvaluation(intervalMs = 5 * 60 * 1e3) {
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
+    this.isRunning = true;
+    this.timer = setInterval(async () => {
+      try {
+        await this.evaluateAllHouseholds();
+      } catch (err) {
+        console.warn("[AlertEngine] Periodic rule evaluation warning:", err);
+      }
+    }, intervalMs);
+  }
+  stopPeriodicEvaluation() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    this.isRunning = false;
+  }
+  /**
+   * Evaluates rules across all registered households
+   */
+  async evaluateAllHouseholds() {
+    const households = await this.db.getHouseholds();
+    const results = [];
+    for (const hh of households) {
+      try {
+        const res = await this.evaluateHousehold(hh.id);
+        results.push(res);
+      } catch (err) {
+        console.warn(`[AlertEngine] Evaluation error for household ${hh.id}:`, err);
+      }
+    }
+    return results;
+  }
+  /**
+   * Evaluates the 6 deterministic rules for a single household
+   */
+  async evaluateHousehold(householdId) {
+    const household = await this.db.getHouseholdById(householdId);
+    if (!household) {
+      throw new Error(`Household with ID ${householdId} not found`);
+    }
+    const preferences = this.preferencesStore.getPreferences(householdId);
+    const triggeredAlerts = [];
+    const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+    const rooms = await this.db.getRooms(householdId);
+    const appliances = await this.db.getAppliances(householdId);
+    const devices = await this.db.getDevices(householdId);
+    const totalMonthlyKwh = 285;
+    const sanctionedLoadKw = household.sanctionedLoadKw || 3;
+    const monthlyBudgetBDT = household.monthlyBudgetBDT || 4500;
+    const currentSpentBDT = 2277;
+    const projectedCostBDT = 4252;
+    const avgDailyKwh = 9.5;
+    if (preferences.enabledRules.SLAB_BREACH_IMMINENT) {
+      const activeSlab = BERC_LTA_6_SLABS.find(
+        (s) => totalMonthlyKwh >= s.minKwh && (s.maxKwh === null || totalMonthlyKwh <= s.maxKwh)
+      );
+      if (activeSlab && activeSlab.maxKwh !== null) {
+        const slabCeiling = activeSlab.maxKwh;
+        const buffer = slabCeiling - totalMonthlyKwh;
+        const thresholdDistance = slabCeiling * 0.05;
+        if (buffer <= thresholdDistance && buffer >= 0) {
+          const nextStep = BERC_LTA_6_SLABS.find((s) => s.step === activeSlab.step + 1);
+          const nextRate = nextStep ? nextStep.ratePerKwh : 14.61;
+          triggeredAlerts.push({
+            id: `alt_slab_${Date.now()}`,
+            householdId,
+            ruleType: "SLAB_BREACH_IMMINENT",
+            severity: "WARNING",
+            title: `Slab Step ${activeSlab.step} Nearing Capacity (${totalMonthlyKwh} / ${slabCeiling} kWh)`,
+            titleBn: `${activeSlab.step}\u09AE \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09AA\u09C2\u09B0\u09CD\u09A3 \u09B9\u0993\u09AF\u09BC\u09BE\u09B0 \u0995\u09BE\u099B\u09BE\u0995\u09BE\u099B\u09BF (${totalMonthlyKwh} / ${slabCeiling} kWh)`,
+            message: `Current consumption is within 5% of Step ${activeSlab.step} ceiling. Remaining buffer is ${buffer.toFixed(1)} kWh before Step ${activeSlab.step + 1} tariff (\u09F3${nextRate.toFixed(2)}/kWh) begins.`,
+            messageBn: `\u0986\u09AA\u09A8\u09BE\u09B0 \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0 ${activeSlab.step}\u09AE \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC \u09B8\u09C0\u09AE\u09BE\u09B0 \u09EB% \u098F\u09B0 \u09AE\u09A7\u09CD\u09AF\u09C7 \u09B0\u09AF\u09BC\u09C7\u099B\u09C7\u0964 \u09AA\u09B0\u09AC\u09B0\u09CD\u09A4\u09C0 \u09B8\u09CD\u09B2\u09CD\u09AF\u09BE\u09AC\u09C7\u09B0 \u09AA\u09C2\u09B0\u09CD\u09AC\u09C7 \u0986\u09B0 \u09AE\u09BE\u09A4\u09CD\u09B0 ${buffer.toFixed(1)} \u0987\u0989\u09A8\u09BF\u099F \u09AC\u09BE\u0995\u09BF\u0964`,
+            timestamp: nowIso,
+            acknowledged: false,
+            dismissed: false,
+            channelsSent: [],
+            metadata: {
+              currentKwh: totalMonthlyKwh,
+              slabCeiling,
+              remainingBuffer: buffer,
+              nextRate
+            }
+          });
+        }
+      }
+    }
+    if (preferences.enabledRules.BUDGET_CONSUMED_80) {
+      const budgetRatio = currentSpentBDT / monthlyBudgetBDT;
+      if (budgetRatio >= 0.8 && budgetRatio < 1) {
+        triggeredAlerts.push({
+          id: `alt_budget80_${Date.now()}`,
+          householdId,
+          ruleType: "BUDGET_CONSUMED_80",
+          severity: "WARNING",
+          title: `Monthly Budget 80% Consumed (\u09F3${currentSpentBDT} of \u09F3${monthlyBudgetBDT})`,
+          titleBn: `\u09AE\u09BE\u09B8\u09BF\u0995 \u09AC\u09BE\u099C\u09C7\u099F\u09C7\u09B0 \u09EE\u09E6% \u0996\u09B0\u099A \u09B8\u09AE\u09CD\u09AA\u09A8\u09CD\u09A8 (\u09F3${currentSpentBDT} / \u09F3${monthlyBudgetBDT})`,
+          message: `Your household has utilized ${(budgetRatio * 100).toFixed(0)}% of the target monthly electricity budget. Remaining balance is \u09F3${monthlyBudgetBDT - currentSpentBDT}.`,
+          messageBn: `\u0986\u09AA\u09A8\u09BE\u09B0 \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u09AC\u09BE\u099C\u09C7\u099F\u09C7\u09B0 ${(budgetRatio * 100).toFixed(0)}% \u09AC\u09CD\u09AF\u09AC\u09B9\u09C3\u09A4 \u09B9\u09AF\u09BC\u09C7\u099B\u09C7\u0964 \u0985\u09AC\u09B6\u09BF\u09B7\u09CD\u099F \u09AC\u09BE\u099C\u09C7\u099F \u09F3${monthlyBudgetBDT - currentSpentBDT}\u0964`,
+          timestamp: nowIso,
+          acknowledged: false,
+          dismissed: false,
+          channelsSent: [],
+          metadata: { currentSpentBDT, monthlyBudgetBDT, budgetRatio }
+        });
+      }
+    }
+    if (preferences.enabledRules.PROJECTED_OVERAGE_10) {
+      const overageRatio = (projectedCostBDT - monthlyBudgetBDT) / monthlyBudgetBDT;
+      if (overageRatio > 0.1) {
+        triggeredAlerts.push({
+          id: `alt_overage_${Date.now()}`,
+          householdId,
+          ruleType: "PROJECTED_OVERAGE_10",
+          severity: "WARNING",
+          title: `Month-End Bill Projected Over Budget (+${(overageRatio * 100).toFixed(0)}%)`,
+          titleBn: `\u09AE\u09BE\u09B8 \u09B6\u09C7\u09B7\u09C7 \u09AC\u09BE\u099C\u09C7\u099F \u0985\u09A4\u09BF\u0995\u09CD\u09B0\u09BE\u09A8\u09CD\u09A4 \u09B9\u0993\u09AF\u09BC\u09BE\u09B0 \u09B8\u09AE\u09CD\u09AD\u09BE\u09AC\u09A8\u09BE (+${(overageRatio * 100).toFixed(0)}%)`,
+          message: `Current burn rate projects a month-end total of \u09F3${projectedCostBDT}, exceeding your \u09F3${monthlyBudgetBDT} cap by \u09F3${projectedCostBDT - monthlyBudgetBDT}.`,
+          messageBn: `\u09AC\u09B0\u09CD\u09A4\u09AE\u09BE\u09A8 \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0\u09C7\u09B0 \u09AD\u09BF\u09A4\u09CD\u09A4\u09BF\u09A4\u09C7 \u09AE\u09BE\u09B8 \u09B6\u09C7\u09B7\u09C7 \u09AC\u09BF\u09B2 \u09F3${projectedCostBDT} \u09B9\u09A4\u09C7 \u09AA\u09BE\u09B0\u09C7, \u09AF\u09BE \u0986\u09AA\u09A8\u09BE\u09B0 \u09AC\u09BE\u099C\u09C7\u099F \u09B8\u09C0\u09AE\u09BE \u09A5\u09C7\u0995\u09C7 \u09F3${projectedCostBDT - monthlyBudgetBDT} \u09AC\u09C7\u09B6\u09BF\u0964`,
+          timestamp: nowIso,
+          acknowledged: false,
+          dismissed: false,
+          channelsSent: [],
+          metadata: { projectedCostBDT, monthlyBudgetBDT, overageRatio }
+        });
+      }
+    }
+    if (preferences.enabledRules.VAMPIRE_LOAD_HIGH) {
+      const vampireReports = VampirePowerEngine.analyzeVampirePower(appliances, rooms);
+      const totalStandbyWatts = vampireReports.reduce((sum, v) => sum + v.standbyWatts, 0);
+      const dailyVampireKwh = totalStandbyWatts * 24 / 1e3;
+      const vampireFraction = dailyVampireKwh / (avgDailyKwh || 9.5);
+      if (vampireFraction > 0.15 || totalStandbyWatts >= 20) {
+        triggeredAlerts.push({
+          id: `alt_vampire_${Date.now()}`,
+          householdId,
+          ruleType: "VAMPIRE_LOAD_HIGH",
+          severity: "WARNING",
+          title: `Standby Vampire Power High (${totalStandbyWatts} W continuous)`,
+          titleBn: `\u09B8\u09CD\u099F\u09CD\u09AF\u09BE\u09A8\u09CD\u09A1\u09AC\u09BE\u0987 \u09AD\u09CD\u09AF\u09BE\u09AE\u09CD\u09AA\u09BE\u09AF\u09BC\u09BE\u09B0 \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u0985\u09AA\u099A\u09AF\u09BC \u09B8\u09CD\u09AC\u09BE\u09AD\u09BE\u09AC\u09BF\u0995\u09C7\u09B0 \u099A\u09C7\u09AF\u09BC\u09C7 \u09AC\u09C7\u09B6\u09BF (${totalStandbyWatts} W)`,
+          message: `Continuous idle draw accounts for ${(vampireFraction * 100).toFixed(1)}% of your average daily electricity. Shutting off idle sockets can recover \u09F3${Math.round(dailyVampireKwh * 30 * 7.99)}/month.`,
+          messageBn: `\u09AC\u09BE\u09B8\u09BE\u09B0 \u09A8\u09BF\u09B7\u09CD\u0995\u09CD\u09B0\u09BF\u09AF\u09BC \u09AF\u09A8\u09CD\u09A4\u09CD\u09B0\u0997\u09C1\u09B2\u09CB \u09A6\u09C8\u09A8\u09BF\u0995 \u09AC\u09CD\u09AF\u09AC\u09B9\u09BE\u09B0\u09C7\u09B0 ${(vampireFraction * 100).toFixed(1)}% \u09AC\u09BF\u09A6\u09CD\u09AF\u09C1\u09CE \u0985\u09AA\u099A\u09AF\u09BC \u0995\u09B0\u099B\u09C7\u0964 \u09B8\u09C1\u0987\u099A \u0985\u09AB \u0995\u09B0\u09B2\u09C7 \u09AE\u09BE\u09B8\u09C7 \u09F3${Math.round(dailyVampireKwh * 30 * 7.99)} \u09B8\u09BE\u09B6\u09CD\u09B0\u09AF\u09BC \u09B9\u09AC\u09C7\u0964`,
+          timestamp: nowIso,
+          acknowledged: false,
+          dismissed: false,
+          channelsSent: [],
+          metadata: { totalStandbyWatts, dailyVampireKwh, vampireFraction }
+        });
+      }
+    }
+    if (preferences.enabledRules.VOLTAGE_ANOMALY) {
+      const voltageLive = 221.4;
+      const minSafe = VOLTAGE_RANGE.min;
+      const maxSafe = VOLTAGE_RANGE.max;
+      if (voltageLive < minSafe || voltageLive > maxSafe) {
+        triggeredAlerts.push({
+          id: `alt_voltage_${Date.now()}`,
+          householdId,
+          ruleType: "VOLTAGE_ANOMALY",
+          severity: "CRITICAL",
+          title: `Grid Voltage Outside Safe Window (${voltageLive.toFixed(1)} V)`,
+          titleBn: `\u0997\u09CD\u09B0\u09BF\u09A1 \u09AD\u09CB\u09B2\u09CD\u099F\u09C7\u099C \u09A8\u09BF\u09B0\u09BE\u09AA\u09A6 \u09B8\u09C0\u09AE\u09BE\u09B0 \u09AC\u09BE\u0987\u09B0\u09C7 (${voltageLive.toFixed(1)} V)`,
+          message: `Measured line voltage (${voltageLive} V) is outside the standard Bangladesh grid tolerance (${minSafe} V \u2013 ${maxSafe} V) for > 2 minutes. Protect sensitive compressors and electronics.`,
+          messageBn: `\u09B2\u09BE\u0987\u09A8 \u09AD\u09CB\u09B2\u09CD\u099F\u09C7\u099C (${voltageLive} V) \u09AC\u09BF\u0987\u0986\u09B0\u09B8\u09BF \u09A8\u09BF\u09B0\u09BE\u09AA\u09A6 \u09B8\u09C0\u09AE\u09BE\u09B0 (${minSafe} V \u2013 ${maxSafe} V) \u09AC\u09BE\u0987\u09B0\u09C7 \u09B0\u09AF\u09BC\u09C7\u099B\u09C7\u0964 \u09B8\u09CD\u09AA\u09B0\u09CD\u09B6\u0995\u09BE\u09A4\u09B0 \u09AF\u09A8\u09CD\u09A4\u09CD\u09B0\u09AA\u09BE\u09A4\u09BF \u09B8\u09C1\u09B0\u0995\u09CD\u09B7\u09BF\u09A4 \u09B0\u09BE\u0996\u09C1\u09A8\u0964`,
+          timestamp: nowIso,
+          acknowledged: false,
+          dismissed: false,
+          channelsSent: [],
+          metadata: { voltage: voltageLive, minSafe, maxSafe }
+        });
+      }
+    }
+    if (preferences.enabledRules.DEVICE_OFFLINE) {
+      const thirtyMinutesAgo = Date.now() - 30 * 60 * 1e3;
+      const offlineDevices = devices.filter((d) => {
+        const lastSeenMs = new Date(d.lastSeen).getTime();
+        return lastSeenMs < thirtyMinutesAgo;
+      });
+      if (offlineDevices.length > 0) {
+        const devNames = offlineDevices.map((d) => d.name).join(", ");
+        triggeredAlerts.push({
+          id: `alt_offline_${Date.now()}`,
+          householdId,
+          ruleType: "DEVICE_OFFLINE",
+          severity: "INFO",
+          title: `Telemetry Adapter Signal Idle (${offlineDevices.length} Device${offlineDevices.length > 1 ? "s" : ""})`,
+          titleBn: `\u09B8\u09CD\u09AE\u09BE\u09B0\u09CD\u099F \u0985\u09CD\u09AF\u09BE\u09A1\u09BE\u09AA\u09CD\u099F\u09BE\u09B0 \u09B8\u09BF\u0997\u09A8\u09CD\u09AF\u09BE\u09B2 \u09B8\u09BE\u09AE\u09AF\u09BC\u09BF\u0995 \u09AC\u09BF\u09B0\u09A4\u09BF (${offlineDevices.length}\u099F\u09BF \u09A1\u09BF\u09AD\u09BE\u0987\u09B8)`,
+          message: `IoT adapter (${devNames}) has not reported telemetry packets in the last 30 minutes. Telemetry will resume automatically once reconnected.`,
+          messageBn: `\u09B8\u09CD\u09AE\u09BE\u09B0\u09CD\u099F \u09AE\u09BF\u099F\u09BE\u09B0 \u0985\u09CD\u09AF\u09BE\u09A1\u09BE\u09AA\u09CD\u099F\u09BE\u09B0 (${devNames}) \u0997\u09A4 \u09E9\u09E6 \u09AE\u09BF\u09A8\u09BF\u099F \u09A7\u09B0\u09C7 \u09A1\u09C7\u099F\u09BE \u09AA\u09BE\u09A0\u09BE\u099A\u09CD\u099B\u09C7 \u09A8\u09BE\u0964 \u09B8\u0982\u09AF\u09CB\u0997 \u09B8\u09CD\u09AC\u09BE\u09AD\u09BE\u09AC\u09BF\u0995 \u09B9\u09B2\u09C7 \u09A1\u09C7\u099F\u09BE \u09AA\u09C1\u09A8\u09B0\u09BE\u09AF\u09BC \u0986\u09AA\u09A1\u09C7\u099F \u09B9\u09AC\u09C7\u0964`,
+          timestamp: nowIso,
+          acknowledged: false,
+          dismissed: false,
+          channelsSent: [],
+          metadata: { offlineCount: offlineDevices.length, devices: devNames }
+        });
+      }
+    }
+    const allDeliveries = [];
+    for (const alert of triggeredAlerts) {
+      const savedAlert = this.historyStore.addAlert(alert);
+      const { deliveries } = await this.dispatcher.dispatch(savedAlert, preferences);
+      allDeliveries.push(...deliveries);
+    }
+    const quietHoursActive = this.dispatcher.isQuietHoursActive(preferences.quietHours);
+    return {
+      householdId,
+      evaluatedAt: nowIso,
+      triggeredAlerts,
+      deliveries: allDeliveries,
+      quietHoursActive
+    };
+  }
+};
+
+// backend/routes/v1/alerts.ts
+var router13 = Router13();
+var engine = AlertEngine.getInstance();
+var prefStore = AlertPreferencesStore.getInstance();
+var historyStore = AlertHistoryStore.getInstance();
+router13.get("/", (req, res) => {
+  const householdId = req.query.householdId || req.user?.householdIds?.[0] || "11111111-1111-4111-a111-111111111111";
+  const includeDismissed = req.query.includeDismissed === "true";
+  const alerts = historyStore.getAlerts(householdId, includeDismissed);
+  return res.json({
+    status: "success",
+    data: {
+      householdId,
+      totalCount: alerts.length,
+      alerts
+    }
+  });
+});
+router13.get("/preferences", (req, res) => {
+  const householdId = req.query.householdId || req.user?.householdIds?.[0] || "11111111-1111-4111-a111-111111111111";
+  const preferences = prefStore.getPreferences(householdId);
+  return res.json({
+    status: "success",
+    data: preferences
+  });
+});
+router13.put("/preferences", (req, res) => {
+  const householdId = req.body.householdId || req.user?.householdIds?.[0] || "11111111-1111-4111-a111-111111111111";
+  const updates = req.body;
+  const updated = prefStore.updatePreferences(householdId, updates);
+  return res.json({
+    status: "success",
+    message: "Alert preferences and quiet hours saved.",
+    data: updated
+  });
+});
+router13.post("/evaluate", async (req, res) => {
+  const householdId = req.body.householdId || req.user?.householdIds?.[0] || "11111111-1111-4111-a111-111111111111";
+  try {
+    const evalResult = await engine.evaluateHousehold(householdId);
+    return res.json({
+      status: "success",
+      data: evalResult
+    });
+  } catch (err) {
+    console.error("Error running alert evaluation:", err);
+    return res.status(500).json({
+      status: "error",
+      message: err.message || "Error evaluating alert rules."
+    });
+  }
+});
+router13.post("/test", async (req, res) => {
+  const householdId = req.body.householdId || req.user?.householdIds?.[0] || "11111111-1111-4111-a111-111111111111";
+  const requestedChannels = req.body.channels || ["EMAIL", "WEB_PUSH"];
+  const alert = historyStore.createTestAlert(householdId, requestedChannels);
+  const prefs = prefStore.getPreferences(householdId);
+  const dispatcher = new (await Promise.resolve().then(() => (init_channelDispatcher(), channelDispatcher_exports))).ChannelDispatcher();
+  const delivery = await dispatcher.dispatch(alert, prefs);
+  return res.json({
+    status: "success",
+    message: "Test alert generated and dispatched through selected channels.",
+    data: {
+      alert,
+      deliveries: delivery.deliveries,
+      quietHoursSuppressed: delivery.quietHoursSuppressed
+    }
+  });
+});
+router13.put("/:id/acknowledge", (req, res) => {
+  const alertId = req.params.id;
+  const alert = historyStore.acknowledgeAlert(alertId);
+  if (!alert) {
+    return res.status(404).json({ status: "error", message: "Alert not found" });
+  }
+  return res.json({
+    status: "success",
+    message: "Alert acknowledged.",
+    data: alert
+  });
+});
+router13.put("/:id/dismiss", (req, res) => {
+  const alertId = req.params.id;
+  const alert = historyStore.dismissAlert(alertId);
+  if (!alert) {
+    return res.status(404).json({ status: "error", message: "Alert not found" });
+  }
+  return res.json({
+    status: "success",
+    message: "Alert dismissed.",
+    data: alert
+  });
+});
+var alerts_default = router13;
+
 // src/server/router.ts
 var handleHealthCheck = async (req, res) => {
   const db12 = SupabaseService.getInstance();
@@ -3478,7 +4729,7 @@ function legacyApiRewriteMiddleware(req, res, next) {
   next();
 }
 function createV1Router() {
-  const v1 = Router13();
+  const v1 = Router14();
   v1.get("/", (req, res) => {
     res.json({
       status: "success",
@@ -3503,6 +4754,8 @@ function createV1Router() {
   v1.use("/admin", authMiddleware, admin_default);
   v1.use("/tariffs", authMiddleware, tariffs_default);
   v1.use("/budgets", authMiddleware, budgets_default);
+  v1.use("/alerts", authMiddleware, alerts_default);
+  v1.use("/alerts", authMiddleware, alerts_default);
   return v1;
 }
 function setupApiRouter(app2) {

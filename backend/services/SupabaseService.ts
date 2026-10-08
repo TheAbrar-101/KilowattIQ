@@ -622,23 +622,53 @@ export class SupabaseService {
     }));
   }
 
+  private profileMap = new Map<string, any>();
+
   public async getProfile(userId: string): Promise<any> {
+    if (this.profileMap.has(userId)) {
+      return this.profileMap.get(userId);
+    }
     if (!this.client) return null;
-    const { data } = await this.client.from('profiles').select('*').eq('id', userId).single();
-    return data;
+    try {
+      const { data } = await this.client.from('profiles').select('*').eq('id', userId).single();
+      if (data) {
+        this.profileMap.set(userId, data);
+        return data;
+      }
+    } catch {
+      // Return null or cached
+    }
+    return null;
   }
 
-  public async updateProfile(userId: string, updates: { fullName?: string; phone?: string; role?: string }): Promise<any> {
-    if (!this.client) return null;
-    const { data, error } = await this.client.from('profiles').update({
-      full_name: updates.fullName,
-      phone: updates.phone,
-      role: updates.role,
+  public async updateProfile(userId: string, updates: { fullName?: string; phone?: string; role?: string; theme?: string }): Promise<any> {
+    const existing = (await this.getProfile(userId)) || { id: userId };
+    const merged = {
+      ...existing,
+      ...(updates.fullName !== undefined ? { full_name: updates.fullName } : {}),
+      ...(updates.phone !== undefined ? { phone: updates.phone } : {}),
+      ...(updates.role !== undefined ? { role: updates.role } : {}),
+      ...(updates.theme !== undefined ? { theme: updates.theme } : {}),
       updated_at: new Date().toISOString(),
-    }).eq('id', userId).select().single();
+    };
+    this.profileMap.set(userId, merged);
 
-    if (error) throw error;
-    return data;
+    if (this.client) {
+      try {
+        const updatePayload: any = {
+          updated_at: merged.updated_at,
+        };
+        if (updates.fullName !== undefined) updatePayload.full_name = updates.fullName;
+        if (updates.phone !== undefined) updatePayload.phone = updates.phone;
+        if (updates.role !== undefined) updatePayload.role = updates.role;
+        const { data } = await this.client.from('profiles').update(updatePayload).eq('id', userId).select().single();
+        if (data) return { ...data, theme: merged.theme };
+      } catch (e) {
+        // Fall back to memory
+      }
+    }
+
+    return merged;
   }
 
   // --- HOUSEHOLDS, ROOMS, APPLIANCES, DEVICES, TELEMETRY ---

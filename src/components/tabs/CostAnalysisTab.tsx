@@ -59,20 +59,20 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
     <div className="space-y-5">
       
       {/* Top Controller Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4 transition-colors">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Calculator className="w-4.5 h-4.5 text-emerald-400" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 font-display">
+              <Calculator className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400" />
               <span>Bangladeshi Electricity Tariff Engine & Simulator</span>
             </h3>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
               BERC / DESCO / DPDC LT-A Residential Tariff Engine with dynamic slab calculations
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1 border border-slate-800 rounded-xl">
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 rounded-xl">
               {[
                 { label: '120 kWh', val: 120 },
                 { label: '285 kWh', val: 285 },
@@ -84,8 +84,8 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
                   onClick={() => setKwhInput(preset.val)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-bold font-display transition-all cursor-pointer ${
                     kwhInput === preset.val
-                      ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+                      ? 'bg-amber-400 text-slate-950 font-extrabold shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
                   {preset.label}
@@ -93,46 +93,46 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
               ))}
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
-              <span className="text-[10px] text-slate-400 font-bold uppercase font-display">Tariff Model:</span>
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-display">Tariff Model:</span>
               <select
                 value={selectedTariffType}
                 onChange={(e) => setSelectedTariffType(e.target.value as TariffType)}
-                className="bg-transparent text-emerald-400 font-extrabold font-display focus:outline-none cursor-pointer text-xs"
+                className="bg-transparent text-amber-600 dark:text-amber-400 font-extrabold font-display focus:outline-none cursor-pointer text-xs"
               >
-                <option value="SLAB" className="bg-slate-900 text-slate-200 font-bold">Slab / Tiered (Standard BD)</option>
-                <option value="FLAT" className="bg-slate-900 text-slate-200 font-bold">Flat Rate Tariff</option>
-                <option value="TOU" className="bg-slate-900 text-slate-200 font-bold">Time-Of-Use (Peak / Off-Peak)</option>
-                <option value="SEASONAL" className="bg-slate-900 text-slate-200 font-bold">Seasonal Adjusted</option>
+                <option value="SLAB" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 font-bold">Slab / Tiered (Standard BD)</option>
+                <option value="FLAT" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 font-bold">Flat Rate Tariff</option>
+                <option value="TOU" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 font-bold">Time-Of-Use (Peak / Off-Peak)</option>
+                <option value="SEASONAL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 font-bold">Seasonal Adjusted</option>
               </select>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
-              <span className="text-[10px] text-slate-400 font-bold uppercase font-display">Consumption:</span>
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-display">Consumption:</span>
               <input
                 type="number"
                 min="0"
                 max="1500"
                 value={kwhInput}
                 onChange={(e) => setKwhInput(Math.max(0, Number(e.target.value)))}
-                className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-white font-mono font-bold text-xs focus:border-emerald-500 focus:outline-none"
+                className="w-16 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-900 dark:text-white font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
               />
-              <span className="text-slate-400 font-mono font-bold">kWh</span>
+              <span className="text-slate-500 dark:text-slate-400 font-mono font-bold">kWh</span>
             </div>
           </div>
         </div>
 
         {/* Interactive Sliders for Consumption & Month Days */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-800">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200 dark:border-slate-800">
           
           {/* Slider 1: kWh Consumption */}
           <div className="space-y-1">
-            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+            <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase font-display">
               <span className="flex items-center gap-1.5">
-                <Sliders className="w-3 h-3 text-emerald-400" />
+                <Sliders className="w-3 h-3 text-amber-500 dark:text-amber-400" />
                 Monthly kWh Consumption Slider
               </span>
-              <span className="text-emerald-400 font-mono">{kwhInput} kWh</span>
+              <span className="text-amber-600 dark:text-amber-400 font-mono font-bold">{kwhInput} kWh</span>
             </div>
             <input
               type="range"
@@ -141,18 +141,18 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
               step="5"
               value={kwhInput}
               onChange={(e) => setKwhInput(Number(e.target.value))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
             />
           </div>
 
           {/* Slider 2: Days Passed in Billing Cycle */}
           <div className="space-y-1">
-            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+            <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase font-display">
               <span className="flex items-center gap-1.5">
-                <Sliders className="w-3 h-3 text-amber-400" />
+                <Sliders className="w-3 h-3 text-amber-500 dark:text-amber-400" />
                 Billing Cycle Progress ({daysPassedInput} / 30 Days)
               </span>
-              <span className="text-amber-400 font-mono">{((daysPassedInput / 30) * 100).toFixed(0)}% Complete</span>
+              <span className="text-amber-600 dark:text-amber-400 font-mono font-bold">{((daysPassedInput / 30) * 100).toFixed(0)}% Complete</span>
             </div>
             <input
               type="range"
@@ -160,7 +160,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
               max="30"
               value={daysPassedInput}
               onChange={(e) => setDaysPassedInput(Number(e.target.value))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
             />
           </div>
 
@@ -171,29 +171,29 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         
         {/* Left 2 Cols: Cost Breakdown & Slab Items */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Electricity Bill Detailed Breakdown</h4>
-              <p className="text-[10px] text-slate-400">Sanctioned Load: {household.sanctionedLoadKw} kW | Meter Rent: ৳40 | Demand Charge: ৳{household.sanctionedLoadKw * 42}</p>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">Electricity Bill Detailed Breakdown</h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">Sanctioned Load: {household.sanctionedLoadKw} kW | Meter Rent: ৳40 | Demand Charge: ৳{household.sanctionedLoadKw * 42}</p>
             </div>
             <div className="text-right">
               <motion.span
                 key={costCalc.grossTotalBDT}
                 initial={{ scale: 0.95 }}
                 animate={{ scale: 1 }}
-                className="text-3xl font-black font-mono text-emerald-400"
+                className="text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400"
               >
                 ৳{costCalc.grossTotalBDT.toFixed(2)}
               </motion.span>
-              <p className="text-[9px] text-slate-400 uppercase font-bold">Gross Total (Inc 5% VAT)</p>
+              <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold">Gross Total (Inc 5% VAT)</p>
             </div>
           </div>
 
           {/* Slab Breakdown Items */}
           <div className="space-y-2">
-            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-emerald-400" />
+            <h5 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-display">
+              <Layers className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
               <span>DESCO LT-A Tiered Slab Distribution ({kwhInput} kWh)</span>
             </h5>
 
@@ -201,21 +201,21 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
               {(costCalc.slabBreakdown || []).map((s, idx) => (
                 <div
                   key={idx}
-                  className="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs"
+                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold font-mono text-[11px]">
+                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold font-mono text-[11px]">
                       {idx + 1}
                     </div>
                     <div>
-                      <span className="font-bold text-white block">{s.stepName}</span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="font-bold text-slate-900 dark:text-white block font-display">{s.stepName}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                         {s.kwhInSlab} kWh @ ৳{s.rate}/kWh
                       </span>
                     </div>
                   </div>
 
-                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                     ৳{s.costBDT.toFixed(2)}
                   </span>
                 </div>
@@ -225,34 +225,34 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
 
           {/* Fixed Charges Table */}
           <div className="grid grid-cols-3 gap-3 pt-2">
-            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block">Energy Cost</span>
-              <span className="text-sm font-bold text-white font-mono">৳{costCalc.energyCostBDT.toFixed(2)}</span>
+            <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-display">Energy Cost</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">৳{costCalc.energyCostBDT.toFixed(2)}</span>
             </div>
-            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block">Fixed & Demand</span>
-              <span className="text-sm font-bold text-white font-mono">৳{(costCalc.demandChargeBDT + costCalc.meterRentBDT).toFixed(2)}</span>
+            <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-display">Fixed & Demand</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">৳{(costCalc.demandChargeBDT + costCalc.meterRentBDT).toFixed(2)}</span>
             </div>
-            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block">VAT (5%)</span>
-              <span className="text-sm font-bold text-emerald-400 font-mono">৳{costCalc.vatBDT.toFixed(2)}</span>
+            <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-display">VAT (5%)</span>
+              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono">৳{costCalc.vatBDT.toFixed(2)}</span>
             </div>
           </div>
 
         </div>
 
         {/* Right Col: Budget & Burn Rate Predictor */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm flex flex-col justify-between space-y-4">
           <div>
-            <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <PieChart className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-slate-800 pb-2">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 font-display">
+                <PieChart className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                 <span>Monthly Budget Engine</span>
               </h4>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${
                 budgetStatus.isOverageLikely
-                  ? 'bg-rose-950 text-rose-400 border-rose-800'
-                  : 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                  ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800'
+                  : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
               }`}>
                 {budgetStatus.isOverageLikely ? 'BUDGET EXCEEDED' : 'ON TRACK'}
               </span>
@@ -260,22 +260,22 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
 
             <div className="space-y-3">
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Monthly Budget Cap</span>
-                <span className="text-2xl font-black text-white font-mono">৳{household.monthlyBudgetBDT} BDT</span>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block font-display">Monthly Budget Cap</span>
+                <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">৳{household.monthlyBudgetBDT} BDT</span>
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Projected End-Of-Month Bill</span>
-                <span className="text-2xl font-black text-amber-400 font-mono">৳{budgetStatus.projectedCostBDT.toFixed(0)} BDT</span>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block font-display">Projected End-Of-Month Bill</span>
+                <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">৳{budgetStatus.projectedCostBDT.toFixed(0)} BDT</span>
               </div>
 
               {/* Progress bar */}
               <div className="space-y-1">
-                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                   <span>Spent So Far: ৳{budgetStatus.currentSpentBDT.toFixed(0)}</span>
                   <span>Day {daysPassedInput} / 30</span>
                 </div>
-                <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
                   <div
                     className={`h-full transition-all duration-500 ${
                       budgetStatus.isOverageLikely ? 'bg-rose-500' : 'bg-emerald-500'
@@ -286,12 +286,12 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
               </div>
 
               {/* Actionable Advice */}
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
-                <span className="text-[10px] font-bold text-amber-400 uppercase block flex items-center gap-1">
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase block flex items-center gap-1 font-display">
                   <AlertTriangle className="w-3 h-3" />
                   Budget Insight
                 </span>
-                <p className="text-slate-300 text-[11px] leading-relaxed">
+                <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed font-sans">
                   {budgetStatus.isOverageLikely
                     ? `Projected to exceed budget by ${budgetStatus.overagePercentage.toFixed(0)}%. Consider shifting AC usage during peak hours.`
                     : `Current usage pattern is within safe budget limits. Estimated savings vs cap: ৳${Math.max(0, household.monthlyBudgetBDT - budgetStatus.projectedCostBDT).toFixed(0)} BDT.`}
@@ -300,7 +300,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-800 text-[10px] text-slate-500 text-center font-mono">
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono">
             KilowattIQ Tariff Engine • BERC Ordinance LT-A 2026
           </div>
         </div>
@@ -308,34 +308,34 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
       </div>
 
       {/* Predictive BERC Slab Threshold Risk Monitor */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+      <div className="bg-white dark:bg-gradient-to-r dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-lg space-y-4 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-              slabAnalysis.projectedBreachOccurs ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
+              slabAnalysis.projectedBreachOccurs ? 'bg-rose-500/20 text-rose-500 dark:text-rose-400' : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
             }`}>
               <ShieldAlert className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 font-display">
                 <span>BERC Progressive Slab Threshold Risk Monitor</span>
                 <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase ${
                   slabAnalysis.projectedBreachOccurs
-                    ? 'bg-rose-950 text-rose-400 border border-rose-800'
-                    : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                    ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                    : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
                 }`}>
                   {slabAnalysis.projectedBreachOccurs ? 'Step Jump Hazard' : 'Safe Tier Profile'}
                 </span>
               </h4>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
                 Predictive slab transition tracking to protect households against steep marginal unit rate jumps
               </p>
             </div>
           </div>
 
           <div className="text-right">
-            <span className="text-[10px] text-slate-500 uppercase block font-mono">Current Active Tier</span>
-            <span className="text-xs font-bold text-emerald-400 font-mono">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase block font-mono">Current Active Tier</span>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
               {slabAnalysis.currentSlabName} (৳{slabAnalysis.currentRateBDT}/unit)
             </span>
           </div>
@@ -343,38 +343,38 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Metric 1: Next Slab Jump */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
-              <ArrowUpRight className="w-3 h-3 text-amber-400" />
+          <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+              <ArrowUpRight className="w-3 h-3 text-amber-500 dark:text-amber-400" />
               Next Step Margin
             </span>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-base font-bold font-mono text-white">
+              <span className="text-base font-bold font-mono text-slate-900 dark:text-white">
                 {slabAnalysis.nextRateBDT ? `৳${slabAnalysis.nextRateBDT}` : 'Max Tier'}
               </span>
               {slabAnalysis.rateJumpPercentage > 0 && (
-                <span className="text-[11px] font-bold text-rose-400 font-mono">
+                <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 font-mono">
                   (+{slabAnalysis.rateJumpPercentage}%)
                 </span>
               )}
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
               {slabAnalysis.nextSlabName || 'Top BERC step reached'}
             </p>
           </div>
 
           {/* Metric 2: Breach Countdown */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
-              <Clock className="w-3 h-3 text-emerald-400" />
+          <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+              <Clock className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               Breach Countdown
             </span>
-            <div className="text-base font-bold font-mono text-white">
+            <div className="text-base font-bold font-mono text-slate-900 dark:text-white">
               {slabAnalysis.daysUntilBreach !== null
                 ? `${slabAnalysis.daysUntilBreach} Days`
                 : 'No Limit'}
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
               {slabAnalysis.kwhRemainingToBreach > 0
                 ? `${slabAnalysis.kwhRemainingToBreach} kWh buffer remaining`
                 : 'Already in top tier'}
@@ -382,31 +382,31 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
           </div>
 
           {/* Metric 3: Target Daily Cap */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
-              <Target className="w-3 h-3 text-emerald-400" />
+          <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+              <Target className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               Target Daily Cap
             </span>
-            <div className="text-base font-bold font-mono text-emerald-400">
+            <div className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
               {slabAnalysis.maxDailyKwhToStayInSlab > 0
                 ? `${slabAnalysis.maxDailyKwhToStayInSlab} kWh/day`
                 : 'Slab Exceeded'}
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
               Limit to maintain {slabAnalysis.currentSlabName.split(' ')[0]} {slabAnalysis.currentSlabName.split(' ')[1]}
             </p>
           </div>
 
           {/* Metric 4: Avoidable Penalty */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1">
-              <Zap className="w-3 h-3 text-amber-400" />
+          <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+              <Zap className="w-3 h-3 text-amber-500 dark:text-amber-400" />
               Avoidable Surcharge
             </span>
-            <div className="text-base font-bold font-mono text-amber-400">
+            <div className="text-base font-bold font-mono text-amber-600 dark:text-amber-400">
               ৳{slabAnalysis.avoidableMonthlySurchargeBDT.toLocaleString('en-US', { maximumFractionDigits: 0 })} BDT
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
               Savings if breach is averted
             </p>
           </div>

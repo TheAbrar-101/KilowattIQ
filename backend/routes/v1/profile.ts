@@ -31,8 +31,8 @@ router.put('/', async (req: AuthenticatedRequest, res: Response) => {
   }
 
   try {
-    const { fullName, phone, role } = req.body;
-    const updated = await db.updateProfile(req.user.id, { fullName, phone, role });
+    const { fullName, phone, role, theme } = req.body;
+    const updated = await db.updateProfile(req.user.id, { fullName, phone, role, theme });
     res.json({
       status: 'success',
       message: 'Profile updated successfully.',
