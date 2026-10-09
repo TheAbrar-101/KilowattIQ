@@ -8,6 +8,7 @@ import { Navigation, TabType } from './components/Navigation';
 import { LiveDashboardTab } from './components/tabs/LiveDashboardTab';
 import { CostAnalysisTab } from './components/tabs/CostAnalysisTab';
 import { AppliancesTab } from './components/tabs/AppliancesTab';
+import { ScheduleTab } from './components/tabs/ScheduleTab';
 import { IoTDevicesTab } from './components/tabs/IoTDevicesTab';
 import { RecommendationsTab } from './components/tabs/RecommendationsTab';
 import { ReportsTab } from './components/tabs/ReportsTab';
@@ -372,6 +373,15 @@ function MainAppContent() {
                 activeApplianceStates={activeApplianceStates}
                 onToggleAppliance={handleToggleAppliance}
                 onAddAppliance={handleAddAppliance}
+                token={token}
+              />
+            )}
+
+            {activeTab === 'SCHEDULE' && activeHousehold && (
+              <ScheduleTab
+                household={activeHousehold}
+                appliances={appliances}
+                devices={devices}
                 token={token}
               />
             )}

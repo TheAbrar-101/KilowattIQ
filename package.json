@@ -19,6 +19,7 @@
     "test:alerts": "tsx src/server/tests/alertsEngine.test.ts",
     "test:bills": "tsx src/server/tests/billVerifier.test.ts",
     "test:nilm": "tsx src/server/tests/nilm.test.ts",
+    "test:scheduler": "tsx src/server/tests/scheduler.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

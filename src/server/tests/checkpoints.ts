@@ -269,6 +269,23 @@ async function main() {
     return `NILM verified: ${json.data.length} discovered loads (${detectedItems.length} Detected >=60%, ${maybeItems.length} Maybe <60%)`;
   });
 
+  // Off-Peak Scheduler & Optimizer Endpoint
+  await runTest('SCHED-01', 'Off-Peak Scheduler (23:00–17:00), Conflict Detection & Live Savings', 'ENGINE', async () => {
+    const res = await fetch(`${BASE_URL}/api/v1/scheduler`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!Array.isArray(json.data?.schedule) || json.data.schedule.length === 0) {
+      throw new Error('No scheduler slots returned');
+    }
+    const impact = json.data.projectedImpact;
+    if (!impact || typeof impact.monthlySavingsBDT !== 'number') {
+      throw new Error('Projected impact savings missing');
+    }
+    return `Scheduler verified: ${json.data.schedule.length} slots active, ৳${impact.monthlySavingsBDT}/mo savings, ${json.data.totalRelaysCount || 0} relays available`;
+  });
+
   // 6. Typography & Frontend Serving
   await runTest('TYP-01', 'Frontend HTML Serving & Google Font Inclusions', 'TYPOGRAPHY', async () => {
     const res = await fetch(`${BASE_URL}/`);
