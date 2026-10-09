@@ -28,6 +28,7 @@ import tariffRoutes from '../../backend/routes/v1/tariffs';
 import budgetRoutes from '../../backend/routes/v1/budgets';
 import alertRoutes from '../../backend/routes/v1/alerts';
 import billRoutes from '../../backend/routes/v1/bills';
+import nilmRoutes from '../../backend/routes/v1/nilm';
 
 /**
  * Health check handler verifying live Supabase connection status
@@ -142,6 +143,7 @@ export function createV1Router(): Router {
   v1.use('/budgets', authMiddleware, budgetRoutes);
   v1.use('/alerts', authMiddleware, alertRoutes);
   v1.use('/bills', authMiddleware, billRoutes);
+  v1.use('/nilm', authMiddleware, nilmRoutes);
 
   return v1;
 }

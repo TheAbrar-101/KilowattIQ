@@ -254,6 +254,21 @@ async function main() {
     return `CSV Export verified: ${text.split('\n').length} rows generated`;
   });
 
+  // NILM Appliance Disaggregation Endpoint
+  await runTest('NILM-01', '1 Hz NILM Telemetry Disaggregation & Step Detection', 'TELEMETRY', async () => {
+    const res = await fetch(`${BASE_URL}/api/v1/nilm/discovered`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!Array.isArray(json.data) || json.data.length === 0) {
+      throw new Error('No discovered appliances returned by NILM engine');
+    }
+    const maybeItems = json.data.filter((d: any) => d.status === 'MAYBE');
+    const detectedItems = json.data.filter((d: any) => d.status === 'DETECTED');
+    return `NILM verified: ${json.data.length} discovered loads (${detectedItems.length} Detected >=60%, ${maybeItems.length} Maybe <60%)`;
+  });
+
   // 6. Typography & Frontend Serving
   await runTest('TYP-01', 'Frontend HTML Serving & Google Font Inclusions', 'TYPOGRAPHY', async () => {
     const res = await fetch(`${BASE_URL}/`);

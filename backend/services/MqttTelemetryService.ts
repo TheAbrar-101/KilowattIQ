@@ -250,6 +250,25 @@ export class MqttTelemetryService {
 
     this.latestReadings.set(targetDeviceId, readingObj);
 
+    // Ingest high-frequency sample into NILM disaggregation engine
+    try {
+      const { NilmDisaggregator } = await import('../../src/server/nilm/disaggregator');
+      NilmDisaggregator.getInstance().ingestReading({
+        voltage: readingObj.voltage,
+        current: readingObj.current,
+        powerFactor: readingObj.powerFactor,
+        activePowerW: readingObj.activePowerW,
+        frequency: readingObj.frequency,
+        timestamp: readingObj.timestamp,
+        deviceId: targetDeviceId,
+        householdId: targetHouseholdId,
+      }).catch((err) => {
+        console.warn('[MqttTelemetryService] NILM ingestion warning:', err);
+      });
+    } catch (nilmErr) {
+      // Non-blocking
+    }
+
     return {
       success: true,
       deviceId: targetDeviceId,

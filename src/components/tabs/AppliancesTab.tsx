@@ -4,6 +4,7 @@ import { Home, Flame, ArrowRightLeft, Plus, Power, CheckCircle2, Sliders, X, Spa
 import { Household, Room, Appliance } from '../../../shared/types/household';
 import { VampirePowerEngine } from '../../../backend/engine/VampirePowerEngine';
 import { ROICalculator } from '../../../backend/engine/ROICalculator';
+import { DiscoveredAppliancesSection } from '../appliances/DiscoveredAppliancesSection';
 
 interface AppliancesTabProps {
   household: Household;
@@ -12,6 +13,7 @@ interface AppliancesTabProps {
   activeApplianceStates?: Record<string, boolean>;
   onToggleAppliance?: (applianceId: string) => void;
   onAddAppliance?: (appliance: Omit<Appliance, 'id'>) => void;
+  token?: string | null;
 }
 
 export const AppliancesTab: React.FC<AppliancesTabProps> = ({
@@ -21,6 +23,7 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
   activeApplianceStates = {},
   onToggleAppliance,
   onAddAppliance,
+  token,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -178,6 +181,15 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
           })}
         </div>
       </div>
+
+      {/* New Section: Discovered Appliances (1 Hz Telemetry Disaggregation) */}
+      <DiscoveredAppliancesSection
+        householdId={household.id}
+        rooms={rooms}
+        registeredAppliances={appliances}
+        token={token}
+        onApplianceConfirmed={onAddAppliance ? (newApp) => onAddAppliance(newApp) : undefined}
+      />
 
       {/* Vampire Power Analysis & Interactive ROI Calculator */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

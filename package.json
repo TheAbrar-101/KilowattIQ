@@ -18,6 +18,7 @@
     "test:pdf": "tsx src/server/tests/pdfBangla.test.ts",
     "test:alerts": "tsx src/server/tests/alertsEngine.test.ts",
     "test:bills": "tsx src/server/tests/billVerifier.test.ts",
+    "test:nilm": "tsx src/server/tests/nilm.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

@@ -372,6 +372,7 @@ function MainAppContent() {
                 activeApplianceStates={activeApplianceStates}
                 onToggleAppliance={handleToggleAppliance}
                 onAddAppliance={handleAddAppliance}
+                token={token}
               />
             )}
 
