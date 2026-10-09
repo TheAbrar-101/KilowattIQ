@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Home, Flame, ArrowRightLeft, Plus, Power, CheckCircle2, Sliders, X, Sparkles, AlertCircle } from 'lucide-react';
+import { Home, Flame, ArrowRightLeft, Plus, Power, CheckCircle2, Sliders, X, Sparkles, AlertCircle, Wrench, AlertTriangle, Activity } from 'lucide-react';
 import { Household, Room, Appliance } from '../../../shared/types/household';
 import { VampirePowerEngine } from '../../../backend/engine/VampirePowerEngine';
 import { ROICalculator } from '../../../backend/engine/ROICalculator';
 import { DiscoveredAppliancesSection } from '../appliances/DiscoveredAppliancesSection';
+import { DegradationDetector } from '../../server/health/degradationDetector';
+import { ApplianceHealthReport } from '../../server/health/types';
+import { HealthRing } from '../appliances/HealthRing';
+import { HealthDiagnosisModal } from '../appliances/HealthDiagnosisModal';
 
 interface AppliancesTabProps {
   household: Household;
@@ -48,12 +52,17 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
   const [proposedWatts, setProposedWatts] = useState<number>(1100);
   const [usageHours, setUsageHours] = useState<number>(8);
   const [investmentBDT, setInvestmentBDT] = useState<number>(62000);
+  const [targetAppName, setTargetAppName] = useState<string>('1.5 Ton Non-Inverter AC');
+  const [proposedAppName, setProposedAppName] = useState<string>('1.5 Ton 5-Star Inverter AC');
+  const [isRoiHighlighted, setIsRoiHighlighted] = useState<boolean>(false);
+  const [selectedHealthReport, setSelectedHealthReport] = useState<ApplianceHealthReport | null>(null);
+  const roiSectionRef = useRef<HTMLDivElement>(null);
 
   const vampireReports = VampirePowerEngine.analyzeVampirePower(appliances, rooms);
 
   const roiResult = ROICalculator.calculateUpgradeROI(
-    '1.5 Ton Non-Inverter AC',
-    '1.5 Ton 5-Star Inverter AC',
+    targetAppName,
+    proposedAppName,
     currentWatts,
     proposedWatts,
     usageHours,
@@ -61,20 +70,32 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
     7.34
   );
 
-  const computeApplianceHealth = (app: Appliance) => {
-    let score = 92;
-    if (!app.isInverterType) score -= 18;
-    if (app.standbyPowerW > 10) score -= 8;
-    if (app.ratedPowerW > 1500 && !app.isInverterType) score -= 9;
-    score = Math.max(50, Math.min(100, score));
+  const computeApplianceHealth = (app: Appliance): ApplianceHealthReport => {
+    return DegradationDetector.getInstance().evaluateApplianceHealth(app);
+  };
 
-    if (score >= 85) {
-      return { score, label: 'Optimal', badgeStyle: 'text-emerald-400 bg-emerald-950/80 border-emerald-800' };
+  const handleLinkToRoi = (report: ApplianceHealthReport) => {
+    const app = appliances.find(a => a.id === report.applianceId);
+    if (!app) return;
+
+    setTargetAppName(app.name);
+    setCurrentWatts(app.ratedPowerW);
+    setUsageHours(app.averageHoursPerDay || 7);
+
+    if (report.suggestedReplacement) {
+      setProposedAppName(report.suggestedReplacement.name);
+      setProposedWatts(report.suggestedReplacement.proposedWatts);
+      setInvestmentBDT(report.suggestedReplacement.estimatedCostBDT);
+    } else {
+      setProposedAppName(`5-Star Inverter ${app.name}`);
+      setProposedWatts(Math.round(app.ratedPowerW * 0.55));
+      setInvestmentBDT(58000);
     }
-    if (score >= 70) {
-      return { score, label: 'Serviceable', badgeStyle: 'text-amber-400 bg-amber-950/80 border-amber-800' };
-    }
-    return { score, label: 'High Draw', badgeStyle: 'text-rose-400 bg-rose-950/80 border-rose-800' };
+
+    setIsRoiHighlighted(true);
+    setTimeout(() => setIsRoiHighlighted(false), 3500);
+
+    roiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const handleSubmitNewAppliance = (e: React.FormEvent) => {
@@ -144,34 +165,64 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
                     return (
                       <div
                         key={app.id}
-                        className={`flex items-center justify-between text-xs p-2.5 rounded-xl border transition-all ${
-                          isOn ? 'bg-slate-900 border-emerald-500/30' : 'bg-slate-900/40 border-slate-800 opacity-70'
+                        className={`p-3 rounded-xl border transition-all space-y-2 ${
+                          isOn ? 'bg-slate-900 border-slate-800' : 'bg-slate-900/40 border-slate-800/80 opacity-75'
                         }`}
                       >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-xs text-slate-200 block">{app.name}</span>
-                            <span className={`text-[9px] px-1.5 py-0.2 rounded border font-mono font-bold ${health.badgeStyle}`}>
-                              {health.score}% {health.label}
-                            </span>
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <HealthRing
+                              score={health.healthScore}
+                              size={38}
+                              strokeWidth={3.5}
+                              onClick={() => setSelectedHealthReport(health)}
+                            />
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-xs text-slate-200 block">{app.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono block">
+                                {app.ratedPowerW}W • {app.isInverterType ? 'Inverter ★' : 'Standard'} • Standby: {app.standbyPowerW}W
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-[10px] text-slate-400 font-mono block">
-                            {app.ratedPowerW}W • {app.isInverterType ? 'Inverter ★' : 'Standard'} • Standby: {app.standbyPowerW}W
-                          </span>
+
+                          <button
+                            onClick={() => handleToggle(app.id)}
+                            disabled={togglingId === app.id}
+                            className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-extrabold font-display transition-all flex items-center gap-1.5 cursor-pointer ${
+                              isOn
+                                ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 font-black shadow-xs'
+                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                            } ${togglingId === app.id ? 'opacity-50 animate-pulse' : ''}`}
+                          >
+                            <Power className={`w-3 h-3 ${togglingId === app.id ? 'animate-spin' : ''}`} />
+                            <span>{togglingId === app.id ? '...' : isOn ? 'ON' : 'OFF'}</span>
+                          </button>
                         </div>
 
-                        <button
-                          onClick={() => handleToggle(app.id)}
-                          disabled={togglingId === app.id}
-                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-extrabold font-display transition-all flex items-center gap-1.5 cursor-pointer ${
-                            isOn
-                              ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 font-black shadow-sm'
-                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
-                          } ${togglingId === app.id ? 'opacity-50 animate-pulse' : ''}`}
-                        >
-                          <Power className={`w-3 h-3 ${togglingId === app.id ? 'animate-spin' : ''}`} />
-                          <span>{togglingId === app.id ? '...' : isOn ? 'ON' : 'OFF'}</span>
-                        </button>
+                        {/* Health Signal Notice (score < 40: ROI link, score < 70: servicing notice) */}
+                        {health.healthScore < 40 ? (
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] font-sans text-rose-300 bg-rose-950/40 border border-rose-800/50 px-2.5 py-1.5 rounded-lg">
+                            <div className="flex items-center gap-1.5 font-semibold">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                              <span>{health.recommendation}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleLinkToRoi(health)}
+                              className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-bold font-display underline cursor-pointer text-[10px] self-end sm:self-auto"
+                            >
+                              <span>Upgrade ROI →</span>
+                            </button>
+                          </div>
+                        ) : health.healthScore < 70 ? (
+                          <div
+                            onClick={() => setSelectedHealthReport(health)}
+                            className="flex items-center gap-1.5 text-[11px] font-sans font-medium text-amber-300 bg-amber-950/40 border border-amber-800/50 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-amber-950/60 transition-colors"
+                          >
+                            <Wrench className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span className="truncate">{health.recommendation}</span>
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -223,15 +274,30 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
         </div>
 
         {/* Right: Interactive Appliance Inverter Upgrade ROI Calculator */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-          <div>
-            <h4 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-              <ArrowRightLeft className="w-4 h-4 text-emerald-400" />
-              <span>Inverter Upgrade ROI & Payback Calculator</span>
-            </h4>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Calculate payback period in months when upgrading old non-inverter appliances
-            </p>
+        <div
+          ref={roiSectionRef}
+          id="roi-calculator-section"
+          className={`bg-slate-900 border rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-300 ${
+            isRoiHighlighted
+              ? 'border-emerald-400 ring-2 ring-emerald-400/60 shadow-lg shadow-emerald-500/20 bg-slate-850'
+              : 'border-slate-800'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h4 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                <ArrowRightLeft className="w-4 h-4 text-emerald-400" />
+                <span>Inverter Upgrade ROI & Payback Calculator</span>
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Targeting: <strong className="text-rose-400 font-display">{targetAppName}</strong> → <strong className="text-emerald-400 font-display">{proposedAppName}</strong>
+              </p>
+            </div>
+            {isRoiHighlighted && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                Pre-Filled from Health Alert
+              </span>
+            )}
           </div>
 
           <div className="space-y-3 bg-slate-950 border border-slate-800 p-4 rounded-xl text-xs">
@@ -427,6 +493,17 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Health Diagnostic Details Modal */}
+      <AnimatePresence>
+        {selectedHealthReport && (
+          <HealthDiagnosisModal
+            report={selectedHealthReport}
+            onClose={() => setSelectedHealthReport(null)}
+            onOpenRoi={(rep) => handleLinkToRoi(rep)}
+          />
         )}
       </AnimatePresence>
 

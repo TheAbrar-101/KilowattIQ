@@ -20,6 +20,7 @@
     "test:bills": "tsx src/server/tests/billVerifier.test.ts",
     "test:nilm": "tsx src/server/tests/nilm.test.ts",
     "test:scheduler": "tsx src/server/tests/scheduler.test.ts",
+    "test:health": "tsx src/server/tests/degradationDetector.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

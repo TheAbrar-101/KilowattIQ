@@ -286,6 +286,22 @@ async function main() {
     return `Scheduler verified: ${json.data.schedule.length} slots active, ৳${impact.monthlySavingsBDT}/mo savings, ${json.data.totalRelaysCount || 0} relays available`;
   });
 
+  // Appliance Health Degradation & Signature Monitor Endpoint
+  await runTest('HEALTH-01', 'Appliance Degradation Signals & Health Score 0–100 Engine', 'ENGINE', async () => {
+    const res = await fetch(`${BASE_URL}/api/v1/health/appliances`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!Array.isArray(json.data?.reports) || json.data.reports.length === 0) {
+      throw new Error('No health degradation reports returned');
+    }
+    const reports = json.data.reports;
+    const servicingItems = reports.filter((r: any) => r.healthScore < 70);
+    const replacementItems = reports.filter((r: any) => r.healthScore < 40);
+    return `Health degradation verified: ${reports.length} appliances assessed (Avg: ${json.data.summary.averageHealthScore}/100, ${servicingItems.length} Servicing alerts, ${replacementItems.length} Replacement ROI recommendations)`;
+  });
+
   // 6. Typography & Frontend Serving
   await runTest('TYP-01', 'Frontend HTML Serving & Google Font Inclusions', 'TYPOGRAPHY', async () => {
     const res = await fetch(`${BASE_URL}/`);
