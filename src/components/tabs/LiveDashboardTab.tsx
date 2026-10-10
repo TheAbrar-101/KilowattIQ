@@ -23,6 +23,7 @@ import { PowerReading } from '../../../shared/types/energy';
 import { Household, Appliance } from '../../../shared/types/household';
 import { apiClient, ApiError } from '../../lib/apiClient';
 import { useTheme } from '../../context/ThemeContext';
+import { AnomalyFeedPanel } from '../dashboard/AnomalyFeedPanel';
 
 interface LiveDashboardTabProps {
   household: Household;
@@ -32,6 +33,7 @@ interface LiveDashboardTabProps {
   activeApplianceStates?: Record<string, boolean>;
   onToggleAppliance?: (applianceId: string) => void;
   onSetTotalWatts?: (watts: number) => void;
+  token?: string | null;
 }
 
 export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
@@ -42,6 +44,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
   activeApplianceStates = {},
   onToggleAppliance,
   onSetTotalWatts,
+  token,
 }) => {
   const { isDark } = useTheme();
   const [timeRange, setTimeRange] = useState<'1H' | '12H' | '24H'>('12H');
@@ -520,6 +523,9 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
           })}
         </div>
       </div>
+
+      {/* Electrical Anomaly, Leakage & Faulty Wiring Diagnostics Feed */}
+      <AnomalyFeedPanel householdId={household.id} token={token} />
 
       {/* DESCO LT-A Tiered Tariff Slab Tracker Bar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">

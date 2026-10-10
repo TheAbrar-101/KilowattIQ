@@ -358,6 +358,7 @@ function MainAppContent() {
                 activeApplianceStates={activeApplianceStates}
                 onToggleAppliance={handleToggleAppliance}
                 onSetTotalWatts={setTotalActiveWatts}
+                token={token}
               />
             )}
 

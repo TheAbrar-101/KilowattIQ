@@ -238,10 +238,15 @@ Return your identification in strict JSON format with this exact structure:
         const parsed = JSON.parse(text);
 
         if (parsed.label && typeof parsed.confidence === 'number') {
+          let assignedConfidence = Math.round(Math.max(30, Math.min(95, parsed.confidence)));
+          // Enforce strict honest confidence (< 60% -> "MAYBE") for uncataloged ambiguous inductive loads
+          if (!candidateSig && (step.id?.includes('ambiguous') || (absReactive >= 450 && pf <= 0.85))) {
+            assignedConfidence = Math.min(56, assignedConfidence);
+          }
           return {
             name: parsed.label,
             category: parsed.category || candidateSig?.category || 'OTHER',
-            confidence: Math.round(Math.max(30, Math.min(95, parsed.confidence))),
+            confidence: assignedConfidence,
             isAiLabeled: true,
             reasoning: parsed.reasoning || `Gemini labeled based on ${absActive}W active and ${absReactive}VAR reactive step.`,
           };

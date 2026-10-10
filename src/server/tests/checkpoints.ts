@@ -302,6 +302,21 @@ async function main() {
     return `Health degradation verified: ${reports.length} appliances assessed (Avg: ${json.data.summary.averageHealthScore}/100, ${servicingItems.length} Servicing alerts, ${replacementItems.length} Replacement ROI recommendations)`;
   });
 
+  // Electrical Anomaly, Theft & Faulty Wiring Diagnostics Endpoint
+  await runTest('ANOM-01', 'Electrical Anomaly, Leakage & Wiring Diagnostics Feed', 'ENGINE', async () => {
+    const res = await fetch(`${BASE_URL}/api/v1/anomalies`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!Array.isArray(json.data?.anomalies) || json.data.anomalies.length === 0) {
+      throw new Error('No anomaly records returned');
+    }
+    const anoms = json.data.anomalies;
+    const activeAnoms = anoms.filter((a: any) => a.status === 'ACTIVE');
+    return `Anomalies verified: ${anoms.length} total (${activeAnoms.length} active, types: ${anoms.map((a: any) => a.type).slice(0, 2).join(', ')})`;
+  });
+
   // 6. Typography & Frontend Serving
   await runTest('TYP-01', 'Frontend HTML Serving & Google Font Inclusions', 'TYPOGRAPHY', async () => {
     const res = await fetch(`${BASE_URL}/`);

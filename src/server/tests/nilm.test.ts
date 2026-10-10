@@ -106,8 +106,9 @@ export async function runNilmTests() {
   };
 
   const ambiguousMatch = await matcher.matchStep(ambiguousStep, []);
+  console.log('Ambiguous Match Result:', ambiguousMatch);
   if (ambiguousMatch.confidence >= 60) {
-    throw new Error(`Ambiguous inductive signature should have confidence < 60%, got ${ambiguousMatch.confidence}%`);
+    throw new Error(`Ambiguous inductive signature should have confidence < 60%, got ${ambiguousMatch.confidence}% (${ambiguousMatch.name})`);
   }
 
   const simulatedStatus = ambiguousMatch.confidence >= 60 ? 'DETECTED' : 'MAYBE';

@@ -21,6 +21,7 @@
     "test:nilm": "tsx src/server/tests/nilm.test.ts",
     "test:scheduler": "tsx src/server/tests/scheduler.test.ts",
     "test:health": "tsx src/server/tests/degradationDetector.test.ts",
+    "test:anomaly": "tsx src/server/tests/anomalyDetector.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
