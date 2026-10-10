@@ -20,13 +20,15 @@ import { Household } from '../../../shared/types/household';
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 import { BudgetEngine } from '../../../backend/engine/BudgetEngine';
 import { VerifyBillSection } from '../bills/VerifyBillSection';
+import { WeatherImpactCard } from '../cost/WeatherImpactCard';
 
 interface CostAnalysisTabProps {
   household: Household;
+  token?: string | null;
 }
 
-export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) => {
-  const [activeSection, setActiveSection] = useState<'VERIFY' | 'SIMULATOR'>('VERIFY');
+export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, token }) => {
+  const [activeSection, setActiveSection] = useState<'VERIFY' | 'SIMULATOR'>('SIMULATOR');
   const [kwhInput, setKwhInput] = useState<number>(285);
   const [selectedTariffType, setSelectedTariffType] = useState<TariffType>('SLAB');
   const [daysPassedInput, setDaysPassedInput] = useState<number>(18);
@@ -99,6 +101,9 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household }) =
         <VerifyBillSection household={household} />
       ) : (
         <>
+          {/* Weather Impact This Week: CDD, AC Prediction & Heatwave Projections */}
+          <WeatherImpactCard household={household} currentKwh={kwhInput} token={token} />
+
           {/* Top Controller Bar */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm space-y-4 transition-colors">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

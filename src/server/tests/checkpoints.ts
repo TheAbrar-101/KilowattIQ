@@ -317,6 +317,23 @@ async function main() {
     return `Anomalies verified: ${anoms.length} total (${activeAnoms.length} active, types: ${anoms.map((a: any) => a.type).slice(0, 2).join(', ')})`;
   });
 
+  // Weather & Meteorological Bill Impact Endpoint
+  await runTest('WEATHER-01', 'Weather Service (CDD, AC Run, Heatwave Surcharges & Monsoon Comparison)', 'ENGINE', async () => {
+    const res = await fetch(`${BASE_URL}/api/v1/weather/impact?city=Dhaka`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.status !== 'success' || !json.data) {
+      throw new Error('Malformed weather response');
+    }
+    const report = json.data;
+    if (report.city !== 'Dhaka' || !report.coolingDegreeDays || !report.acPrediction || !report.heatwaveImpact) {
+      throw new Error('Incomplete weather impact report');
+    }
+    return `Weather verified: Dhaka (${report.current.tempC}°C, feels like ${report.current.feelsLikeC}°C), AC: ${report.acPrediction.predictedHoursToday}h today, 7d CDD: ${report.coolingDegreeDays.forecast7DaysTotal}°, Surcharge: +৳${report.heatwaveImpact.projectedBillIncreaseBDT}`;
+  });
+
   // 6. Typography & Frontend Serving
   await runTest('TYP-01', 'Frontend HTML Serving & Google Font Inclusions', 'TYPOGRAPHY', async () => {
     const res = await fetch(`${BASE_URL}/`);

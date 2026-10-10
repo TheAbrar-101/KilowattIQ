@@ -363,7 +363,7 @@ function MainAppContent() {
             )}
 
             {activeTab === 'COST' && activeHousehold && (
-              <CostAnalysisTab household={activeHousehold} />
+              <CostAnalysisTab household={activeHousehold} token={token} />
             )}
 
             {activeTab === 'APPLIANCES' && activeHousehold && (
