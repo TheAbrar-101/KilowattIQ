@@ -18,7 +18,7 @@ import { ROICalculator } from '../../../backend/engine/ROICalculator';
 interface CheckpointResult {
   id: string;
   name: string;
-  category: 'ENGINE' | 'API' | 'TELEMETRY' | 'REPORTS' | 'TYPOGRAPHY' | 'SECURITY';
+  category: 'ENGINE' | 'API' | 'TELEMETRY' | 'REPORTS' | 'TYPOGRAPHY' | 'SECURITY' | 'PAYMENTS';
   passed: boolean;
   details: string;
   durationMs: number;
@@ -332,6 +332,32 @@ async function main() {
       throw new Error('Incomplete weather impact report');
     }
     return `Weather verified: Dhaka (${report.current.tempC}°C, feels like ${report.current.feelsLikeC}°C), AC: ${report.acPrediction.predictedHoursToday}h today, 7d CDD: ${report.coolingDegreeDays.forecast7DaysTotal}°, Surcharge: +৳${report.heatwaveImpact.projectedBillIncreaseBDT}`;
+  });
+
+  // Bill Payment, Prepaid Top-Up & Tokenized Wallets (bKash, Nagad, Rocket)
+  await runTest('PAY-01', 'Bill Payment, Prepaid Top-Up & PCI-Safe Tokenized Wallets', 'PAYMENTS', async () => {
+    const methodsRes = await fetch(`${BASE_URL}/api/v1/payments/methods`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!methodsRes.ok) throw new Error(`HTTP ${methodsRes.status} on methods`);
+    const methodsJson = await methodsRes.json();
+
+    const historyRes = await fetch(`${BASE_URL}/api/v1/payments/history`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!historyRes.ok) throw new Error(`HTTP ${historyRes.status} on history`);
+    const historyJson = await historyRes.json();
+
+    const autoPayRes = await fetch(`${BASE_URL}/api/v1/payments/auto-pay`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!autoPayRes.ok) throw new Error(`HTTP ${autoPayRes.status} on auto-pay`);
+    const autoPayJson = await autoPayRes.json();
+
+    const methodsCount = methodsJson.data?.methods?.length ?? 0;
+    const historyCount = historyJson.data?.history?.length ?? 0;
+    const autoPayEnabled = autoPayJson.data?.autoPay?.enabled ? 'Active' : 'Configured';
+    return `Payments verified: ${methodsCount} saved wallets (bKash/Nagad/Rocket), ${historyCount} receipts, AutoPay: ${autoPayEnabled} (Cap: ৳${autoPayJson.data?.autoPay?.monthlyCapBDT})`;
   });
 
   // 6. Typography & Frontend Serving

@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Activity, Calculator, Home, CalendarClock, Cpu, Lightbulb, FileSpreadsheet, Bell, ShieldAlert } from 'lucide-react';
+import { Activity, Calculator, CreditCard, Home, CalendarClock, Cpu, Lightbulb, FileSpreadsheet, Bell, ShieldAlert } from 'lucide-react';
 
-export type TabType = 'LIVE' | 'COST' | 'APPLIANCES' | 'SCHEDULE' | 'DEVICES' | 'RECOMMENDATIONS' | 'REPORTS' | 'ALERTS' | 'ADMIN';
+export type TabType = 'LIVE' | 'COST' | 'PAYMENTS' | 'APPLIANCES' | 'SCHEDULE' | 'DEVICES' | 'RECOMMENDATIONS' | 'REPORTS' | 'ALERTS' | 'ADMIN';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -14,6 +14,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode; adminOnly?: boolean }> = [
     { id: 'LIVE', label: 'Live Telemetry', icon: <Activity className="w-3.5 h-3.5" /> },
     { id: 'COST', label: 'Tariff & Cost', icon: <Calculator className="w-3.5 h-3.5" /> },
+    { id: 'PAYMENTS', label: 'Bill & Top-up', icon: <CreditCard className="w-3.5 h-3.5" /> },
     { id: 'APPLIANCES', label: 'Rooms & Load', icon: <Home className="w-3.5 h-3.5" /> },
     { id: 'SCHEDULE', label: 'Off-Peak Schedule', icon: <CalendarClock className="w-3.5 h-3.5" /> },
     { id: 'DEVICES', label: 'IoT Adapters', icon: <Cpu className="w-3.5 h-3.5" /> },

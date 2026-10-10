@@ -7,6 +7,7 @@ import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
 import { LiveDashboardTab } from './components/tabs/LiveDashboardTab';
 import { CostAnalysisTab } from './components/tabs/CostAnalysisTab';
+import { PaymentsTab } from './components/tabs/PaymentsTab';
 import { AppliancesTab } from './components/tabs/AppliancesTab';
 import { ScheduleTab } from './components/tabs/ScheduleTab';
 import { IoTDevicesTab } from './components/tabs/IoTDevicesTab';
@@ -364,6 +365,10 @@ function MainAppContent() {
 
             {activeTab === 'COST' && activeHousehold && (
               <CostAnalysisTab household={activeHousehold} token={token} />
+            )}
+
+            {activeTab === 'PAYMENTS' && activeHousehold && (
+              <PaymentsTab household={activeHousehold} token={token} />
             )}
 
             {activeTab === 'APPLIANCES' && activeHousehold && (
