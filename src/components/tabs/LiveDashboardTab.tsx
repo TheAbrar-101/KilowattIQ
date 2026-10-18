@@ -23,6 +23,8 @@ import { PowerReading } from '../../../shared/types/energy';
 import { Household, Appliance } from '../../../shared/types/household';
 import { apiClient, ApiError } from '../../lib/apiClient';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
+import { UserRole, normalizeRole, canToggleLoads } from '../../server/auth/roles';
 import { AnomalyFeedPanel } from '../dashboard/AnomalyFeedPanel';
 
 interface LiveDashboardTabProps {
@@ -47,6 +49,10 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
   token,
 }) => {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const currentRole: UserRole = normalizeRole(user?.householdRole || user?.role);
+  const canToggle = canToggleLoads(currentRole, user?.auditorExpiresAt);
+
   const [timeRange, setTimeRange] = useState<'1H' | '12H' | '24H'>('12H');
   const [isSimulatingSurge, setIsSimulatingSurge] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -493,12 +499,22 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             return (
               <motion.button
                 key={app.id}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => onToggleAppliance && onToggleAppliance(app.id)}
-                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                  isOn
-                    ? 'bg-slate-50 dark:bg-slate-950 border-amber-500/40 shadow-xs'
-                    : 'bg-white/60 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 opacity-60'
+                whileTap={canToggle ? { scale: 0.96 } : undefined}
+                disabled={!canToggle}
+                title={!canToggle ? 'Auditors have read-only access (switch locked)' : undefined}
+                onClick={() => {
+                  if (!canToggle) {
+                    alert('Utility auditors have read-only access and cannot toggle electrical loads.');
+                    return;
+                  }
+                  onToggleAppliance && onToggleAppliance(app.id);
+                }}
+                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                  !canToggle
+                    ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800'
+                    : isOn
+                    ? 'bg-slate-50 dark:bg-slate-950 border-amber-500/40 shadow-xs cursor-pointer'
+                    : 'bg-white/60 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 opacity-60 cursor-pointer'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">

@@ -250,4 +250,68 @@ router.get('/session', authMiddleware, async (req: AuthenticatedRequest, res: Re
   });
 });
 
+// POST /api/v1/auth/switch-role - For testing & live simulation of the 4 roles
+router.post('/switch-role', async (req: AuthenticatedRequest, res: Response) => {
+  const roleInput = req.body?.role || 'owner';
+  const targetRole = roleInput === 'admin' ? 'admin' :
+    roleInput === 'utility_auditor' || roleInput === 'auditor' ? 'utility_auditor' :
+    roleInput === 'family_member' || roleInput === 'member' ? 'family_member' : 'owner';
+  const now = Date.now();
+
+  let token = 'owner-jwt-token';
+  let user: any = {
+    id: 'usr_dhaka_01',
+    email: 'demo@kilowattiq.bd',
+    fullName: 'Tanvir Hossain',
+    role: 'owner',
+    householdRole: 'owner',
+    householdIds: ['11111111-1111-4111-a111-111111111111'],
+  };
+
+  if (targetRole === 'admin') {
+    token = 'admin-jwt-token';
+    user = {
+      id: 'usr_admin',
+      email: 'admin@kilowattiq.bd',
+      fullName: 'System Administrator',
+      role: 'ADMIN',
+      householdRole: 'admin',
+      householdIds: ['11111111-1111-4111-a111-111111111111'],
+    };
+  } else if (targetRole === 'utility_auditor') {
+    token = 'auditor-jwt-token';
+    user = {
+      id: 'usr_auditor_01',
+      email: 'auditor@desco.org.bd',
+      fullName: 'DESCO Meter Inspector #402',
+      role: 'utility_auditor',
+      householdRole: 'utility_auditor',
+      householdIds: ['11111111-1111-4111-a111-111111111111'],
+      auditorExpiresAt: new Date(now + 48 * 3600000).toISOString(),
+    };
+  } else if (targetRole === 'family_member') {
+    token = 'family-jwt-token';
+    user = {
+      id: 'usr_family_02',
+      email: 'nusrat@gulshan.bd',
+      fullName: 'Nusrat Hossain',
+      role: 'family_member',
+      householdRole: 'family_member',
+      householdIds: ['11111111-1111-4111-a111-111111111111'],
+    };
+  }
+
+  const households = await db.getHouseholdsForUser(user.id);
+
+  return res.json({
+    status: 'success',
+    message: `Switched active role to ${targetRole}`,
+    data: {
+      token,
+      user,
+      households,
+    },
+  });
+});
+
 export default router;

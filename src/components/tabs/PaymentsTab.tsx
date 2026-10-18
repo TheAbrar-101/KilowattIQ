@@ -34,6 +34,8 @@ import {
   AutoPayConfig,
 } from '../../server/payments/types';
 import { Household } from '../../../shared/types/household';
+import { useAuth } from '../../context/AuthContext';
+import { UserRole, normalizeRole, canModifyBilling } from '../../server/auth/roles';
 
 interface PaymentsTabProps {
   household: Household;
@@ -41,6 +43,10 @@ interface PaymentsTabProps {
 }
 
 export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) => {
+  const { user } = useAuth();
+  const currentRole: UserRole = normalizeRole(user?.householdRole || user?.role);
+  const canPay = canModifyBilling(currentRole, user?.auditorExpiresAt);
+
   const [activeSubTab, setActiveSubTab] = useState<'PAY_BILL' | 'PREPAID' | 'AUTOPAY' | 'METHODS' | 'HISTORY'>('PAY_BILL');
   const [methods, setMethods] = useState<SavedPaymentMethod[]>([]);
   const [history, setHistory] = useState<PaymentReceipt[]>([]);
@@ -347,6 +353,26 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
 
   return (
     <div className="space-y-6">
+      {/* Role-gated banner if user is not Owner/Admin */}
+      {!canPay && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold">Billing & Payment Actions Locked (Owner Only)</p>
+              <p className="text-[11px] text-amber-700 dark:text-amber-300 opacity-90 mt-0.5">
+                Your active role is <strong className="uppercase">{currentRole.replace('_', ' ')}</strong>. Under Supabase Row Level Security (RLS), bill settlement, prepaid recharge, and auto-pay changes are restricted to Household Owners.
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-1 rounded bg-amber-200/50 dark:bg-amber-900/60 font-bold uppercase shrink-0">
+            RLS Enforced
+          </span>
+        </div>
+      )}
+
       {/* Top Banner & Navigation Sub-Tabs */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs transition-colors">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

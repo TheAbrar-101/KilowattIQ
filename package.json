@@ -24,6 +24,7 @@
     "test:anomaly": "tsx src/server/tests/anomalyDetector.test.ts",
     "test:weather": "tsx src/server/tests/weatherService.test.ts",
     "test:payments": "tsx src/server/tests/payments.test.ts",
+    "test:roles": "tsx src/server/tests/roles.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

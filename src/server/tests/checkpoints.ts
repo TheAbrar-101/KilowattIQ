@@ -360,6 +360,53 @@ async function main() {
     return `Payments verified: ${methodsCount} saved wallets (bKash/Nagad/Rocket), ${historyCount} receipts, AutoPay: ${autoPayEnabled} (Cap: ৳${autoPayJson.data?.autoPay?.monthlyCapBDT})`;
   });
 
+  // Multi-Role Access Control (Owner, Family, Auditor, Admin) & RLS Enforcement
+  await runTest('ROLE-01', 'Multi-Role Access Control, RLS Enforcement & Audit Logs', 'SECURITY', async () => {
+    // 1. Members and invitations query
+    const membersRes = await fetch(`${BASE_URL}/api/v1/households/11111111-1111-4111-a111-111111111111/members`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!membersRes.ok) throw new Error(`HTTP ${membersRes.status} on members`);
+    const membersJson = await membersRes.json();
+    const membersCount = membersJson.data?.members?.length ?? 0;
+
+    // 2. Audit logs query
+    const auditRes = await fetch(`${BASE_URL}/api/v1/households/11111111-1111-4111-a111-111111111111/audit-logs`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!auditRes.ok) throw new Error(`HTTP ${auditRes.status} on audit logs`);
+    const auditJson = await auditRes.json();
+    const logsCount = auditJson.data?.logs?.length ?? 0;
+
+    // 3. RLS Enforcement: Utility Auditor cannot toggle loads (HTTP 403)
+    const auditorToggleRes = await fetch(`${BASE_URL}/api/v1/households/11111111-1111-4111-a111-111111111111/appliances/33333333-3333-4333-a333-333333333301/toggle`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer auditor-jwt-token',
+      },
+      body: JSON.stringify({ isOn: false }),
+    });
+    if (auditorToggleRes.status !== 403) {
+      throw new Error(`Expected HTTP 403 for auditor toggle, got ${auditorToggleRes.status}`);
+    }
+
+    // 4. RLS Enforcement: Family member cannot modify billing (HTTP 403)
+    const familyPayRes = await fetch(`${BASE_URL}/api/v1/payments/pay-bill`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer family-jwt-token',
+      },
+      body: JSON.stringify({ amountBDT: 2000, provider: 'BKASH' }),
+    });
+    if (familyPayRes.status !== 403) {
+      throw new Error(`Expected HTTP 403 for family member billing, got ${familyPayRes.status}`);
+    }
+
+    return `Multi-role RLS verified: ${membersCount} members, ${logsCount} audit logs, Auditor toggle rejected (403), Family billing rejected (403)`;
+  });
+
   // 6. Typography & Frontend Serving
   await runTest('TYP-01', 'Frontend HTML Serving & Google Font Inclusions', 'TYPOGRAPHY', async () => {
     const res = await fetch(`${BASE_URL}/`);

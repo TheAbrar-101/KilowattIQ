@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Household } from '../../shared/types/household';
+import { UserRole, normalizeRole } from '../server/auth/roles';
 
 export interface UserAuth {
   id: string;
@@ -7,6 +8,8 @@ export interface UserAuth {
   fullName: string;
   phone?: string;
   role: string;
+  householdRole?: UserRole;
+  auditorExpiresAt?: string | null;
 }
 
 interface AuthContextType {
@@ -21,6 +24,7 @@ interface AuthContextType {
   signUp: (fullName: string, email: string, phone: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  switchRole: (role: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -204,6 +208,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const switchRole = async (targetRole: UserRole) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch('/api/v1/auth/switch-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ role: targetRole }),
+      });
+
+      const json = await safeParseJson(res);
+      if (res.ok && json.status === 'success' && json.data) {
+        const newToken = json.data.token;
+        localStorage.setItem(TOKEN_KEY, newToken);
+        setToken(newToken);
+        setUser({
+          ...json.data.user,
+          householdRole: targetRole,
+        });
+        const userHhs = json.data.households || [];
+        setHouseholds(userHhs);
+        if (userHhs.length > 0 && !activeHousehold) {
+          setActiveHousehold(userHhs[0]);
+        }
+      }
+    } catch (err: any) {
+      console.error('[AuthContext] switchRole failed:', err);
+      setError(err?.message || 'Failed to switch role');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -218,6 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signOut,
         refreshSession,
+        switchRole,
       }}
     >
       {children}
