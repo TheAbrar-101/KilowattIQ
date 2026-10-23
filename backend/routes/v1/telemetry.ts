@@ -5,6 +5,7 @@ import { IoTService } from '../../services/IoTService';
 import { MqttTelemetryService } from '../../services/MqttTelemetryService';
 import { TimeSeriesClient } from '../../../src/server/timeseries/client';
 import { RedisCacheService } from '../../../src/server/cache/redis';
+import { ObservabilityTracer } from '../../../src/server/observability/tracing';
 
 const router = Router();
 const db = SupabaseService.getInstance();
@@ -12,6 +13,7 @@ const iot = IoTService.getInstance();
 const mqttService = MqttTelemetryService.getInstance();
 const tsClient = TimeSeriesClient.getInstance();
 const redisCache = RedisCacheService.getInstance();
+const tracer = ObservabilityTracer.getInstance();
 
 // GET /api/v1/telemetry/live?householdId=...&range=...
 // Tiered Routing:
@@ -141,6 +143,9 @@ router.get('/stream', async (req: AuthenticatedRequest, res: Response) => {
     res.flushHeaders();
   }
 
+  const sseConnectionId = `sse_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+  tracer.registerSseClient(sseConnectionId);
+
   let isClosed = false;
 
   // 1. Subscribe to Redis Pub/Sub fan-out channel
@@ -203,6 +208,7 @@ router.get('/stream', async (req: AuthenticatedRequest, res: Response) => {
       isClosed = true;
       clearInterval(timer);
       unsubscribeRedis();
+      tracer.unregisterSseClient(sseConnectionId);
       res.end();
     }, 8500);
   }
@@ -211,6 +217,7 @@ router.get('/stream', async (req: AuthenticatedRequest, res: Response) => {
     isClosed = true;
     clearInterval(timer);
     unsubscribeRedis();
+    tracer.unregisterSseClient(sseConnectionId);
     if (serverlessSafetyTimer) clearTimeout(serverlessSafetyTimer);
     res.end();
   });

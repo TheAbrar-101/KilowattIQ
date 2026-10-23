@@ -18,7 +18,7 @@ import { ROICalculator } from '../../../backend/engine/ROICalculator';
 interface CheckpointResult {
   id: string;
   name: string;
-  category: 'ENGINE' | 'API' | 'TELEMETRY' | 'REPORTS' | 'TYPOGRAPHY' | 'SECURITY' | 'PAYMENTS' | 'VOICE' | 'TIMESERIES';
+  category: 'ENGINE' | 'API' | 'TELEMETRY' | 'REPORTS' | 'TYPOGRAPHY' | 'SECURITY' | 'PAYMENTS' | 'VOICE' | 'TIMESERIES' | 'OBSERVABILITY';
   passed: boolean;
   details: string;
   durationMs: number;
@@ -505,6 +505,53 @@ async function main() {
     if (!simRes.ok) throw new Error(`HTTP ${simRes.status} on telemetry simulate`);
 
     return `Timescale & Redis verified: 7d Rollup (1_MIN, ${rollupData.rollups?.length} points), 1y Rollup (1_HOUR, 5y retention), Redis invalidation & Pub/Sub fan-out`;
+  });
+
+  // Production Observability (OpenTelemetry Tracing, Structured Logging, Sentry & Expanded Health)
+  await runTest('OBS-01', 'Production Observability, OpenTelemetry Traces & Expanded Health Check', 'OBSERVABILITY', async () => {
+    // 1. Check expanded health endpoint
+    const healthRes = await fetch(`${BASE_URL}/api/v1/health`);
+    if (!healthRes.ok && healthRes.status !== 503) {
+      throw new Error(`Unexpected HTTP status ${healthRes.status} on health check`);
+    }
+    const healthJson = await healthRes.json();
+    const data = healthJson.data;
+
+    if (!data.subsystems || !data.subsystems.database || !data.subsystems.redis || !data.subsystems.mqtt || !data.subsystems.gemini || !data.subsystems.paymentProviders) {
+      throw new Error('Incomplete expanded health subsystems report');
+    }
+
+    // 2. Verify OpenTelemetry trace headers and request_id correlation on API ping
+    const pingRes = await fetch(`${BASE_URL}/api/v1`, {
+      headers: {
+        'x-request-id': 'req_test_observability_corr_01',
+      },
+    });
+    const traceIdHeader = pingRes.headers.get('x-trace-id');
+    const requestIdHeader = pingRes.headers.get('x-request-id');
+    const traceParentHeader = pingRes.headers.get('traceparent');
+
+    if (!traceIdHeader || traceIdHeader.length !== 32) {
+      throw new Error(`Expected 32-char X-Trace-Id header, got: ${traceIdHeader}`);
+    }
+    if (!traceParentHeader || !traceParentHeader.startsWith('00-')) {
+      throw new Error(`Expected W3C traceparent header, got: ${traceParentHeader}`);
+    }
+    if (requestIdHeader !== 'req_test_observability_corr_01') {
+      throw new Error(`Expected request_id correlation, got: ${requestIdHeader}`);
+    }
+
+    // 3. Verify Metrics registry endpoint for Grafana
+    const metricsRes = await fetch(`${BASE_URL}/api/v1/metrics`);
+    if (!metricsRes.ok) throw new Error(`HTTP ${metricsRes.status} on metrics endpoint`);
+    const metricsJson = await metricsRes.json();
+    const metricsData = metricsJson.data;
+
+    if (typeof metricsData.latencyMs?.p95 !== 'number' || typeof metricsData.activeSseClients !== 'number') {
+      throw new Error('Incomplete metrics structure from /metrics');
+    }
+
+    return `Observability verified: Subsystems [DB, Redis, MQTT, Gemini, Payments], W3C Traceparent (${traceIdHeader.slice(0, 8)}...), p95 Latency: ${metricsData.latencyMs.p95}ms, SSE Clients: ${metricsData.activeSseClients}`;
   });
 
   // 6. Typography & Frontend Serving

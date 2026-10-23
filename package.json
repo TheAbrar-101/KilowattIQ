@@ -27,6 +27,7 @@
     "test:roles": "tsx src/server/tests/roles.test.ts",
     "test:voice": "tsx src/server/tests/voiceBangla.test.ts",
     "test:timeseries": "tsx src/server/tests/timeseries.test.ts",
+    "test:observability": "tsx src/server/tests/observability.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

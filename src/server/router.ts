@@ -35,40 +35,22 @@ import anomalyRoutes from '../../backend/routes/v1/anomalies';
 import weatherRoutes from '../../backend/routes/v1/weather';
 import paymentRoutes from '../../backend/routes/v1/payments';
 import voiceRoutes from '../../backend/routes/v1/voice';
+import { openTelemetryTracingMiddleware, ObservabilityTracer } from './observability/tracing';
+import { structuredRequestLoggerMiddleware } from './observability/logger';
+import { HealthEvaluator } from './observability/healthEvaluator';
 
 /**
  * Health check handler verifying live Supabase connection status
  */
 export const handleHealthCheck = async (req: Request, res: Response) => {
-  const db = SupabaseService.getInstance();
-  const testResult = await db.testDatabaseConnection();
+  const evaluator = HealthEvaluator.getInstance();
+  const report = await evaluator.evaluate();
+  const isHealthy = report.databaseStatus === 'connected';
 
-  if (testResult.success) {
-    return res.status(200).json({
-      success: true,
-      data: {
-        service: 'KilowattIQ API',
-        version: '1.0.0',
-        apiVersion: 'v1',
-        database: 'Supabase PostgreSQL',
-        databaseStatus: 'connected',
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } else {
-    return res.status(503).json({
-      success: false,
-      data: {
-        service: 'KilowattIQ API',
-        version: '1.0.0',
-        apiVersion: 'v1',
-        database: 'Supabase PostgreSQL',
-        databaseStatus: 'disconnected',
-        error: testResult.error,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
+  return res.status(isHealthy ? 200 : 503).json({
+    success: isHealthy,
+    data: report,
+  });
 };
 
 /**
@@ -113,6 +95,10 @@ export function legacyApiRewriteMiddleware(req: Request, res: Response, next: Ne
 export function createV1Router(): Router {
   const v1 = Router();
 
+  // 1. OpenTelemetry Distributed Tracing & Structured Logging on every route
+  v1.use(openTelemetryTracingMiddleware);
+  v1.use(structuredRequestLoggerMiddleware);
+
   // Canonical v1 Service Ping (Public)
   v1.get('/', (req: Request, res: Response) => {
     res.json({
@@ -127,6 +113,15 @@ export function createV1Router(): Router {
 
   // Health check endpoint (Public)
   v1.get('/health', handleHealthCheck);
+
+  // Observability Metrics Endpoint (Public for Grafana/Prometheus scraper)
+  v1.get('/metrics', (req: Request, res: Response) => {
+    const tracer = ObservabilityTracer.getInstance();
+    res.json({
+      status: 'success',
+      data: tracer.getMetrics(),
+    });
+  });
 
   // Authentication routes: /login, /register, and /refresh are completely public.
   // /me and /session have authMiddleware applied individually inside authRoutes.

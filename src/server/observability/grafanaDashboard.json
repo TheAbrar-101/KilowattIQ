@@ -1,0 +1,17 @@
+{
+  "title": "KilowattIQ Production Observability - IoT & Energy Engine",
+  "uid": "kilowattiq-prod-obs",
+  "schemaVersion": 38,
+  "refresh": "5s",
+  "panels": [
+    { "id": 1, "title": "API Request Latency (p95)", "type": "stat", "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_ms_bucket[5m])) by (le))" },
+    { "id": 2, "title": "HTTP Error Rate (%)", "type": "stat", "expr": "(sum(rate(http_requests_total{status=~\"[45]..\"}[5m])) / sum(rate(http_requests_total[5m]))) * 100" },
+    { "id": 3, "title": "Active SSE Client Count", "type": "stat", "expr": "sum(sse_active_clients_count)" },
+    { "id": 4, "title": "Telemetry Queue Depth", "type": "stat", "expr": "sum(telemetry_ingestion_queue_depth)" },
+    { "id": 5, "title": "API Request Latency (p50 / p95 / p99)", "type": "timeseries" },
+    { "id": 6, "title": "Throughput & HTTP Status Breakdown", "type": "timeseries" },
+    { "id": 7, "title": "Real-Time SSE Connections & Fan-Out", "type": "timeseries" },
+    { "id": 8, "title": "Telemetry Ingestion Rate & Queue Depth", "type": "timeseries" },
+    { "id": 9, "title": "Subsystems Health Matrix (/api/v1/health)", "type": "stat" }
+  ]
+}
