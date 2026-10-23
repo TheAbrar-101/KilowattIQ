@@ -25,6 +25,8 @@
     "test:weather": "tsx src/server/tests/weatherService.test.ts",
     "test:payments": "tsx src/server/tests/payments.test.ts",
     "test:roles": "tsx src/server/tests/roles.test.ts",
+    "test:voice": "tsx src/server/tests/voiceBangla.test.ts",
+    "test:timeseries": "tsx src/server/tests/timeseries.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "ioredis": "^6.0.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "mqtt": "^5.15.2",
@@ -46,6 +49,7 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/ioredis": "^5.0.0",
     "@types/node": "^22.14.0",
     "@types/pdfkit": "^0.17.6",
     "autoprefixer": "^10.4.21",

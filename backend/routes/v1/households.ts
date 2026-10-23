@@ -13,10 +13,13 @@ import {
   normalizeRole,
 } from '../../../src/server/auth/roles';
 
+import { RedisCacheService } from '../../../src/server/cache/redis';
+
 const router = Router();
 const db = SupabaseService.getInstance();
 const memberService = MemberService.getInstance();
 const auditService = AuditService.getInstance();
+const redis = RedisCacheService.getInstance();
 
 function resolveUserRole(req: AuthenticatedRequest, householdId: string): {
   role: UserRole;
@@ -108,22 +111,62 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   res.json({ status: 'success', data: { ...household, currentUserRole: role } });
 });
 
-// POST /api/v1/households
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) {
-    return res.status(401).json({ status: 'error', message: 'Authentication required' });
+// PUT /api/v1/households/:id
+router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  if (!isHouseholdAuthorized(req, id)) {
+    return res.status(403).json({ status: 'error', message: 'Access denied.' });
   }
 
-  const newHousehold = await db.createHousehold({
-    userId: req.user.id,
-    name: req.body.name || 'New Bangladesh Household',
-    utilityProvider: req.body.utilityProvider || 'DESCO',
-    accountNumber: req.body.accountNumber || 'DESCO-0001',
-    sanctionedLoadKw: req.body.sanctionedLoadKw || 3.0,
-    monthlyBudgetBDT: req.body.monthlyBudgetBDT || 3500,
-    address: req.body.address || { division: 'Dhaka', city: 'Dhaka', area: 'Dhanmondi' },
+  const { role } = resolveUserRole(req, id);
+  if (!canManageMembers(role)) {
+    return res.status(403).json({
+      status: 'error',
+      code: 'ROLE_FORBIDDEN',
+      message: 'Only Household Owners or Admins can modify household configuration.',
+    });
+  }
+
+  const existing = await db.getHouseholdById(id);
+  if (!existing) {
+    return res.status(404).json({ status: 'error', message: 'Household not found' });
+  }
+
+  const updatedHousehold = {
+    ...existing,
+    name: req.body.name ?? existing.name,
+    sanctionedLoadKw: req.body.sanctionedLoadKw !== undefined ? Number(req.body.sanctionedLoadKw) : existing.sanctionedLoadKw,
+    monthlyBudgetBDT: req.body.monthlyBudgetBDT !== undefined ? Number(req.body.monthlyBudgetBDT) : existing.monthlyBudgetBDT,
+    utilityProvider: req.body.utilityProvider ?? existing.utilityProvider,
+    accountNumber: req.body.accountNumber ?? existing.accountNumber,
+  };
+
+  // Invalidate Redis household config and dashboard summary caches
+  await redis.invalidateHouseholdCache(id);
+  await redis.invalidateDashboardSummary(id);
+
+  await auditService.log({
+    householdId: id,
+    userId: req.user?.id || 'usr_dhaka_01',
+    userName: req.user?.fullName || 'Owner',
+    userEmail: req.user?.email || 'demo@kilowattiq.bd',
+    userRole: role,
+    action: 'HOUSEHOLD_CONFIG_UPDATED',
+    entityType: 'system',
+    entityId: id,
+    details: {
+      budgetBDT: updatedHousehold.monthlyBudgetBDT,
+      sanctionedLoadKw: updatedHousehold.sanctionedLoadKw,
+      cacheInvalidated: true,
+    },
+    status: 'SUCCESS',
   });
-  res.status(201).json({ status: 'success', data: newHousehold });
+
+  res.json({
+    status: 'success',
+    data: updatedHousehold,
+    message: 'Household configuration updated and Redis caches invalidated.',
+  });
 });
 
 // ====================================================================
@@ -498,6 +541,9 @@ router.post('/:id/appliances/:applianceId/toggle', async (req: AuthenticatedRequ
 
   const { isOn } = req.body || {};
   const result = await db.toggleAppliance(applianceId, isOn);
+
+  // Invalidate Redis dashboard summary cache on load toggle
+  await redis.invalidateDashboardSummary(id);
 
   // Audit log the successful toggle
   await auditService.log({

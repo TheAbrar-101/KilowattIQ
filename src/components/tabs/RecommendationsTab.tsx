@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Lightbulb, CheckCircle2, TrendingDown, Sparkles, Filter, Check, Cpu, RefreshCw, AlertTriangle, Globe, Zap, FileText } from 'lucide-react';
 import { RecommendationItem, AiAdvisorResult } from '../../../shared/types/energy';
 import { Household } from '../../../shared/types/household';
+import { BanglaVoiceInput } from '../voice/BanglaVoiceInput';
 
 interface RecommendationsTabProps {
   household?: Household;
@@ -80,6 +81,9 @@ export const RecommendationsTab: React.FC<RecommendationsTabProps> = ({
 
   return (
     <div className="space-y-6">
+
+      {/* Bangla Voice Interaction Component */}
+      <BanglaVoiceInput household={household} token={token} />
 
       {/* AI Energy Advisor Section */}
       <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/30 rounded-2xl p-5 shadow-lg space-y-4">

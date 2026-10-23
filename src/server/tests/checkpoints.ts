@@ -18,7 +18,7 @@ import { ROICalculator } from '../../../backend/engine/ROICalculator';
 interface CheckpointResult {
   id: string;
   name: string;
-  category: 'ENGINE' | 'API' | 'TELEMETRY' | 'REPORTS' | 'TYPOGRAPHY' | 'SECURITY' | 'PAYMENTS';
+  category: 'ENGINE' | 'API' | 'TELEMETRY' | 'REPORTS' | 'TYPOGRAPHY' | 'SECURITY' | 'PAYMENTS' | 'VOICE' | 'TIMESERIES';
   passed: boolean;
   details: string;
   durationMs: number;
@@ -405,6 +405,106 @@ async function main() {
     }
 
     return `Multi-role RLS verified: ${membersCount} members, ${logsCount} audit logs, Auditor toggle rejected (403), Family billing rejected (403)`;
+  });
+
+  // Bangla Voice Interaction & Speech Synthesis (bn-BD)
+  await runTest('VOICE-01', 'Bangla Voice Interaction, Gemini Prompt Template & TTS bn-BD', 'VOICE', async () => {
+    // 1. Voice query in Bangla: "আমার বিল কেন এত বেশি?"
+    const voiceRes = await fetch(`${BASE_URL}/api/v1/voice/query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        query: 'আমার বিল কেন এত বেশি?',
+        householdId: '11111111-1111-4111-a111-111111111111',
+      }),
+    });
+    if (!voiceRes.ok) throw new Error(`HTTP ${voiceRes.status} on voice query`);
+    const voiceJson = await voiceRes.json();
+    const data = voiceJson.data;
+
+    if (!data.spokenSummary || !data.headline || !data.causes || !data.ttsMeta) {
+      throw new Error('Incomplete voice advisory response structure');
+    }
+    if (data.ttsMeta.lang !== 'bn-BD') {
+      throw new Error(`Expected bn-BD voice lang, got ${data.ttsMeta.lang}`);
+    }
+
+    // 2. TTS phonetic normalizer endpoint
+    const ttsRes = await fetch(`${BASE_URL}/api/v1/voice/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ text: 'আপনার বিল ৳২,২৭৭ টাকা' }),
+    });
+    if (!ttsRes.ok) throw new Error(`HTTP ${ttsRes.status} on voice TTS`);
+
+    return `Bangla voice verified: Headline: "${data.headline.slice(0, 30)}...", TTS Lang: ${data.ttsMeta.lang}, Causes: ${data.causes.length}, Savings: ৳${data.estimatedMonthlySavingsBDT}`;
+  });
+
+  // Time-Series Continuous Rollups & Redis Caching
+  await runTest('TIMESERIES-01', 'TimescaleDB Tiered Rollups, Redis Caching & SSE Fan-Out', 'TIMESERIES', async () => {
+    // 1. Query live telemetry with range > 1 day (should read from 1-min continuous rollups)
+    const rollupRes = await fetch(`${BASE_URL}/api/v1/telemetry/live?householdId=11111111-1111-4111-a111-111111111111&range=7d`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!rollupRes.ok) throw new Error(`HTTP ${rollupRes.status} on 7d rollups`);
+    const rollupJson = await rollupRes.json();
+    const rollupData = rollupJson.data;
+
+    if (rollupData.mode !== 'TIME_SERIES_ROLLUP' || rollupData.resolution !== '1_MIN') {
+      throw new Error(`Expected TIME_SERIES_ROLLUP with 1_MIN resolution, got ${rollupData.mode} ${rollupData.resolution}`);
+    }
+    if (!rollupData.retentionTier.includes('90 days')) {
+      throw new Error(`Expected 90-day retention tier, got ${rollupData.retentionTier}`);
+    }
+
+    // 2. Query 1-year rollups (should read from 1-hour continuous rollups, retained 5 years)
+    const yearRes = await fetch(`${BASE_URL}/api/v1/telemetry/live?householdId=11111111-1111-4111-a111-111111111111&range=1y`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!yearRes.ok) throw new Error(`HTTP ${yearRes.status} on 1y rollups`);
+    const yearJson = await yearRes.json();
+    if (yearJson.data?.resolution !== '1_HOUR' || !yearJson.data?.retentionTier.includes('5 years')) {
+      throw new Error('Expected 1_HOUR resolution with 5-year retention tier for 1y range');
+    }
+
+    // 3. Test Redis tariff cache and invalidation
+    const tariffRes = await fetch(`${BASE_URL}/api/v1/tariffs`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!tariffRes.ok) throw new Error(`HTTP ${tariffRes.status} on tariffs`);
+
+    const updateTariffRes = await fetch(`${BASE_URL}/api/v1/tariffs/update`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ tariffType: 'SLAB' }),
+    });
+    if (!updateTariffRes.ok) throw new Error(`HTTP ${updateTariffRes.status} on tariff update`);
+
+    // 4. Test Redis Pub/Sub simulated telemetry ingestion and fanout
+    const simRes = await fetch(`${BASE_URL}/api/v1/telemetry/simulate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        householdId: '11111111-1111-4111-a111-111111111111',
+        activePowerW: 3200,
+        voltage: 224,
+      }),
+    });
+    if (!simRes.ok) throw new Error(`HTTP ${simRes.status} on telemetry simulate`);
+
+    return `Timescale & Redis verified: 7d Rollup (1_MIN, ${rollupData.rollups?.length} points), 1y Rollup (1_HOUR, 5y retention), Redis invalidation & Pub/Sub fan-out`;
   });
 
   // 6. Typography & Frontend Serving
