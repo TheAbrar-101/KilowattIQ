@@ -24,6 +24,7 @@ import { Household, Appliance } from '../../../shared/types/household';
 import { apiClient, ApiError } from '../../lib/apiClient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { UserRole, normalizeRole, canToggleLoads } from '../../server/auth/roles';
 import { AnomalyFeedPanel } from '../dashboard/AnomalyFeedPanel';
 
@@ -50,6 +51,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
 }) => {
   const { isDark } = useTheme();
   const { user } = useAuth();
+  const { language, t, formatCurrency, formatNumber } = useLanguage();
   const currentRole: UserRole = normalizeRole(user?.householdRole || user?.role);
   const canToggle = canToggleLoads(currentRole, user?.auditorExpiresAt);
 
@@ -57,6 +59,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
   const [isSimulatingSurge, setIsSimulatingSurge] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [auditorNotice, setAuditorNotice] = useState<string | null>(null);
 
   const currentKw = totalActiveWatts / 1000;
   const maxKw = household.sanctionedLoadKw || 4.5;
@@ -182,7 +185,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             </div>
             <button
               onClick={() => onSetTotalWatts && onSetTotalWatts(1200)}
-              className="bg-rose-500 hover:bg-rose-400 text-slate-950 font-black font-display px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-md shrink-0 cursor-pointer active:scale-95"
+              className="min-h-[44px] bg-rose-500 hover:bg-rose-400 text-slate-950 font-['Outfit'] font-semibold px-4 py-2 rounded-xl text-xs transition-all shadow-md shrink-0 cursor-pointer active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-rose-400/50"
             >
               Reduce Load Now
             </button>
@@ -213,10 +216,11 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
               <button
                 onClick={handleSyncTelemetry}
                 disabled={isSyncing}
+                aria-label="Sync AMI Telemetry"
                 title="Fetch live reading via typed apiClient (/api/v1/telemetry/live)"
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 hover:border-amber-500/40 text-slate-700 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 rounded-lg text-[10px] font-bold font-display transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                className="min-h-[44px] flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 hover:border-amber-500/40 text-slate-700 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 rounded-xl text-xs font-['Outfit'] font-semibold transition-all cursor-pointer active:scale-95 disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
               >
-                <RotateCcw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+                <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
                 <span>{isSyncing ? 'Syncing...' : 'Sync AMI'}</span>
               </button>
               <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${statusStyle.border} ${statusStyle.text} bg-slate-100 dark:bg-slate-950 font-mono tracking-wider uppercase`}>
@@ -283,16 +287,16 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                   key={totalActiveWatts}
                   initial={{ scale: 0.9, opacity: 0.8 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter font-mono"
+                  className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter font-mono tabular-nums"
                 >
-                  {currentKw.toFixed(2)}
+                  {formatNumber(currentKw.toFixed(2))}
                   <span className="text-sm font-bold text-slate-500 dark:text-slate-400 ml-1">kW</span>
                 </motion.span>
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
-                  {totalActiveWatts} <span className="text-[9px] uppercase">Watts</span>
+                  <span className="font-mono tabular-nums">{formatNumber(totalActiveWatts)}</span> <span className="text-[9px] uppercase">Watts</span>
                 </span>
-                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 mt-1 bg-slate-100 dark:bg-slate-950 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-800">
-                  {loadPercentage.toFixed(0)}% of {maxKw} kW Limit
+                <span className="text-[10px] font-mono tabular-nums text-slate-600 dark:text-slate-400 mt-1 bg-slate-100 dark:bg-slate-950 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-800">
+                  {formatNumber(loadPercentage.toFixed(0))}% of {formatNumber(maxKw)} kW Limit
                 </span>
               </div>
             </div>
@@ -304,7 +308,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                   <Sliders className="w-3 h-3 text-amber-500 dark:text-amber-400" />
                   Live Wattage Simulator
                 </span>
-                <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">{totalActiveWatts} W</span>
+                <span className="font-mono tabular-nums text-amber-600 dark:text-amber-400 font-bold">{formatNumber(totalActiveWatts)} W</span>
               </div>
               <input
                 type="range"
@@ -315,7 +319,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                 onChange={(e) => onSetTotalWatts && onSetTotalWatts(Number(e.target.value))}
                 className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
               />
-              <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 font-mono">
+              <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 font-mono tabular-nums">
                 <span>100W Baseline</span>
                 <span>2500W Standard</span>
                 <span>5000W Max Surge</span>
@@ -328,15 +332,16 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             <button
               onClick={handleSurge}
               disabled={isSimulatingSurge}
-              className="flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800/90 border border-amber-500/30 hover:border-amber-400/60 text-amber-700 dark:text-amber-300 font-display font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all shadow-xs cursor-pointer"
+              className="min-h-[44px] flex-1 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800/90 border border-amber-500/30 hover:border-amber-400/60 text-amber-700 dark:text-amber-300 font-['Outfit'] font-semibold text-xs py-2 px-3.5 rounded-xl transition-all shadow-xs cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 active:scale-95"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
               <span>{isSimulatingSurge ? 'Surge Injected...' : 'Simulate Evening Peak Surge'}</span>
             </button>
             <button
               onClick={() => onSetTotalWatts && onSetTotalWatts(1200)}
+              aria-label="Reset Baseline Load"
               title="Reset Baseline Load"
-              className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer font-bold"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer font-bold focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -353,10 +358,9 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-xs">
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block font-display">Today Est. Cost</span>
               <div className="my-1">
-                <span className="text-xl font-black text-slate-900 dark:text-white tracking-tight font-mono">
-                  ৳{estimatedDailyCostBDT.toFixed(0)}
+                <span className="text-xl font-black text-slate-900 dark:text-white tracking-tight font-mono tabular-nums">
+                  {formatCurrency(estimatedDailyCostBDT)}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 ml-1">BDT</span>
               </div>
               <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 font-mono">
                 <TrendingUp className="w-3 h-3" />
@@ -368,13 +372,13 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-xs">
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block font-display">Projected Bill</span>
               <div className="my-1">
-                <span className="text-xl font-black text-amber-600 dark:text-amber-400 tracking-tight font-mono">
-                  ৳{estimatedMonthlyCostBDT.toFixed(0)}
+                <span className="text-xl font-black text-amber-600 dark:text-amber-400 tracking-tight font-mono tabular-nums">
+                  {formatCurrency(estimatedMonthlyCostBDT)}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 ml-1">EST</span>
+                <span className="text-[10px] font-bold text-slate-400 ml-1 font-sans">EST</span>
               </div>
               <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium font-sans">
-                Target: ৳{household.monthlyBudgetBDT} BDT
+                Target: {formatCurrency(household.monthlyBudgetBDT)}
               </span>
             </div>
 
@@ -382,13 +386,13 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-xs">
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block font-display">Vampire Leak</span>
               <div className="my-1">
-                <span className="text-xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-mono">
-                  42 <span className="text-xs font-normal text-slate-400">Watts</span>
+                <span className="text-xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-mono tabular-nums">
+                  {formatNumber(42)} <span className="text-xs font-normal text-slate-400 font-sans">Watts</span>
                 </span>
               </div>
               <span className="text-[9px] text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1 font-sans">
                 <Flame className="w-3 h-3" />
-                ~৳135 / Month Leak
+                ~{formatCurrency(135)} / {language === 'bn' ? 'মাস অপচয়' : 'Month Leak'}
               </span>
             </div>
 
@@ -396,11 +400,11 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-xs">
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block font-display">Power Quality</span>
               <div className="my-1">
-                <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-mono">
-                  0.96 <span className="text-xs font-normal text-slate-400">PF</span>
+                <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-mono tabular-nums">
+                  {formatNumber(0.96)} <span className="text-xs font-normal text-slate-400 font-sans">PF</span>
                 </span>
               </div>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium font-sans">
+              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium font-mono tabular-nums">
                 221.8 V • 50.0 Hz
               </span>
             </div>
@@ -478,18 +482,42 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
 
       {/* Interactive Appliance Quick Switchboard Strip */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
+        {/* Auditor Toast Banner */}
+        <AnimatePresence>
+          {auditorNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="p-3 bg-amber-500/10 border border-amber-400/40 rounded-xl text-xs text-amber-500 dark:text-amber-400 flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{auditorNotice}</span>
+              </div>
+              <button
+                onClick={() => setAuditorNotice(null)}
+                aria-label="Dismiss auditor warning"
+                className="px-2 py-1 text-xs font-bold hover:text-amber-300"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 font-display">
               <Power className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-              <span>Interactive Appliance Switchboard</span>
+              <span>{t('live.quick_toggle', 'Interactive Appliance Switchboard')}</span>
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
               Toggle virtual household loads to test real-time wattage and BDT cost impact
             </p>
           </div>
-          <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400 font-bold bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800">
-            {appliances.length} Registered Appliances
+          <span className="text-[10px] font-mono tabular-nums text-amber-700 dark:text-amber-400 font-bold bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800">
+            {formatNumber(appliances.length)} Registered Appliances
           </span>
         </div>
 
@@ -501,27 +529,29 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                 key={app.id}
                 whileTap={canToggle ? { scale: 0.96 } : undefined}
                 disabled={!canToggle}
+                aria-label={`${isOn ? 'Turn off' : 'Turn on'} ${app.name}`}
                 title={!canToggle ? 'Auditors have read-only access (switch locked)' : undefined}
                 onClick={() => {
                   if (!canToggle) {
-                    alert('Utility auditors have read-only access and cannot toggle electrical loads.');
+                    setAuditorNotice('Utility auditors have read-only access and cannot toggle electrical loads.');
+                    setTimeout(() => setAuditorNotice(null), 4000);
                     return;
                   }
                   onToggleAppliance && onToggleAppliance(app.id);
                 }}
-                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                className={`min-h-[44px] p-3 rounded-xl border text-left flex flex-col justify-between transition-all font-['Outfit'] focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 ${
                   !canToggle
                     ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800'
                     : isOn
-                    ? 'bg-slate-50 dark:bg-slate-950 border-amber-500/40 shadow-xs cursor-pointer'
-                    : 'bg-white/60 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 opacity-60 cursor-pointer'
+                    ? 'bg-slate-50 dark:bg-slate-950 border-amber-500/40 shadow-xs cursor-pointer hover:border-amber-400'
+                    : 'bg-white/60 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 opacity-60 cursor-pointer hover:opacity-90'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className={`p-1.5 rounded-lg ${isOn ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
                     {getApplianceIcon(app.category)}
                   </div>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono ${
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono tabular-nums ${
                     isOn ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800' : 'bg-slate-100 dark:bg-slate-900 text-slate-500'
                   }`}>
                     {isOn ? 'ACTIVE' : 'OFF'}
@@ -529,9 +559,9 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                 </div>
 
                 <div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white block truncate font-display">{app.name}</span>
-                  <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
-                    {app.ratedPowerW} Watts
+                  <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">{app.name}</span>
+                  <span className="text-[10px] font-mono tabular-nums font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
+                    {formatNumber(app.ratedPowerW)} Watts
                   </span>
                 </div>
               </motion.button>

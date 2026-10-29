@@ -21,6 +21,7 @@ import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 import { BudgetEngine } from '../../../backend/engine/BudgetEngine';
 import { VerifyBillSection } from '../bills/VerifyBillSection';
 import { WeatherImpactCard } from '../cost/WeatherImpactCard';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface CostAnalysisTabProps {
   household: Household;
@@ -28,6 +29,7 @@ interface CostAnalysisTabProps {
 }
 
 export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, token }) => {
+  const { language, formatCurrency, formatNumber } = useLanguage();
   const [activeSection, setActiveSection] = useState<'VERIFY' | 'SIMULATOR'>('SIMULATOR');
   const [kwhInput, setKwhInput] = useState<number>(285);
   const [selectedTariffType, setSelectedTariffType] = useState<TariffType>('SLAB');
@@ -65,30 +67,34 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-xs transition-colors">
         <div className="flex items-center gap-1.5 w-full sm:w-auto">
           <button
+            type="button"
             onClick={() => setActiveSection('VERIFY')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-display transition-all cursor-pointer ${
+            aria-label="Verify My Bill (OCR & Dispute)"
+            className={`min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold font-['Outfit'] transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400 ${
               activeSection === 'VERIFY'
-                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <ShieldAlert className="w-4 h-4" />
-            <span>Verify My Bill (OCR & Dispute)</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-600 text-white dark:bg-amber-400 dark:text-slate-950 font-bold font-mono">
+            <span>{language === 'bn' ? 'বিল যাচাই ও ডিসপিউট' : 'Verify My Bill (OCR & Dispute)'}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-600 text-white dark:bg-amber-400 dark:text-slate-950 font-bold font-mono">
               NEW
             </span>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveSection('SIMULATOR')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-display transition-all cursor-pointer ${
+            aria-label="Tariff Simulator & Slabs"
+            className={`min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold font-['Outfit'] transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400 ${
               activeSection === 'SIMULATOR'
-                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <Calculator className="w-4 h-4" />
-            <span>Tariff Simulator & Slabs</span>
+            <span>{language === 'bn' ? 'ট্যারিফ সিমুলেটর ও স্ল্যাব' : 'Tariff Simulator & Slabs'}</span>
           </button>
         </div>
 
@@ -228,19 +234,21 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
                 key={costCalc.grossTotalBDT}
                 initial={{ scale: 0.95 }}
                 animate={{ scale: 1 }}
-                className="text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400"
+                className="text-3xl font-black font-mono tabular-nums text-emerald-600 dark:text-emerald-400"
               >
-                ৳{costCalc.grossTotalBDT.toFixed(2)}
+                {formatCurrency(costCalc.grossTotalBDT)}
               </motion.span>
-              <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold">Gross Total (Inc 5% VAT)</p>
+              <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold font-['Plus_Jakarta_Sans']">
+                {language === 'bn' ? 'মোট বিল (৫% ভ্যাটসহ)' : 'Gross Total (Inc 5% VAT)'}
+              </p>
             </div>
           </div>
 
           {/* Slab Breakdown Items */}
           <div className="space-y-2">
-            <h5 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-display">
+            <h5 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-['Outfit']">
               <Layers className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span>DESCO LT-A Tiered Slab Distribution ({kwhInput} kWh)</span>
+              <span>DESCO LT-A Tiered Slab Distribution ({formatNumber(kwhInput)} kWh)</span>
             </h5>
 
             <div className="space-y-1.5">
@@ -254,15 +262,15 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
                       {idx + 1}
                     </div>
                     <div>
-                      <span className="font-bold text-slate-900 dark:text-white block font-display">{s.stepName}</span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                        {s.kwhInSlab} kWh @ ৳{s.rate}/kWh
+                      <span className="font-bold text-slate-900 dark:text-white block font-['Outfit']">{s.stepName}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                        {formatNumber(s.kwhInSlab)} kWh @ {formatCurrency(s.rate)}/kWh
                       </span>
                     </div>
                   </div>
 
-                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                    ৳{s.costBDT.toFixed(2)}
+                  <span className="font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                    {formatCurrency(s.costBDT)}
                   </span>
                 </div>
               ))}
@@ -272,16 +280,16 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
           {/* Fixed Charges Table */}
           <div className="grid grid-cols-3 gap-3 pt-2">
             <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block font-display">Energy Cost</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">৳{costCalc.energyCostBDT.toFixed(2)}</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">Energy Cost</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono tabular-nums">{formatCurrency(costCalc.energyCostBDT)}</span>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block font-display">Fixed & Demand</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">৳{(costCalc.demandChargeBDT + costCalc.meterRentBDT).toFixed(2)}</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">Fixed & Demand</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono tabular-nums">{formatCurrency(costCalc.demandChargeBDT + costCalc.meterRentBDT)}</span>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block font-display">VAT (5%)</span>
-              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono">৳{costCalc.vatBDT.toFixed(2)}</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">VAT (5%)</span>
+              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">{formatCurrency(costCalc.vatBDT)}</span>
             </div>
           </div>
 
@@ -291,40 +299,40 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs dark:shadow-sm flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-slate-800 pb-2">
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 font-display">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 font-['Outfit']">
                 <PieChart className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                 <span>Monthly Budget Engine</span>
               </h4>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${
                 budgetStatus.isOverageLikely
-                  ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800'
-                  : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
+                  ? 'bg-amber-500/10 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-400/40'
+                  : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
               }`}>
-                {budgetStatus.isOverageLikely ? 'BUDGET EXCEEDED' : 'ON TRACK'}
+                {budgetStatus.isOverageLikely ? 'BUDGET PACE WARNING' : 'ON TRACK'}
               </span>
             </div>
 
             <div className="space-y-3">
               <div>
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block font-display">Monthly Budget Cap</span>
-                <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">৳{household.monthlyBudgetBDT} BDT</span>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block font-['Outfit']">Monthly Budget Cap</span>
+                <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tabular-nums">{formatCurrency(household.monthlyBudgetBDT)}</span>
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block font-display">Projected End-Of-Month Bill</span>
-                <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">৳{budgetStatus.projectedCostBDT.toFixed(0)} BDT</span>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block font-['Outfit']">Projected End-Of-Month Bill</span>
+                <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono tabular-nums">{formatCurrency(budgetStatus.projectedCostBDT)}</span>
               </div>
 
               {/* Progress bar */}
               <div className="space-y-1">
-                <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                  <span>Spent So Far: ৳{budgetStatus.currentSpentBDT.toFixed(0)}</span>
+                <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                  <span>Spent So Far: {formatCurrency(budgetStatus.currentSpentBDT)}</span>
                   <span>Day {daysPassedInput} / 30</span>
                 </div>
                 <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
                   <div
                     className={`h-full transition-all duration-500 ${
-                      budgetStatus.isOverageLikely ? 'bg-rose-500' : 'bg-emerald-500'
+                      budgetStatus.isOverageLikely ? 'bg-amber-400' : 'bg-emerald-500'
                     }`}
                     style={{ width: `${Math.min(100, (budgetStatus.currentSpentBDT / household.monthlyBudgetBDT) * 100)}%` }}
                   />
@@ -333,14 +341,14 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
 
               {/* Actionable Advice */}
               <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1">
-                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase block flex items-center gap-1 font-display">
-                  <AlertTriangle className="w-3 h-3" />
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase block flex items-center gap-1 font-['Outfit']">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
                   Budget Insight
                 </span>
-                <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed font-sans">
+                <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed font-['Plus_Jakarta_Sans']">
                   {budgetStatus.isOverageLikely
                     ? `Projected to exceed budget by ${budgetStatus.overagePercentage.toFixed(0)}%. Consider shifting AC usage during peak hours.`
-                    : `Current usage pattern is within safe budget limits. Estimated savings vs cap: ৳${Math.max(0, household.monthlyBudgetBDT - budgetStatus.projectedCostBDT).toFixed(0)} BDT.`}
+                    : `Current usage pattern is within safe budget limits. Estimated savings vs cap: ${formatCurrency(Math.max(0, household.monthlyBudgetBDT - budgetStatus.projectedCostBDT))}.`}
                 </p>
               </div>
             </div>
@@ -358,22 +366,22 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-              slabAnalysis.projectedBreachOccurs ? 'bg-rose-500/20 text-rose-500 dark:text-rose-400' : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+              slabAnalysis.projectedBreachOccurs ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
             }`}>
               <ShieldAlert className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 font-display">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 font-['Outfit']">
                 <span>BERC Progressive Slab Threshold Risk Monitor</span>
                 <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase ${
                   slabAnalysis.projectedBreachOccurs
-                    ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                    ? 'bg-amber-500/10 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-400/40'
                     : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
                 }`}>
                   {slabAnalysis.projectedBreachOccurs ? 'Step Jump Hazard' : 'Safe Tier Profile'}
                 </span>
               </h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-['Plus_Jakarta_Sans']">
                 Predictive slab transition tracking to protect households against steep marginal unit rate jumps
               </p>
             </div>
@@ -390,7 +398,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Metric 1: Next Slab Jump */}
           <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-['Outfit']">
               <ArrowUpRight className="w-3 h-3 text-amber-500 dark:text-amber-400" />
               Next Step Margin
             </span>
@@ -399,19 +407,19 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
                 {slabAnalysis.nextRateBDT ? `৳${slabAnalysis.nextRateBDT}` : 'Max Tier'}
               </span>
               {slabAnalysis.rateJumpPercentage > 0 && (
-                <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 font-mono">
+                <span className="text-[11px] font-bold text-amber-500 dark:text-amber-400 font-mono">
                   (+{slabAnalysis.rateJumpPercentage}%)
                 </span>
               )}
             </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-['Plus_Jakarta_Sans']">
               {slabAnalysis.nextSlabName || 'Top BERC step reached'}
             </p>
           </div>
 
           {/* Metric 2: Breach Countdown */}
           <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-['Outfit']">
               <Clock className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               Breach Countdown
             </span>
@@ -420,7 +428,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
                 ? `${slabAnalysis.daysUntilBreach} Days`
                 : 'No Limit'}
             </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-['Plus_Jakarta_Sans']">
               {slabAnalysis.kwhRemainingToBreach > 0
                 ? `${slabAnalysis.kwhRemainingToBreach} kWh buffer remaining`
                 : 'Already in top tier'}
@@ -429,7 +437,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
 
           {/* Metric 3: Target Daily Cap */}
           <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-['Outfit']">
               <Target className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               Target Daily Cap
             </span>
@@ -438,19 +446,19 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
                 ? `${slabAnalysis.maxDailyKwhToStayInSlab} kWh/day`
                 : 'Slab Exceeded'}
             </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-['Plus_Jakarta_Sans']">
               Limit to maintain {slabAnalysis.currentSlabName.split(' ')[0]} {slabAnalysis.currentSlabName.split(' ')[1]}
             </p>
           </div>
 
           {/* Metric 4: Avoidable Penalty */}
           <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-display">
+            <span className="text-[10px] text-slate-500 uppercase font-bold block flex items-center gap-1 font-['Outfit']">
               <Zap className="w-3 h-3 text-amber-500 dark:text-amber-400" />
               Avoidable Surcharge
             </span>
             <div className="text-base font-bold font-mono text-amber-600 dark:text-amber-400">
-              ৳{slabAnalysis.avoidableMonthlySurchargeBDT.toLocaleString('en-US', { maximumFractionDigits: 0 })} BDT
+              {formatCurrency(slabAnalysis.avoidableMonthlySurchargeBDT)}
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
               Savings if breach is averted

@@ -20,11 +20,13 @@ import {
   Clock,
   LogOut,
   Sliders,
-  ShieldCheck
+  ShieldCheck,
+  Globe,
 } from 'lucide-react';
 import { Household } from '../../shared/types/household';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import {
   UserRole,
@@ -58,6 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { user, signOut, switchRole, token } = useAuth();
   const { themeMode, setThemeMode } = useTheme();
+  const { language, toggleLanguage, t } = useLanguage();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
 
   const [showUserMenu, setShowUserMenu] = useState<boolean>(false);
@@ -234,42 +237,62 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Invite Member Button */}
             <button
+              type="button"
               onClick={() => setShowInviteModal(true)}
-              title="Invite family member or utility auditor"
-              className="flex items-center gap-1.5 text-xs font-bold font-display px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shadow-2xs"
+              aria-label={language === 'bn' ? 'সদস্যদের আমন্ত্রণ জানান' : 'Invite household member or auditor'}
+              title={language === 'bn' ? 'সদস্য আমন্ত্রণ' : 'Invite family member or utility auditor'}
+              className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold font-['Outfit'] px-2.5 sm:px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-amber-400"
             >
               <UserPlus className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span className="hidden sm:inline text-[11px]">Members</span>
+              <span className="hidden sm:inline text-xs">{language === 'bn' ? 'সদস্যবৃন্দ' : 'Members'}</span>
             </button>
 
             {/* Audit Trail Button */}
             <button
+              type="button"
               onClick={() => setShowAuditModal(true)}
-              title="Security & Compliance Audit Trail"
-              className="flex items-center gap-1.5 text-xs font-bold font-display px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shadow-2xs"
+              aria-label={language === 'bn' ? 'নিরাপত্তা ও কমপ্লায়েন্স অডিট লগ' : 'Security & Compliance Audit Trail'}
+              title={language === 'bn' ? 'অডিট লগ' : 'Security & Compliance Audit Trail'}
+              className="min-h-[44px] flex items-center gap-1.5 text-xs font-semibold font-['Outfit'] px-2.5 sm:px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-amber-400"
             >
               <History className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
-              <span className="hidden sm:inline text-[11px]">Audit Log</span>
+              <span className="hidden sm:inline text-xs">{language === 'bn' ? 'অডিট লগ' : 'Audit Log'}</span>
             </button>
 
             {/* In-App Install Button */}
             {!isInstalled && (isInstallable || isIOS) && (
               <button
+                type="button"
                 onClick={handleInstallClick}
+                aria-label={isIOS ? 'Install PWA' : 'Install KilowattIQ App'}
                 title="Install KilowattIQ App"
-                className="hidden md:flex items-center gap-1.5 text-xs font-bold font-display px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/40 transition-all cursor-pointer active:scale-95 shadow-xs"
+                className="min-h-[44px] hidden md:flex items-center gap-1.5 text-xs font-semibold font-['Outfit'] px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/40 transition-all cursor-pointer active:scale-95 shadow-xs focus:outline-hidden focus:ring-2 focus:ring-amber-400"
               >
                 <Download className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span className="text-[11px] font-extrabold">{isIOS ? 'Install' : 'Install App'}</span>
+                <span className="text-xs font-bold">{isIOS ? (language === 'bn' ? 'ইনস্টল' : 'Install') : (language === 'bn' ? 'অ্যাপ ইনস্টল' : 'Install App')}</span>
               </button>
             )}
 
+            {/* Global Language Toggle (English <-> বাংলা) */}
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              aria-label={language === 'en' ? 'বাংলা ভাষায় পরিবর্তন করুন' : 'Switch to English language'}
+              title={language === 'en' ? 'বাংলায় দেখুন' : 'Switch to English'}
+              className="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800 text-xs font-semibold font-['Outfit'] text-slate-800 dark:text-slate-100 flex items-center gap-1.5 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-2xs"
+            >
+              <Globe className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+              <span className="font-bold">{language === 'en' ? 'বাংলা' : 'EN'}</span>
+            </button>
+
             {/* Theme Toggle */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-0.5">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5" role="group" aria-label="Theme Mode Selection">
               <button
+                type="button"
                 onClick={() => setThemeMode('light')}
                 title="Light theme"
-                className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                aria-label="Light theme"
+                className={`min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] flex items-center justify-center p-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/50 ${
                   themeMode === 'light'
                     ? 'bg-white dark:bg-slate-800 text-amber-500 shadow-xs'
                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
@@ -278,9 +301,11 @@ export const Header: React.FC<HeaderProps> = ({
                 <Sun className="w-3.5 h-3.5" />
               </button>
               <button
+                type="button"
                 onClick={() => setThemeMode('dark')}
                 title="Dark theme"
-                className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                aria-label="Dark theme"
+                className={`min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] flex items-center justify-center p-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/50 ${
                   themeMode === 'dark'
                     ? 'bg-slate-800 text-amber-400 shadow-xs'
                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
@@ -289,9 +314,11 @@ export const Header: React.FC<HeaderProps> = ({
                 <Moon className="w-3.5 h-3.5" />
               </button>
               <button
+                type="button"
                 onClick={() => setThemeMode('system')}
                 title="System theme"
-                className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                aria-label="System theme"
+                className={`min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] flex items-center justify-center p-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/50 ${
                   themeMode === 'system'
                     ? 'bg-white dark:bg-slate-800 text-amber-500 dark:text-amber-400 shadow-xs'
                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
@@ -304,8 +331,10 @@ export const Header: React.FC<HeaderProps> = ({
             {/* User Profile Menu Dropdown */}
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-lg px-2 sm:px-2.5 py-1.5 transition-all cursor-pointer font-display"
+                aria-label="Open User Profile and Account Menu"
+                className="min-h-[44px] flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl px-2 sm:px-2.5 py-1.5 transition-all cursor-pointer font-['Outfit'] font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400/50"
               >
                 <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[11px] font-black text-amber-700 dark:text-amber-300">
                   {getInitials(user?.fullName)}

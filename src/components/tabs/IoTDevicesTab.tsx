@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Cpu, Radio, ShieldCheck, Plus, Terminal, RefreshCw, CheckCircle2, Wifi, X, Sparkles, Activity } from 'lucide-react';
 import { IoTDevice, AdapterType } from '../../../shared/types/iot';
 import { Household } from '../../../shared/types/household';
+import { useLanguage } from '../../context/LanguageContext';
+import { EmptyState } from '../common/EmptyState';
 
 interface IoTDevicesTabProps {
   household: Household;
@@ -11,6 +13,7 @@ interface IoTDevicesTabProps {
 }
 
 export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices, onAddDevice }) => {
+  const { language, t, formatNumber } = useLanguage();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<IoTDevice | null>(devices[0] || null);
   const [logs, setLogs] = useState<string[]>([
@@ -79,10 +82,10 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black font-display px-4 py-2 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer active:scale-95"
+          className="min-h-[44px] flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 text-xs font-['Outfit'] font-semibold px-4 py-2 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Register IoT Device</span>
+          <span>{t('btn.add_device', 'Register IoT Device')}</span>
         </button>
       </div>
 
@@ -94,13 +97,13 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
           {adapters.map((a) => (
             <div key={a.name} className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-400 font-mono text-[11px]">{a.name}</span>
+                <span className="font-bold text-emerald-400 font-mono tabular-nums text-[11px]">{a.name}</span>
                 <span className="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-900 font-bold uppercase">
                   ACTIVE
                 </span>
               </div>
               <p className="text-slate-400 text-[10px] leading-snug">{a.desc}</p>
-              <div className="pt-2 border-t border-slate-900 flex justify-between text-[9px] text-slate-500 font-mono">
+              <div className="pt-2 border-t border-slate-900 flex justify-between text-[9px] text-slate-500 font-mono tabular-nums">
                 <span>{a.protocol}</span>
                 <span>{a.latency}</span>
               </div>
@@ -115,36 +118,50 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
         {/* Left 2 Cols: Registered Devices List */}
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Registered Hardware Adapters ({devices.length})</h4>
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+              Registered Hardware Adapters (<span className="font-mono tabular-nums">{formatNumber(devices.length)}</span>)
+            </h4>
             <span className="text-[10px] text-emerald-400 font-bold font-mono">100% Signal Coverage</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {devices.map((dev) => (
-              <div
-                key={dev.id}
-                onClick={() => setSelectedDevice(dev)}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 ${
-                  selectedDevice?.id === dev.id
-                    ? 'bg-slate-950 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white text-xs">{dev.name}</span>
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono font-bold">
-                    <Wifi className="w-3 h-3" />
-                    Online
-                  </span>
-                </div>
+          {devices.length === 0 ? (
+            <EmptyState
+              titleEn="No IoT Adapters Connected"
+              titleBn="কোনো আইওটি ডিভাইস সংযুক্ত নেই"
+              descriptionEn="Connect DESCO/DPDC smart meter, ESP32 PZEM, or Tuya smart plugs to stream 1 Hz live telemetry."
+              descriptionBn="স্মার্ট মিটার বা প্লাগ যুক্ত করে রিয়েল-টাইম বিদ্যুৎ ব্যবহার মনিটর করুন।"
+              actionLabelEn="Register IoT Device"
+              actionLabelBn="নতুন ডিভাইস যুক্ত করুন"
+              onAction={() => setShowAddModal(true)}
+            />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {devices.map((dev) => (
+                <div
+                  key={dev.id}
+                  onClick={() => setSelectedDevice(dev)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                    selectedDevice?.id === dev.id
+                      ? 'bg-slate-950 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                      : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-xs">{dev.name}</span>
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono font-bold">
+                      <Wifi className="w-3 h-3" />
+                      Online
+                    </span>
+                  </div>
 
-                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                  <span>Adapter: {dev.adapterType}</span>
-                  <span>{dev.macOrSerial}</span>
+                  <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-slate-400">
+                    <span>Adapter: {dev.adapterType}</span>
+                    <span>{dev.macOrSerial}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right Col: Live Terminal Log Inspector */}
@@ -158,7 +175,7 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
               <button
                 onClick={handleSimulatePing}
                 disabled={isPinging}
-                className="text-[11px] font-extrabold font-display bg-slate-950 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                className="min-h-[44px] text-xs font-['Outfit'] font-semibold bg-slate-950 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isPinging ? 'animate-spin' : ''}`} />
                 <span>Test Ping</span>
@@ -197,9 +214,10 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
                 </h3>
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg"
+                  aria-label="Close modal"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-slate-400 hover:text-white rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
@@ -260,13 +278,13 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 font-bold rounded-xl"
+                    className="min-h-[44px] px-4 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 font-['Outfit'] font-semibold text-xs rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-400"
                   >
-                    Cancel
+                    {t('btn.cancel', 'Cancel')}
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-md"
+                    className="min-h-[44px] px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-['Outfit'] font-semibold text-xs rounded-xl shadow-md focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
                   >
                     Register Hardware
                   </button>

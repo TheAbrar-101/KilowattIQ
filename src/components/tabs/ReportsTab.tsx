@@ -36,6 +36,7 @@ import { Household } from '../../../shared/types/household';
 import { FullReportData } from '../../../shared/types/energy';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface ReportsTabProps {
   household: Household;
@@ -46,6 +47,7 @@ const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4
 export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
   const { token } = useAuth();
   const { isDark } = useTheme();
+  const { language, formatCurrency, formatNumber } = useLanguage();
 
   const [reportData, setReportData] = useState<FullReportData | null>(null);
   const [monthlyTrend, setMonthlyTrend] = useState<any[]>([]);
@@ -197,29 +199,35 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             </div>
 
             <button
+              type="button"
               onClick={() => handleDownloadExport('csv')}
               disabled={isExportingCsv}
-              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold font-display px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              aria-label={language === 'bn' ? 'সিএসভি ডাউনলোড করুন' : 'Download CSV audit data'}
+              className="min-h-[44px] flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold font-['Outfit'] px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-              <span>{isExportingCsv ? 'Exporting CSV...' : 'Download CSV'}</span>
+              <span>{isExportingCsv ? (language === 'bn' ? 'সিএসভি তৈরি হচ্ছে...' : 'Exporting CSV...') : (language === 'bn' ? 'সিএসভি ডাউনলোড' : 'Download CSV')}</span>
             </button>
 
             <button
+              type="button"
               onClick={() => handleDownloadExport('pdf')}
               disabled={isExportingPdf}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black font-display px-3.5 py-2 rounded-xl transition-all shadow-md cursor-pointer active:scale-95 disabled:opacity-50"
+              aria-label={language === 'bn' ? 'অফিশিয়াল পিডিএফ অডিট রিপোর্ট ডাউনলোড করুন' : 'Download official PDF audit report'}
+              className="min-h-[44px] flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold font-['Outfit'] px-4 py-2.5 rounded-xl transition-all shadow-md cursor-pointer active:scale-95 disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-amber-400"
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>{isExportingPdf ? 'Exporting PDF...' : 'Download PDF Audit'}</span>
+              <span>{isExportingPdf ? (language === 'bn' ? 'পিডিএফ তৈরি হচ্ছে...' : 'Exporting PDF...') : (language === 'bn' ? 'পিডিএফ অডিট রিপোর্ট' : 'Download PDF Audit')}</span>
             </button>
 
             <button
+              type="button"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold font-display px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95"
+              aria-label={language === 'bn' ? 'রিপোর্ট প্রিন্ট করুন' : 'Print energy report'}
+              className="min-h-[44px] flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold font-['Outfit'] px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-slate-400"
             >
               <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-              <span>Print</span>
+              <span>{language === 'bn' ? 'প্রিন্ট' : 'Print'}</span>
             </button>
           </div>
         </div>
@@ -251,29 +259,29 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-1">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-display">Est. Monthly Bill</span>
-              <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm font-mono">৳{reportData.costAnalysis.grossTotalBDT.toLocaleString()}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                {reportData.energySummary.totalMonthlyKwh} kWh @ ৳{reportData.costAnalysis.effectiveRatePerKwh}/kWh
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-['Outfit']">Est. Monthly Bill</span>
+              <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm font-mono tabular-nums">{formatCurrency(reportData.costAnalysis.grossTotalBDT)}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                {formatNumber(reportData.energySummary.totalMonthlyKwh)} kWh @ {formatCurrency(reportData.costAnalysis.effectiveRatePerKwh)}/kWh
               </p>
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-1">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-display">Budget Utilization</span>
-              <p className={`font-bold text-sm font-mono ${reportData.budgetAnalysis.isOverBudget ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                {reportData.budgetAnalysis.budgetUtilizationPct}% ({reportData.budgetAnalysis.isOverBudget ? 'OVER BUDGET' : 'WITHIN BUDGET'})
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-['Outfit']">Budget Utilization</span>
+              <p className={`font-bold text-sm font-mono tabular-nums ${reportData.budgetAnalysis.isOverBudget ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {reportData.budgetAnalysis.budgetUtilizationPct}% ({reportData.budgetAnalysis.isOverBudget ? 'BUDGET PACE WARNING' : 'WITHIN BUDGET'})
               </p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                Target: ৳{reportData.household.monthlyBudgetBDT.toLocaleString()}
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                Target: {formatCurrency(reportData.household.monthlyBudgetBDT)}
               </p>
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-1">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-display">Vampire Standby Waste</span>
-              <p className="font-bold text-rose-600 dark:text-rose-400 text-sm font-mono">
-                ৳{reportData.vampirePowerAudit.totalMonthlyWastedBDT}/mo
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block font-['Outfit']">Vampire Standby Waste</span>
+              <p className="font-bold text-amber-600 dark:text-amber-400 text-sm font-mono tabular-nums">
+                {formatCurrency(reportData.vampirePowerAudit.totalMonthlyWastedBDT)}/mo
               </p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                 {reportData.vampirePowerAudit.totalStandbyWatts} W continuous loss
               </p>
             </div>
@@ -429,11 +437,11 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
-              <span>Energy Charge: ৳{reportData.costAnalysis.energyCostBDT}</span>
-              <span>Demand Charge: ৳{reportData.costAnalysis.demandChargeBDT}</span>
-              <span>Meter Rent: ৳{reportData.costAnalysis.meterRentBDT}</span>
-              <span>VAT (5%): ৳{reportData.costAnalysis.vatBDT}</span>
-              <span className="text-slate-900 dark:text-white font-bold text-xs">Gross Bill: ৳{reportData.costAnalysis.grossTotalBDT}</span>
+              <span>Energy Charge: {formatCurrency(reportData.costAnalysis.energyCostBDT)}</span>
+              <span>Demand Charge: {formatCurrency(reportData.costAnalysis.demandChargeBDT)}</span>
+              <span>Meter Rent: {formatCurrency(reportData.costAnalysis.meterRentBDT)}</span>
+              <span>VAT (5%): {formatCurrency(reportData.costAnalysis.vatBDT)}</span>
+              <span className="text-slate-900 dark:text-white font-bold text-xs">Gross Bill: {formatCurrency(reportData.costAnalysis.grossTotalBDT)}</span>
             </div>
           </div>
 
@@ -442,7 +450,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Outfit']">
                   Appliance Energy & Cost Consumption Analysis
                 </h4>
               </div>
@@ -463,14 +471,14 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
                     <th className="p-2.5 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px] text-slate-800 dark:text-slate-200">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono tabular-nums text-[11px] text-slate-800 dark:text-slate-200">
                   {reportData.applianceAnalysis.map(app => (
                     <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                       <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{app.name}</td>
                       <td className="p-2.5 font-sans text-slate-500 dark:text-slate-400">{app.roomName}</td>
-                      <td className="p-2.5 text-right text-slate-600 dark:text-slate-300">{app.ratedPowerW} W</td>
-                      <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">{app.estimatedMonthlyKwh} kWh</td>
-                      <td className="p-2.5 text-right font-bold text-slate-900 dark:text-slate-200">৳{app.estimatedMonthlyCostBDT}</td>
+                      <td className="p-2.5 text-right text-slate-600 dark:text-slate-300 tabular-nums">{app.ratedPowerW} W</td>
+                      <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatNumber(app.estimatedMonthlyKwh)} kWh</td>
+                      <td className="p-2.5 text-right font-bold text-slate-900 dark:text-slate-200 tabular-nums">{formatCurrency(app.estimatedMonthlyCostBDT)}</td>
                       <td className="p-2.5 text-center">
                         <span
                           className={`text-[9px] font-bold px-2 py-0.5 rounded-full font-mono ${
@@ -515,19 +523,19 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ household }) => {
                     <th className="p-2.5 text-center">Severity</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-[11px] text-slate-800 dark:text-slate-200">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono tabular-nums text-[11px] text-slate-800 dark:text-slate-200">
                   {reportData.vampirePowerAudit.reports.map((v, i) => (
                     <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                       <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{v.applianceName}</td>
                       <td className="p-2.5 font-sans text-slate-500 dark:text-slate-400">{v.roomName}</td>
-                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-bold">{v.standbyWatts} W</td>
-                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-300 font-bold">৳{v.monthlyWastedBDT}</td>
-                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-bold">৳{v.annualWastedBDT}</td>
+                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-bold tabular-nums">{v.standbyWatts} W</td>
+                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-300 font-bold tabular-nums">{formatCurrency(v.monthlyWastedBDT)}</td>
+                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-bold tabular-nums">{formatCurrency(v.annualWastedBDT)}</td>
                       <td className="p-2.5 text-center">
                         <span
                           className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${
                             v.severity === 'HIGH'
-                              ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900'
+                              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-400/40'
                               : v.severity === 'MEDIUM'
                               ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900'
                               : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'

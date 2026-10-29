@@ -4,6 +4,8 @@ import { Lightbulb, CheckCircle2, TrendingDown, Sparkles, Filter, Check, Cpu, Re
 import { RecommendationItem, AiAdvisorResult } from '../../../shared/types/energy';
 import { Household } from '../../../shared/types/household';
 import { BanglaVoiceInput } from '../voice/BanglaVoiceInput';
+import { useLanguage } from '../../context/LanguageContext';
+import { EmptyState } from '../common/EmptyState';
 
 interface RecommendationsTabProps {
   household?: Household;
@@ -18,11 +20,11 @@ export const RecommendationsTab: React.FC<RecommendationsTabProps> = ({
   recommendations,
   onResolve,
 }) => {
+  const { language, setLanguage, formatCurrency, formatNumber } = useLanguage();
   const [filterPriority, setFilterPriority] = useState<'ALL' | 'HIGH' | 'MEDIUM' | 'LOW'>('ALL');
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
 
   // AI Advisor State
-  const [language, setLanguage] = useState<'en' | 'bn'>('en');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<AiAdvisorResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -143,9 +145,11 @@ export const RecommendationsTab: React.FC<RecommendationsTabProps> = ({
 
             {/* Analyze Button */}
             <button
+              type="button"
               onClick={() => handleRunAiAdvisor()}
               disabled={isAnalyzing}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-extrabold font-display text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              aria-label={language === 'bn' ? 'এনার্জি অ্যানালাইসিস করুন' : 'Analyze energy recommendations with AI'}
+              className="min-h-[44px] px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-semibold font-['Outfit'] text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer shrink-0 focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
             >
               {isAnalyzing ? (
                 <>
@@ -383,10 +387,12 @@ export const RecommendationsTab: React.FC<RecommendationsTabProps> = ({
           {(['ALL', 'HIGH', 'MEDIUM', 'LOW'] as const).map((p) => (
             <button
               key={p}
+              type="button"
               onClick={() => setFilterPriority(p)}
-              className={`px-3.5 py-1.5 rounded-xl font-extrabold font-display text-xs transition-all cursor-pointer ${
+              aria-label={`Filter by ${p} priority`}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl font-semibold font-['Outfit'] text-xs transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-emerald-400 ${
                 filterPriority === p
-                  ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-md'
                   : 'text-slate-400 hover:text-white bg-slate-950/80 border border-slate-800 hover:border-slate-700'
               }`}
             >
@@ -396,75 +402,91 @@ export const RecommendationsTab: React.FC<RecommendationsTabProps> = ({
         </div>
       </div>
 
-      {/* Recommendations Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredRecs.map((rec) => {
-          const isResolved = resolvedIds.has(rec.id) || rec.status === 'resolved';
+      {/* Recommendations Cards Grid / Empty State */}
+      {filteredRecs.length === 0 ? (
+        <EmptyState
+          icon={Lightbulb}
+          titleEn="No Recommendations Found"
+          titleBn="কোনো সুপারিশ পাওয়া যায়নি"
+          descriptionEn="No diagnostic recommendations match the selected filter. Change your filter or run the AI advisor."
+          descriptionBn="নির্বাচিত ফিল্টারের সাথে মিলে এমন কোনো সুপারিশ নেই। ফিল্টার পরিবর্তন করুন অথবা এআই অ্যানালাইসিস চালান।"
+          actionLabelEn="Reset Filter"
+          actionLabelBn="ফিল্টার রিসেট করুন"
+          actionIcon={Filter}
+          onAction={() => setFilterPriority('ALL')}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredRecs.map((rec) => {
+            const isResolved = resolvedIds.has(rec.id) || rec.status === 'resolved';
 
-          return (
-            <motion.div
-              layout
-              key={rec.id}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`border rounded-2xl p-5 shadow-sm space-y-3 flex flex-col justify-between transition-all ${
-                isResolved
-                  ? 'bg-slate-950/50 border-emerald-500/30 opacity-75'
-                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase font-mono tracking-wider ${
-                    rec.priority === 'HIGH'
-                      ? 'bg-rose-950 text-rose-400 border-rose-900'
-                      : rec.priority === 'MEDIUM'
-                      ? 'bg-amber-950 text-amber-400 border-amber-900'
-                      : 'bg-emerald-950 text-emerald-400 border-emerald-900'
-                  }`}>
-                    {rec.priority} PRIORITY
-                  </span>
+            return (
+              <motion.div
+                layout
+                key={rec.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={`border rounded-2xl p-5 shadow-sm space-y-3 flex flex-col justify-between transition-all ${
+                  isResolved
+                    ? 'bg-slate-950/50 border-emerald-500/30 opacity-75'
+                    : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase font-mono tracking-wider ${
+                      rec.priority === 'HIGH'
+                        ? 'bg-rose-950 text-rose-400 border-rose-900'
+                        : rec.priority === 'MEDIUM'
+                        ? 'bg-amber-950 text-amber-400 border-amber-900'
+                        : 'bg-emerald-950 text-emerald-400 border-emerald-900'
+                    }`}>
+                      {rec.priority} PRIORITY
+                    </span>
 
-                  <span className="text-xs font-bold font-mono text-emerald-400">
-                    Save ~৳{rec.estimatedMonthlySavingsBDT} / mo
-                  </span>
+                    <span className="text-xs font-bold font-mono tabular-nums text-emerald-400">
+                      Save ~{formatCurrency(rec.estimatedMonthlySavingsBDT)} / mo
+                    </span>
+                  </div>
+
+                  <h4 className="text-xs font-bold text-white leading-snug font-['Outfit']">{rec.title}</h4>
+                  <p className="text-[11px] text-slate-300 dark:text-slate-100 leading-relaxed font-['Plus_Jakarta_Sans']">{rec.description}</p>
                 </div>
 
-                <h4 className="text-xs font-bold text-white leading-snug">{rec.title}</h4>
-                <p className="text-[11px] text-slate-300 leading-relaxed font-sans">{rec.description}</p>
-              </div>
+                <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                  <div className="text-[10px] text-slate-400">
+                    <span className="text-emerald-400 font-bold block flex items-center gap-1 uppercase tracking-wider font-['Outfit']">
+                      <CheckCircle2 className="w-3 h-3" /> Actionable Step
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-200 font-medium font-['Plus_Jakarta_Sans']">{rec.actionableStep}</span>
+                  </div>
 
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-                <div className="text-[10px] text-slate-400">
-                  <span className="text-emerald-400 font-bold block flex items-center gap-1 uppercase tracking-wider font-display">
-                    <CheckCircle2 className="w-3 h-3" /> Actionable Step
-                  </span>
-                  <span className="text-slate-300 font-medium font-sans">{rec.actionableStep}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleResolveAction(rec.id)}
+                    disabled={isResolved}
+                    aria-label={isResolved ? 'Resolved recommendation' : 'Apply recommendation rule'}
+                    className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold font-['Outfit'] transition-all shrink-0 flex items-center gap-1.5 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-emerald-400 ${
+                      isResolved
+                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/80 cursor-default'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md font-bold active:scale-95'
+                    }`}
+                  >
+                    {isResolved ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-300 stroke-[3]" />
+                        <span>{language === 'bn' ? 'সম্পন্ন' : 'Resolved'}</span>
+                      </>
+                    ) : (
+                      <span>{language === 'bn' ? 'নিয়ম প্রয়োগ করুন' : 'Apply Rule'}</span>
+                    )}
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => handleResolveAction(rec.id)}
-                  disabled={isResolved}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold font-display transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                    isResolved
-                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/80'
-                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md font-black active:scale-95'
-                  }`}
-                >
-                  {isResolved ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-300 stroke-[3]" />
-                      <span>Resolved</span>
-                    </>
-                  ) : (
-                    <span>Apply Rule</span>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
 
     </div>
   );

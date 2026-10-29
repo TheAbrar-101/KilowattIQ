@@ -68,8 +68,8 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
                 <th className="py-2 px-3">Household ID</th>
                 <th className="py-2 px-3">Name / Area</th>
                 <th className="py-2 px-3">Utility Provider</th>
-                <th className="py-2 px-3">Load Cap</th>
-                <th className="py-2 px-3">Isolation Status</th>
+                <th className="py-2 px-3 text-right">Load Cap</th>
+                <th className="py-2 px-3 text-center">Isolation Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-300 font-mono text-[11px]">
@@ -78,8 +78,8 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
                   <td className="py-2 px-3 text-amber-400 font-bold">{h.id}</td>
                   <td className="py-2 px-3 font-sans text-slate-200">{h.name} ({h.address.area})</td>
                   <td className="py-2 px-3 text-emerald-400 font-bold">{h.utilityProvider}</td>
-                  <td className="py-2 px-3 text-slate-200">{h.sanctionedLoadKw} kW</td>
-                  <td className="py-2 px-3">
+                  <td className="py-2 px-3 text-right tabular-nums text-slate-200">{h.sanctionedLoadKw} kW</td>
+                  <td className="py-2 px-3 text-center">
                     <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
                       ENFORCED
                     </span>

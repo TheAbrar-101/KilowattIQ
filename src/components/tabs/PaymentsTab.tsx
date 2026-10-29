@@ -35,6 +35,8 @@ import {
 } from '../../server/payments/types';
 import { Household } from '../../../shared/types/household';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { EmptyState } from '../common/EmptyState';
 import { UserRole, normalizeRole, canModifyBilling } from '../../server/auth/roles';
 
 interface PaymentsTabProps {
@@ -44,6 +46,7 @@ interface PaymentsTabProps {
 
 export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) => {
   const { user } = useAuth();
+  const { language, t, formatCurrency, formatNumber } = useLanguage();
   const currentRole: UserRole = normalizeRole(user?.householdRole || user?.role);
   const canPay = canModifyBilling(currentRole, user?.auditorExpiresAt);
 
@@ -51,6 +54,13 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
   const [methods, setMethods] = useState<SavedPaymentMethod[]>([]);
   const [history, setHistory] = useState<PaymentReceipt[]>([]);
   const [autoPay, setAutoPay] = useState<AutoPayConfig | null>(null);
+
+  // User feedback & error states (no alert/confirm)
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [methodError, setMethodError] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [autoPayError, setAutoPayError] = useState<string | null>(null);
 
   // Bill payment form state
   const [billAmount, setBillAmount] = useState<number>(2280);
@@ -137,6 +147,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
   // Handle Pay Postpaid Bill
   const handlePayBill = async () => {
     setIsProcessing(true);
+    setActionError(null);
     try {
       const res = await fetch('/api/v1/payments/pay-bill', {
         method: 'POST',
@@ -160,10 +171,10 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
         setLatestReceipt(json.data.receipt);
         setHistory(prev => [json.data.receipt, ...prev]);
       } else {
-        alert(json.message || 'Payment failed');
+        setActionError(json.message || 'Payment request failed. Please check your wallet balance and try again.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Payment request failed');
+      setActionError(err?.message || 'Network connection error while processing payment. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -172,6 +183,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
   // Handle Prepaid Meter Top-Up
   const handlePrepaidTopUp = async () => {
     setIsProcessing(true);
+    setActionError(null);
     try {
       const res = await fetch('/api/v1/payments/prepaid-topup', {
         method: 'POST',
@@ -196,10 +208,10 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
         setHistory(prev => [json.data.receipt, ...prev]);
         setPrepaidBalance(prev => prev + topUpAmount * 0.85); // simulated updated balance
       } else {
-        alert(json.message || 'Top-up failed');
+        setActionError(json.message || 'Top-up request failed. Please check your connection and retry.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Top-up request failed');
+      setActionError(err?.message || 'Unable to connect to meter top-up gateway. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -208,11 +220,12 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
   // Handle Add New Payment Method
   const handleSaveMethod = async () => {
     if (!newMethodPhone || !newMethodOtp) {
-      alert('Phone number and OTP verification required');
+      setMethodError('Please enter your mobile wallet number and the verification OTP challenge.');
       return;
     }
 
     setIsSavingMethod(true);
+    setMethodError(null);
     try {
       const res = await fetch('/api/v1/payments/methods', {
         method: 'POST',
@@ -235,10 +248,10 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
         setNewMethodAlias('');
         setNewMethodOtp('');
       } else {
-        alert(json.message || 'Failed to save method');
+        setMethodError(json.message || 'Verification challenge failed. Please verify the OTP code.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to save tokenized method');
+      setMethodError(err?.message || 'Unable to tokenize wallet method. Please try again.');
     } finally {
       setIsSavingMethod(false);
     }
@@ -246,7 +259,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
 
   // Handle Delete Method
   const handleDeleteMethod = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this tokenized payment method?')) return;
     try {
       const res = await fetch(`/api/v1/payments/methods/${id}?householdId=${household.id}`, {
         method: 'DELETE',
@@ -255,6 +267,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
       const json = await res.json();
       if (json.status === 'success') {
         setMethods(prev => prev.filter(m => m.id !== id));
+        setDeleteConfirmId(null);
       }
     } catch (err) {
       console.warn('Failed to delete method:', err);
@@ -264,11 +277,12 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
   // Handle Save AutoPay Config
   const handleSaveAutoPay = async () => {
     if (autoPayEnabled && !autoPayConfirmed) {
-      alert('You must confirm authorization before enabling Auto-Pay.');
+      setAutoPayError('You must check the authorization box before enabling Auto-Pay.');
       return;
     }
 
     setAutoPaySaving(true);
+    setAutoPayError(null);
     try {
       const res = await fetch('/api/v1/payments/auto-pay', {
         method: 'POST',
@@ -290,10 +304,10 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({ household, token }) =>
         setAutoPaySuccessMsg('Auto-Pay settings saved successfully!');
         setTimeout(() => setAutoPaySuccessMsg(null), 3500);
       } else {
-        alert(json.message || 'Failed to save AutoPay');
+        setAutoPayError(json.message || 'Failed to save AutoPay rules. Please try again.');
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to save AutoPay');
+      setAutoPayError(err?.message || 'Unable to update AutoPay rules. Please check your network.');
     } finally {
       setAutoPaySaving(false);
     }
@@ -395,27 +409,35 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
             </div>
           </div>
 
-          {/* Big Tactile Navigation Switcher (Outfit font) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 scrollbar-none">
+          {/* Big Tactile Navigation Switcher (Outfit font, min-h-[44px], rounded-xl) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 scrollbar-none" role="tablist">
             {[
-              { id: 'PAY_BILL', label: 'Pay Bill' },
-              { id: 'PREPAID', label: 'Prepaid Top-Up' },
-              { id: 'AUTOPAY', label: 'Auto-Pay' },
-              { id: 'METHODS', label: 'Saved Wallets' },
-              { id: 'HISTORY', label: 'Receipts' },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer font-display ${
-                  activeSubTab === tab.id
-                    ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800/60'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+              { id: 'PAY_BILL', labelEn: 'Pay Bill', labelBn: 'বিল পরিশোধ' },
+              { id: 'PREPAID', labelEn: 'Prepaid Top-Up', labelBn: 'প্রিপেইড রিচার্জ' },
+              { id: 'AUTOPAY', labelEn: 'Auto-Pay', labelBn: 'অটোপে' },
+              { id: 'METHODS', labelEn: 'Saved Wallets', labelBn: 'সংরক্ষিত ওয়ালেট' },
+              { id: 'HISTORY', labelEn: 'Receipts', labelBn: 'পেমেন্ট রশিদ' },
+            ].map(tab => {
+              const label = language === 'bn' ? tab.labelBn : tab.labelEn;
+              const isActive = activeSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label={label}
+                  onClick={() => setActiveSubTab(tab.id as any)}
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold font-['Outfit'] whitespace-nowrap transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/50 ${
+                    isActive
+                      ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800/60'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -436,15 +458,15 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
 
             <div>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-sans block">Total Outstanding</span>
-              <div className="text-3xl font-black font-mono text-slate-900 dark:text-white my-1">
-                ৳{billAmount.toLocaleString()} <span className="text-xs font-sans text-slate-500">BDT</span>
+              <div className="text-3xl font-black font-mono tabular-nums text-slate-900 dark:text-white my-1">
+                {formatCurrency(billAmount)} <span className="text-xs font-sans text-slate-500">BDT</span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
                 Billing Cycle: October 2026 • Due: 25 Oct 2026
               </p>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs font-mono">
+            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Account Number:</span>
                 <span className="font-bold text-slate-900 dark:text-white">{household.accountNumber || '8820-9941-01'}</span>
@@ -459,22 +481,22 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
               </div>
             </div>
 
-            <div className="bg-white/70 dark:bg-slate-950/70 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+            <div className="bg-white/70 dark:bg-slate-950/70 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-600 dark:text-slate-300 space-y-1 font-mono tabular-nums">
               <div className="flex justify-between">
-                <span>Energy Cost (Slabs 1–3):</span>
-                <span className="font-bold">৳1,940.04</span>
+                <span className="font-sans">Energy Cost (Slabs 1–3):</span>
+                <span className="font-bold">{formatCurrency(1940.04)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Demand Charge (4.5 kW):</span>
-                <span>৳189.00</span>
+                <span className="font-sans">Demand Charge (4.5 kW):</span>
+                <span>{formatCurrency(189.00)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Meter Rent:</span>
-                <span>৳40.00</span>
+                <span className="font-sans">Meter Rent:</span>
+                <span>{formatCurrency(40.00)}</span>
               </div>
               <div className="flex justify-between text-amber-700 dark:text-amber-300 font-bold border-t border-slate-200 dark:border-slate-800 pt-1">
-                <span>5% Statutory VAT:</span>
-                <span>৳108.45</span>
+                <span className="font-sans">5% Statutory VAT:</span>
+                <span>{formatCurrency(108.45)}</span>
               </div>
             </div>
           </div>
@@ -575,11 +597,27 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
               )}
             </div>
 
+            {/* Inline Error State if actionError */}
+            {actionError && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-800 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{actionError}</span>
+                </div>
+                <button
+                  onClick={() => setActionError(null)}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-['Outfit'] font-semibold shrink-0 cursor-pointer"
+                >
+                  {t('btn.retry', 'Try Again')}
+                </button>
+              </div>
+            )}
+
             {/* Big Obvious Button (Outfit Font) */}
             <button
               onClick={handlePayBill}
               disabled={isProcessing}
-              className="w-full py-4 px-6 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-black text-sm tracking-wider uppercase rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 font-display disabled:opacity-50"
+              className="w-full min-h-[44px] py-3.5 px-6 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-['Outfit'] font-semibold text-sm tracking-wide rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
             >
               {isProcessing ? (
                 <>
@@ -588,7 +626,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 </>
               ) : (
                 <>
-                  <span>Pay ৳{billAmount.toLocaleString()} BDT with {selectedProvider}</span>
+                  <span>Pay {formatCurrency(billAmount)} with {selectedProvider}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -613,15 +651,15 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
 
             <div>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-sans block">Remaining Balance</span>
-              <div className="text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400 my-1">
-                ৳{prepaidBalance.toFixed(2)} <span className="text-xs font-sans text-slate-500">BDT</span>
+              <div className="text-3xl font-black font-mono tabular-nums text-emerald-600 dark:text-emerald-400 my-1">
+                {formatCurrency(prepaidBalance, { showDecimals: true })} <span className="text-xs font-sans text-slate-500">BDT</span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">
-                Equivalent to ~{Math.round(prepaidBalance / 7.34)} kWh at current Step 3 rate
+                Equivalent to ~{formatNumber(Math.round(prepaidBalance / 7.34))} kWh at current Step 3 rate
               </p>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs font-mono">
+            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs font-mono tabular-nums">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Account Number:</span>
                 <span className="font-bold text-slate-900 dark:text-white">{household.accountNumber || '8820-9941-01'}</span>
@@ -632,7 +670,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Emergency Credit:</span>
-                <span className="font-bold text-slate-900 dark:text-white">Available (৳300)</span>
+                <span className="font-bold text-slate-900 dark:text-white">Available ({formatCurrency(300)})</span>
               </div>
             </div>
 
@@ -662,13 +700,13 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                   <button
                     key={amt}
                     onClick={() => setTopUpAmount(amt)}
-                    className={`py-2.5 rounded-xl border text-xs font-black font-display transition-all cursor-pointer ${
+                    className={`min-h-[44px] py-2 px-1 rounded-xl border text-xs font-['Outfit'] font-semibold transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 ${
                       topUpAmount === amt
-                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm font-extrabold'
+                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm font-bold'
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    ৳{amt}
+                    {formatCurrency(amt)}
                   </button>
                 ))}
               </div>
@@ -685,8 +723,8 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-lg font-black font-mono text-amber-800 dark:text-amber-300">
-                  ~{Number(((topUpAmount * 0.95 - 166) / 7.34).toFixed(1))} kWh
+                <span className="text-lg font-black font-mono tabular-nums text-amber-800 dark:text-amber-300">
+                  ~{formatNumber(Number(((topUpAmount * 0.95 - 166) / 7.34).toFixed(1)))} kWh
                 </span>
               </div>
             </div>
@@ -701,7 +739,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 <button
                   key={prov.id}
                   onClick={() => setSelectedProvider(prov.id as any)}
-                  className={`p-3.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`min-h-[44px] p-3.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 ${
                     selectedProvider === prov.id
                       ? 'bg-amber-500/10 border-amber-500 shadow-md ring-2 ring-amber-500/40 text-slate-900 dark:text-white'
                       : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
@@ -710,16 +748,32 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                   <div className={`w-7 h-7 rounded-lg bg-gradient-to-tr ${prov.color} flex items-center justify-center text-white font-bold text-xs font-display`}>
                     {prov.name[0]}
                   </div>
-                  <span className="text-xs font-black font-display">{prov.name}</span>
+                  <span className="text-xs font-bold font-['Outfit']">{prov.name}</span>
                 </button>
               ))}
             </div>
+
+            {/* Inline Error State if actionError */}
+            {actionError && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-800 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{actionError}</span>
+                </div>
+                <button
+                  onClick={() => setActionError(null)}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-['Outfit'] font-semibold shrink-0 cursor-pointer"
+                >
+                  {t('btn.retry', 'Try Again')}
+                </button>
+              </div>
+            )}
 
             {/* Big Obvious Button (Outfit Font) */}
             <button
               onClick={handlePrepaidTopUp}
               disabled={isProcessing}
-              className="w-full py-4 px-6 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-black text-sm tracking-wider uppercase rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 font-display disabled:opacity-50"
+              className="w-full min-h-[44px] py-3.5 px-6 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-['Outfit'] font-semibold text-sm tracking-wide rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
             >
               {isProcessing ? (
                 <>
@@ -728,7 +782,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 </>
               ) : (
                 <>
-                  <span>Top-Up ৳{topUpAmount.toLocaleString()} & Generate 20-Digit Token</span>
+                  <span>Top-Up {formatCurrency(topUpAmount)} & Generate 20-Digit Token</span>
                   <Zap className="w-4 h-4" />
                 </>
               )}
@@ -771,8 +825,8 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 font-display">
                   Monthly Spending Cap (Maximum Safe Limit)
                 </label>
-                <span className="text-base font-black font-mono text-amber-700 dark:text-amber-400">
-                  ৳{autoPayCap.toLocaleString()} BDT
+                <span className="text-base font-black font-mono tabular-nums text-amber-700 dark:text-amber-400">
+                  {formatCurrency(autoPayCap)} BDT
                 </span>
               </div>
               <input
@@ -785,7 +839,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 className="w-full accent-amber-500 cursor-pointer"
               />
               <span className="text-[11px] text-slate-500 font-sans block">
-                Auto-Pay will immediately suspend if cumulative debits reach ৳{autoPayCap.toLocaleString()} within a calendar month.
+                Auto-Pay will immediately suspend if cumulative debits reach {formatCurrency(autoPayCap)} within a calendar month.
               </span>
             </div>
 
@@ -798,7 +852,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 <button
                   type="button"
                   onClick={() => setAutoPayTrigger('PREPAID_LOW_BALANCE')}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`min-h-[44px] p-3 rounded-xl border text-left transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 ${
                     autoPayTrigger === 'PREPAID_LOW_BALANCE'
                       ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200'
                       : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
@@ -806,14 +860,14 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 >
                   <span className="text-xs font-bold font-display block">Low Prepaid Balance</span>
                   <span className="text-[10px] font-sans opacity-80 block mt-0.5">
-                    Recharge ৳1,000 whenever meter credit drops below ৳{autoPayThreshold}.
+                    Recharge {formatCurrency(1000)} whenever meter credit drops below {formatCurrency(autoPayThreshold)}.
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setAutoPayTrigger('POSTPAID_DUE_DATE')}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`min-h-[44px] p-3 rounded-xl border text-left transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 ${
                     autoPayTrigger === 'POSTPAID_DUE_DATE'
                       ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200'
                       : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
@@ -837,10 +891,25 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                   className="mt-1 w-4 h-4 text-amber-500 rounded focus:ring-amber-400"
                 />
                 <span className="text-xs text-amber-950 dark:text-amber-200 font-sans leading-relaxed">
-                  <strong>Explicit User Authorization:</strong> I authorize KilowattIQ to automatically debit my saved tokenized mobile banking wallet up to ৳{autoPayCap.toLocaleString()} BDT per month for verified utility charges. I understand I can pause or modify this cap at any time.
+                  <strong>Explicit User Authorization:</strong> I authorize KilowattIQ to automatically debit my saved tokenized mobile banking wallet up to {formatCurrency(autoPayCap)} per month for verified utility charges. I understand I can pause or modify this cap at any time.
                 </span>
               </label>
             </div>
+
+            {autoPayError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-800 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{autoPayError}</span>
+                </div>
+                <button
+                  onClick={() => setAutoPayError(null)}
+                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-['Outfit'] font-semibold"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
             {autoPaySuccessMsg && (
               <div className="p-3 bg-emerald-50 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 font-mono flex items-center gap-2">
@@ -852,7 +921,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
             <button
               onClick={handleSaveAutoPay}
               disabled={autoPaySaving}
-              className="py-3 px-6 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl font-display transition-all cursor-pointer disabled:opacity-50"
+              className="min-h-[44px] py-3 px-6 bg-amber-500 hover:bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
             >
               {autoPaySaving ? 'Updating...' : 'Save Auto-Pay Rules'}
             </button>
@@ -863,7 +932,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
       {/* VIEW 4: SAVED WALLETS (PCI-SAFE) */}
       {activeSubTab === 'METHODS' && (
         <div className="space-y-4 max-w-4xl">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
                 Tokenized Payment Wallets
@@ -875,54 +944,84 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
 
             <button
               onClick={() => setShowAddMethodModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl font-display transition-all cursor-pointer"
+              className="min-h-[44px] flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs rounded-xl transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 active:scale-95"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               <span>Link New Wallet</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {methods.map(method => (
-              <div
-                key={method.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4.5 space-y-3 relative shadow-xs"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-display bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {method.provider}
-                  </span>
-                  {method.isDefault && (
-                    <span className="text-[9px] font-bold font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-800">
-                      DEFAULT
+          {methods.length === 0 ? (
+            <EmptyState
+              titleEn="No Saved Payment Methods"
+              titleBn="কোন সংরক্ষিত পেমেন্ট মাধ্যম নেই"
+              descriptionEn="Add a bKash or Nagad wallet token for seamless one-click bill payments and automated recharge."
+              descriptionBn="ওয়ান-ক্লিক বিল পরিশোধ এবং অটো-রিচার্জের জন্য বিকাশ বা নগদ ওয়ালেট লিংক করুন।"
+              actionLabelEn="Link New Wallet"
+              actionLabelBn="নতুন ওয়ালেট লিংক করুন"
+              onAction={() => setShowAddMethodModal(true)}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {methods.map(method => (
+                <div
+                  key={method.id}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4.5 space-y-3 relative shadow-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-display bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      {method.provider}
                     </span>
-                  )}
-                </div>
+                    {method.isDefault && (
+                      <span className="text-[9px] font-bold font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-800">
+                        DEFAULT
+                      </span>
+                    )}
+                  </div>
 
-                <div>
-                  <h4 className="text-sm font-black text-slate-900 dark:text-white font-display">
-                    {method.alias}
-                  </h4>
-                  <span className="text-xs font-mono text-slate-500 dark:text-slate-400 block mt-0.5">
-                    {method.maskedIdentifier}
-                  </span>
-                </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white font-display">
+                      {method.alias}
+                    </h4>
+                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400 block mt-0.5">
+                      {method.maskedIdentifier}
+                    </span>
+                  </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                  <span className="text-[10px] font-mono text-slate-400">
-                    Vault Token: {method.token.slice(0, 14)}...
-                  </span>
-                  <button
-                    onClick={() => handleDeleteMethod(method.id)}
-                    className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
-                    title="Remove method"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Vault Token: {method.token.slice(0, 14)}...
+                    </span>
+                    {deleteConfirmId === method.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleDeleteMethod(method.id)}
+                          className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-['Outfit'] font-semibold"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(null)}
+                          className="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-['Outfit']"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeleteConfirmId(method.id)}
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer rounded-xl focus:outline-hidden focus:ring-2 focus:ring-rose-400"
+                        title="Remove method"
+                        aria-label={`Remove ${method.alias}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -936,8 +1035,21 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
             <span className="text-xs text-slate-500 font-mono">{history.length} Transactions</span>
           </div>
 
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {history.map(item => (
+          {history.length === 0 ? (
+            <EmptyState
+              icon={CreditCard}
+              titleEn="No Payment Records Found"
+              titleBn="কোনো পেমেন্ট তথ্য পাওয়া যায়নি"
+              descriptionEn="You have not made any bill payments or prepaid top-ups through KilowattIQ yet."
+              descriptionBn="কিলোভোল্টআইকিউ এর মাধ্যমে এখনো কোনো বিদ্যুৎ বিল বা প্রিপেইড রিচার্জ করা হয়নি।"
+              actionLabelEn="Pay Postpaid Bill"
+              actionLabelBn="বিদ্যুৎ বিল পরিশোধ করুন"
+              onAction={() => setActiveSubTab('PAY_BILL')}
+              actionIcon={CreditCard}
+            />
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {history.map(item => (
               <div key={item.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -956,10 +1068,11 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                       <span>STS: {item.prepaidTokenSTS}</span>
                       <button
                         onClick={() => handleCopySts(item.prepaidTokenSTS!)}
-                        className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                         title="Copy 20-digit token"
+                        aria-label="Copy 20-digit token"
                       >
-                        <Copy className="w-3 h-3" />
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -967,8 +1080,8 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
 
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <span className="text-sm font-black font-mono text-slate-900 dark:text-white block">
-                      ৳{item.amountBDT.toLocaleString()}
+                    <span className="text-sm font-black font-mono tabular-nums text-slate-900 dark:text-white block">
+                      {formatCurrency(item.amountBDT)}
                     </span>
                     <span className="text-[10px] text-slate-400 font-mono">
                       {new Date(item.paidAt).toLocaleDateString()}
@@ -977,8 +1090,9 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
 
                   <button
                     onClick={() => handleDownloadReceipt(item)}
-                    className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
                     title="Download Receipt"
+                    aria-label={`Download Receipt for ${item.transactionId}`}
                   >
                     <Download className="w-4 h-4" />
                   </button>
@@ -986,6 +1100,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
 
@@ -1043,8 +1158,8 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 </p>
               </div>
 
-              <div className="text-3xl font-black font-mono text-slate-900 dark:text-white">
-                ৳{latestReceipt.amountBDT.toLocaleString()} <span className="text-xs font-sans text-slate-500">BDT</span>
+              <div className="text-3xl font-black font-mono tabular-nums text-slate-900 dark:text-white">
+                {formatCurrency(latestReceipt.amountBDT)} <span className="text-xs font-sans text-slate-500">BDT</span>
               </div>
 
               {/* 20-Digit STS Prepaid Token Display if Prepaid Top-Up */}
@@ -1056,13 +1171,14 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                     </span>
                     <button
                       onClick={() => handleCopySts(latestReceipt.prepaidTokenSTS!)}
-                      className="flex items-center gap-1 text-[10px] font-bold font-display text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
+                      aria-label="Copy STS Token"
+                      className="min-h-[44px] px-2 flex items-center gap-1 text-[11px] font-bold font-['Outfit'] text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
                     >
-                      {isCopiedToken ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      {isCopiedToken ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{isCopiedToken ? 'Copied!' : 'Copy Token'}</span>
                     </button>
                   </div>
-                  <div className="font-mono text-base font-black tracking-widest text-slate-900 dark:text-white text-center py-1 bg-white/70 dark:bg-slate-950/70 rounded-xl border border-amber-300 dark:border-amber-800">
+                  <div className="font-mono text-base font-black tracking-widest text-slate-900 dark:text-white text-center py-2 bg-white/70 dark:bg-slate-950/70 rounded-xl border border-amber-300 dark:border-amber-800 tabular-nums">
                     {latestReceipt.prepaidTokenSTS}
                   </div>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block text-center font-sans">
@@ -1072,7 +1188,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
               )}
 
               {/* Details table */}
-              <div className="space-y-1.5 text-xs font-mono text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800 text-left">
+              <div className="space-y-1.5 text-xs font-mono tabular-nums text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800 text-left">
                 <div className="flex justify-between">
                   <span>Utility Ref:</span>
                   <span className="font-bold text-slate-900 dark:text-white">{latestReceipt.utilityReferenceId}</span>
@@ -1084,7 +1200,7 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 {latestReceipt.energyUnitsCreditedKwh && (
                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
                     <span>Credited Units:</span>
-                    <span>+{latestReceipt.energyUnitsCreditedKwh} kWh</span>
+                    <span>+{formatNumber(latestReceipt.energyUnitsCreditedKwh)} kWh</span>
                   </div>
                 )}
               </div>
@@ -1093,14 +1209,14 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
               <div className="flex items-center gap-3 pt-2">
                 <button
                   onClick={() => handleDownloadReceipt(latestReceipt)}
-                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 font-display transition-all cursor-pointer"
+                  className="flex-1 min-h-[44px] py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-['Outfit'] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-slate-400"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download Receipt</span>
                 </button>
                 <button
                   onClick={() => setLatestReceipt(null)}
-                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl font-display transition-all cursor-pointer"
+                  className="flex-1 min-h-[44px] py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs rounded-xl transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
                 >
                   Done
                 </button>
@@ -1126,11 +1242,19 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                 </h3>
                 <button
                   onClick={() => setShowAddMethodModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  aria-label="Close modal"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400"
                 >
                   ✕
                 </button>
               </div>
+
+              {methodError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-800 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{methodError}</span>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <div>
@@ -1142,9 +1266,9 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
                       <button
                         key={p}
                         onClick={() => setNewMethodProvider(p)}
-                        className={`py-2 rounded-xl text-xs font-bold font-display border transition-all cursor-pointer ${
+                        className={`min-h-[44px] py-2 rounded-xl text-xs font-['Outfit'] font-semibold border transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 ${
                           newMethodProvider === p
-                            ? 'bg-amber-500 text-slate-950 border-amber-500 font-black'
+                            ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
                             : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                         }`}
                       >
@@ -1201,14 +1325,14 @@ For support, contact 16120 (DESCO) or 16116 (DPDC).
               <div className="flex items-center gap-2 pt-2">
                 <button
                   onClick={() => setShowAddMethodModal(false)}
-                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl"
+                  className="min-h-[44px] flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-['Outfit'] font-semibold text-xs rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-400"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveMethod}
                   disabled={isSavingMethod}
-                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl font-display"
+                  className="min-h-[44px] flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 cursor-pointer disabled:opacity-50"
                 >
                   {isSavingMethod ? 'Saving...' : 'Link Token'}
                 </button>

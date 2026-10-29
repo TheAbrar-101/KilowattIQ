@@ -10,6 +10,8 @@ import { ApplianceHealthReport } from '../../server/health/types';
 import { HealthRing } from '../appliances/HealthRing';
 import { HealthDiagnosisModal } from '../appliances/HealthDiagnosisModal';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { EmptyState } from '../common/EmptyState';
 import { UserRole, normalizeRole, canToggleLoads, canManageMembers } from '../../server/auth/roles';
 
 interface AppliancesTabProps {
@@ -32,16 +34,19 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
   token,
 }) => {
   const { user } = useAuth();
+  const { language, t, formatCurrency, formatNumber } = useLanguage();
   const currentRole: UserRole = normalizeRole(user?.householdRole || user?.role);
   const canToggle = canToggleLoads(currentRole, user?.auditorExpiresAt);
   const canManage = canManageMembers(currentRole);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [auditorWarning, setAuditorWarning] = useState<string | null>(null);
 
   const handleToggle = (appId: string) => {
     if (!canToggle) {
-      alert('Utility auditors have read-only access and cannot toggle electrical loads.');
+      setAuditorWarning('Utility auditors have read-only access and cannot toggle electrical loads.');
+      setTimeout(() => setAuditorWarning(null), 4500);
       return;
     }
     if (!onToggleAppliance) return;
@@ -151,9 +156,33 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
         </div>
       )}
 
+      {/* Auditor Warning Toast / Banner */}
+      <AnimatePresence>
+        {auditorWarning && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="p-3 bg-amber-500/10 border border-amber-400/40 rounded-xl text-xs text-amber-400 flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{auditorWarning}</span>
+            </div>
+            <button
+              onClick={() => setAuditorWarning(null)}
+              aria-label="Dismiss notice"
+              className="px-2 py-1 text-[11px] font-bold text-amber-300 hover:text-white"
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Section: Room & Appliance Inventory */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Home className="w-4 h-4 text-emerald-400" />
@@ -166,10 +195,10 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
           {canManage ? (
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black font-display px-4 py-2 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer active:scale-95"
+              className="min-h-[44px] flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 text-xs font-['Outfit'] font-semibold px-4 py-2.5 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Add Appliance</span>
+              <span>{t('btn.add_appliance', 'Add Appliance')}</span>
             </button>
           ) : (
             <span className="text-[10px] font-bold font-mono px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700">
@@ -178,98 +207,118 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
           )}
         </div>
 
-        {/* Room Inventory Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {rooms.map((room) => {
-            const roomApps = appliances.filter(a => a.roomId === room.id);
-            const totalRoomWatts = roomApps.reduce((acc, a) => acc + a.ratedPowerW, 0);
+        {/* If no appliances exist, render EmptyState */}
+        {appliances.length === 0 ? (
+          <EmptyState
+            titleEn="No Appliances Registered"
+            titleBn="কোনো যন্ত্রপাতি যোগ করা হয়নি"
+            descriptionEn="Add your high-power appliances (AC, refrigerator, water pump) to detect phantom loads and calculate savings."
+            descriptionBn="আপনার উচ্চ ক্ষমতাসম্পন্ন যন্ত্রপাতি (এসি, ফ্রিজ, মোটর) যোগ করুন অপচয় কমাতে।"
+            actionLabelEn="Add Appliance"
+            actionLabelBn="নতুন যন্ত্রপাতি যুক্ত করুন"
+            onAction={() => setShowAddModal(true)}
+          />
+        ) : (
+          /* Room Inventory Cards */
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {rooms.map((room) => {
+              const roomApps = appliances.filter(a => a.roomId === room.id);
+              const totalRoomWatts = roomApps.reduce((acc, a) => acc + a.ratedPowerW, 0);
 
-            return (
-              <div key={room.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                  <span className="font-bold text-xs text-white">{room.name}</span>
-                  <span className="text-[11px] font-mono font-bold text-amber-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                    {totalRoomWatts} W Capacity
-                  </span>
-                </div>
+              return (
+                <div key={room.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                    <span className="font-bold text-xs text-white">{room.name}</span>
+                    <span className="text-[11px] font-mono tabular-nums font-bold text-amber-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                      {formatNumber(totalRoomWatts)} W Capacity
+                    </span>
+                  </div>
 
-                <div className="space-y-2">
-                  {roomApps.map((app) => {
-                    const isOn = activeApplianceStates[app.id] ?? true;
-                    const health = computeApplianceHealth(app);
+                  <div className="space-y-2">
+                    {roomApps.length === 0 ? (
+                      <p className="text-slate-500 text-[11px] text-center py-4 italic">
+                        {language === 'bn' ? 'এই কক্ষে কোনো যন্ত্রপাতি নেই' : 'No appliances in this room'}
+                      </p>
+                    ) : (
+                      roomApps.map((app) => {
+                        const isOn = activeApplianceStates[app.id] ?? true;
+                        const health = computeApplianceHealth(app);
 
-                    return (
-                      <div
-                        key={app.id}
-                        className={`p-3 rounded-xl border transition-all space-y-2 ${
-                          isOn ? 'bg-slate-900 border-slate-800' : 'bg-slate-900/40 border-slate-800/80 opacity-75'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2.5">
-                            <HealthRing
-                              score={health.healthScore}
-                              size={38}
-                              strokeWidth={3.5}
-                              onClick={() => setSelectedHealthReport(health)}
-                            />
-                            <div className="space-y-0.5">
-                              <span className="font-bold text-xs text-slate-200 block">{app.name}</span>
-                              <span className="text-[10px] text-slate-400 font-mono block">
-                                {app.ratedPowerW}W • {app.isInverterType ? 'Inverter ★' : 'Standard'} • Standby: {app.standbyPowerW}W
-                              </span>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleToggle(app.id)}
-                            disabled={!canToggle || togglingId === app.id}
-                            title={!canToggle ? 'Auditors have read-only access (load switch locked)' : undefined}
-                            className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-extrabold font-display transition-all flex items-center gap-1.5 ${
-                              !canToggle
-                                ? 'opacity-40 cursor-not-allowed bg-slate-800 border-slate-700 text-slate-400'
-                                : isOn
-                                ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 font-black shadow-xs cursor-pointer'
-                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white cursor-pointer'
-                            } ${togglingId === app.id ? 'opacity-50 animate-pulse' : ''}`}
-                          >
-                            <Power className={`w-3 h-3 ${togglingId === app.id ? 'animate-spin' : ''}`} />
-                            <span>{togglingId === app.id ? '...' : isOn ? 'ON' : 'OFF'}</span>
-                          </button>
-                        </div>
-
-                        {/* Health Signal Notice (score < 40: ROI link, score < 70: servicing notice) */}
-                        {health.healthScore < 40 ? (
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] font-sans text-rose-300 bg-rose-950/40 border border-rose-800/50 px-2.5 py-1.5 rounded-lg">
-                            <div className="flex items-center gap-1.5 font-semibold">
-                              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                              <span>{health.recommendation}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleLinkToRoi(health)}
-                              className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-bold font-display underline cursor-pointer text-[10px] self-end sm:self-auto"
-                            >
-                              <span>Upgrade ROI →</span>
-                            </button>
-                          </div>
-                        ) : health.healthScore < 70 ? (
+                        return (
                           <div
-                            onClick={() => setSelectedHealthReport(health)}
-                            className="flex items-center gap-1.5 text-[11px] font-sans font-medium text-amber-300 bg-amber-950/40 border border-amber-800/50 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-amber-950/60 transition-colors"
+                            key={app.id}
+                            className={`p-3 rounded-xl border transition-all space-y-2 ${
+                              isOn ? 'bg-slate-900 border-slate-800' : 'bg-slate-900/40 border-slate-800/80 opacity-75'
+                            }`}
                           >
-                            <Wrench className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span className="truncate">{health.recommendation}</span>
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2.5">
+                                <HealthRing
+                                  score={health.healthScore}
+                                  size={38}
+                                  strokeWidth={3.5}
+                                  onClick={() => setSelectedHealthReport(health)}
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="font-bold text-xs text-slate-200 block">{app.name}</span>
+                                  <span className="text-[10px] text-slate-400 font-mono tabular-nums block">
+                                    {formatNumber(app.ratedPowerW)}W • {app.isInverterType ? 'Inverter ★' : 'Standard'} • Standby: {formatNumber(app.standbyPowerW)}W
+                                  </span>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => handleToggle(app.id)}
+                                disabled={!canToggle || togglingId === app.id}
+                                aria-label={`${isOn ? 'Turn off' : 'Turn on'} ${app.name}`}
+                                title={!canToggle ? 'Auditors have read-only access (load switch locked)' : undefined}
+                                className={`min-h-[44px] min-w-[56px] px-3 py-2 rounded-xl border text-xs font-['Outfit'] font-semibold transition-all flex items-center justify-center gap-1.5 focus:outline-hidden focus:ring-2 focus:ring-amber-400/50 ${
+                                  !canToggle
+                                    ? 'opacity-40 cursor-not-allowed bg-slate-800 border-slate-700 text-slate-400'
+                                    : isOn
+                                    ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 font-black shadow-xs cursor-pointer hover:bg-emerald-500/25'
+                                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white cursor-pointer hover:bg-slate-750'
+                                } ${togglingId === app.id ? 'opacity-50 animate-pulse' : ''}`}
+                              >
+                                <Power className={`w-3.5 h-3.5 ${togglingId === app.id ? 'animate-spin' : ''}`} />
+                                <span>{togglingId === app.id ? '...' : isOn ? 'ON' : 'OFF'}</span>
+                              </button>
+                            </div>
+
+                            {/* Health Signal Notice */}
+                            {health.healthScore < 40 ? (
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] font-sans text-rose-300 bg-rose-950/40 border border-rose-800/50 px-2.5 py-1.5 rounded-lg">
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                  <span>{health.recommendation}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLinkToRoi(health)}
+                                  className="min-h-[44px] inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-['Outfit'] font-semibold underline cursor-pointer text-xs self-end sm:self-auto focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
+                                >
+                                  <span>Upgrade ROI →</span>
+                                </button>
+                              </div>
+                            ) : health.healthScore < 70 ? (
+                              <div
+                                onClick={() => setSelectedHealthReport(health)}
+                                className="flex items-center gap-1.5 text-[11px] font-sans font-medium text-amber-300 bg-amber-950/40 border border-amber-800/50 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-amber-950/60 transition-colors"
+                              >
+                                <Wrench className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span className="truncate">{health.recommendation}</span>
+                              </div>
+                            ) : null}
                           </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* New Section: Discovered Appliances (1 Hz Telemetry Disaggregation) */}
@@ -301,11 +350,11 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
               <div key={rep.applianceId} className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-white">{rep.applianceName} ({rep.roomName})</span>
-                  <span className="text-rose-400 font-mono font-bold">~৳{rep.annualWastedBDT} / year</span>
+                  <span className="text-rose-400 font-mono tabular-nums font-bold">~{formatCurrency(rep.annualWastedBDT)} / {language === 'bn' ? 'বছর' : 'year'}</span>
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Standby Power: {rep.standbyWatts}W</span>
-                  <span className="text-amber-400 font-mono">৳{rep.monthlyWastedBDT} / month wasted</span>
+                  <span>Standby Power: <span className="font-mono tabular-nums">{formatNumber(rep.standbyWatts)}</span>W</span>
+                  <span className="text-amber-400 font-mono tabular-nums">{formatCurrency(rep.monthlyWastedBDT)} / {language === 'bn' ? 'মাস অপচয়' : 'month wasted'}</span>
                 </div>
               </div>
             ))}
@@ -344,7 +393,7 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
             <div className="space-y-1">
               <div className="flex justify-between text-[10px] font-bold text-slate-400">
                 <span>Existing Appliance Wattage</span>
-                <span className="text-rose-400 font-mono">{currentWatts} W</span>
+                <span className="text-rose-400 font-mono tabular-nums">{formatNumber(currentWatts)} W</span>
               </div>
               <input
                 type="range"
@@ -361,7 +410,7 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
             <div className="space-y-1">
               <div className="flex justify-between text-[10px] font-bold text-slate-400">
                 <span>Proposed Inverter Wattage</span>
-                <span className="text-emerald-400 font-mono">{proposedWatts} W</span>
+                <span className="text-emerald-400 font-mono tabular-nums">{formatNumber(proposedWatts)} W</span>
               </div>
               <input
                 type="range"
@@ -378,7 +427,7 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
             <div className="space-y-1">
               <div className="flex justify-between text-[10px] font-bold text-slate-400">
                 <span>Daily Usage Hours</span>
-                <span className="text-amber-400 font-mono">{usageHours} Hours / Day</span>
+                <span className="text-amber-400 font-mono tabular-nums">{formatNumber(usageHours)} {language === 'bn' ? 'ঘণ্টা / দিন' : 'Hours / Day'}</span>
               </div>
               <input
                 type="range"
@@ -394,15 +443,15 @@ export const AppliancesTab: React.FC<AppliancesTabProps> = ({
             <div className="pt-3 border-t border-slate-800 grid grid-cols-3 gap-2 text-center">
               <div className="p-2 bg-slate-900 rounded-lg">
                 <span className="text-[9px] text-slate-500 font-bold uppercase block">Monthly Savings</span>
-                <span className="text-sm font-bold font-mono text-emerald-400">৳{roiResult.monthlySavingsBDT.toFixed(0)}</span>
+                <span className="text-sm font-bold font-mono tabular-nums text-emerald-400">{formatCurrency(roiResult.monthlySavingsBDT)}</span>
               </div>
               <div className="p-2 bg-slate-900 rounded-lg">
                 <span className="text-[9px] text-slate-500 font-bold uppercase block">Payback Period</span>
-                <span className="text-sm font-bold font-mono text-amber-400">{roiResult.paybackPeriodMonths.toFixed(1)} Mo</span>
+                <span className="text-sm font-bold font-mono tabular-nums text-amber-400">{formatNumber(roiResult.paybackPeriodMonths.toFixed(1))} {language === 'bn' ? 'মাস' : 'Mo'}</span>
               </div>
               <div className="p-2 bg-slate-900 rounded-lg">
                 <span className="text-[9px] text-slate-500 font-bold uppercase block">5-Yr Net ROI</span>
-                <span className="text-sm font-bold font-mono text-emerald-400">৳{roiResult.fiveYearNetSavingsBDT.toFixed(0)}</span>
+                <span className="text-sm font-bold font-mono tabular-nums text-emerald-400">{formatCurrency(roiResult.fiveYearNetSavingsBDT)}</span>
               </div>
             </div>
           </div>

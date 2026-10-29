@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { AuthPage } from './components/auth/AuthPage';
 import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
@@ -441,7 +442,9 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <MainAppContent />
+        <LanguageProvider>
+          <MainAppContent />
+        </LanguageProvider>
       </ThemeProvider>
     </AuthProvider>
   );

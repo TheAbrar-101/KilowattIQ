@@ -136,11 +136,9 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
     }
   };
 
-  const handleRemoveMember = async (memberId: string, memberName: string) => {
-    if (!window.confirm(`Are you sure you want to remove ${memberName} from this household?`)) {
-      return;
-    }
+  const [memberToRemoveId, setMemberToRemoveId] = useState<string | null>(null);
 
+  const handleRemoveMember = async (memberId: string) => {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -158,7 +156,7 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
       fetchRoster();
       onMembersUpdated?.();
     } catch (err: any) {
-      alert(`Error: ${err?.message || 'Failed to remove member'}`);
+      setErrorMessage(err?.message || 'Failed to remove member');
     }
   };
 
@@ -179,7 +177,7 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
 
       fetchRoster();
     } catch (err: any) {
-      alert(`Error: ${err?.message || 'Failed to revoke invite'}`);
+      setErrorMessage(err?.message || 'Failed to revoke invite');
     }
   };
 
@@ -490,13 +488,34 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
                           </div>
 
                           {isOwnerOrAdmin && member.role !== 'owner' && (
-                            <button
-                              onClick={() => handleRemoveMember(member.id, member.fullName)}
-                              title="Revoke member access"
-                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            memberToRemoveId === member.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    handleRemoveMember(member.id);
+                                    setMemberToRemoveId(null);
+                                  }}
+                                  className="min-h-[44px] px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-['Outfit'] font-semibold"
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={() => setMemberToRemoveId(null)}
+                                  className="min-h-[44px] px-3 py-1 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-['Outfit']"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setMemberToRemoveId(member.id)}
+                                title="Revoke member access"
+                                aria-label={`Revoke access for ${member.fullName}`}
+                                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-400"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )
                           )}
                         </div>
                       );

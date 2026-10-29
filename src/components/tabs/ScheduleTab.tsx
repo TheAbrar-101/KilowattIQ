@@ -391,9 +391,11 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
             <button
+              type="button"
               onClick={handleAutoSchedule}
               disabled={isOptimizing}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-xl text-xs font-bold font-display shadow-md hover:shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+              aria-label="Auto-Schedule with AI"
+              className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-xl text-xs font-semibold font-['Outfit'] shadow-md hover:shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-amber-400"
             >
               {isOptimizing ? (
                 <>
@@ -410,21 +412,25 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
 
             {connectedRelays.length > 0 && (
               <button
+                type="button"
                 onClick={() => setShowRelayModal(true)}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2.5 bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold font-display shadow-md hover:shadow-emerald-500/25 transition-all cursor-pointer border border-emerald-400/40"
+                aria-label="Apply schedule to smart relays automatically"
+                className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold font-['Outfit'] shadow-md hover:shadow-emerald-500/25 transition-all cursor-pointer border border-emerald-400/40 focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
               >
                 <Cpu className="w-4 h-4 text-emerald-200" />
                 <span>Apply Automatically</span>
-                <span className="px-1.5 py-0.2 bg-emerald-950/60 text-emerald-300 font-mono text-[10px] rounded-md">
+                <span className="px-1.5 py-0.5 bg-emerald-950/60 text-emerald-300 font-mono text-[10px] rounded-md">
                   {connectedRelays.length} Relays
                 </span>
               </button>
             )}
 
             <button
+              type="button"
               onClick={handleSaveSchedule}
               disabled={isSaving}
-              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold font-display transition-all cursor-pointer flex items-center gap-1.5"
+              aria-label="Save schedule"
+              className="min-h-[44px] px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold font-['Outfit'] transition-all cursor-pointer flex items-center gap-1.5 focus:outline-hidden focus:ring-2 focus:ring-amber-400"
             >
               {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
               <span>Save</span>
@@ -1004,15 +1010,19 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
+                  type="button"
                   onClick={() => setShowRelayModal(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold font-display text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  aria-label="Cancel smart relay sync"
+                  className="min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-semibold font-['Outfit'] text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-slate-400"
                 >
                   Cancel / বাতিল
                 </button>
                 <button
+                  type="button"
                   onClick={handleApplyToRelays}
                   disabled={isApplyingRelays}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold font-display bg-emerald-600 hover:bg-emerald-500 text-white shadow-md hover:shadow-emerald-500/25 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  aria-label="Confirm and apply schedule to relays"
+                  className="min-h-[44px] px-6 py-2.5 rounded-xl text-xs font-semibold font-['Outfit'] bg-emerald-600 hover:bg-emerald-500 text-white shadow-md hover:shadow-emerald-500/25 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
                 >
                   {isApplyingRelays ? (
                     <>
