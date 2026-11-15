@@ -30,6 +30,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
   const { language, formatNumber } = useLanguage();
 
   const [versions, setVersions] = useState<TariffVersion[]>(() => getTariffVersions());
+  const [usingFallback, setUsingFallback] = useState<boolean>(false);
   const [fetchStatus, setFetchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -53,8 +54,10 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
         setTariffVersions(json.data.versions);
         setVersions(json.data.versions);
       }
+      setUsingFallback(Boolean(json.data?.usingFallback));
       setFetchStatus('success');
     } catch (err: any) {
+      setUsingFallback(true);
       setFetchStatus('error');
       setFetchError(err?.message || 'Could not reach the tariff service.');
     }
@@ -74,10 +77,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
       version_id: `BERC-LTA-${today.slice(0, 7)}`,
       effective_from: today,
       source_note: 'BERC LT-A Residential Tariff Revision',
-      last_verified_date: today,
+      last_verified_date: null,
       demandChargePerKw: latest?.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
       meterRent: latest?.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
       vatPercent: latest?.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+      charges_verified: false,
       slabs: latest ? latest.slabs.map(s => ({ ...s })) : [],
     });
   };
@@ -233,6 +237,20 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
           </button>
         </div>
 
+        {usingFallback && (
+          <div
+            role="status"
+            className="bg-amber-950/50 border border-amber-500/40 rounded-xl p-3 flex items-center gap-2 text-xs text-amber-200 font-['Plus_Jakarta_Sans']"
+          >
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              {language === 'bn'
+                ? 'Using built-in tariff data — ডাটাবেস সংযোগ না থাকায় পঠনযোগ্য বিল্ট-ইন ট্যারিফ ডেটা ব্যবহৃত হচ্ছে।'
+                : 'Using built-in tariff data — database unavailable (read-only fallback mode).'}
+            </span>
+          </div>
+        )}
+
         {fetchStatus === 'error' && (
           <div className="bg-amber-950/50 border border-amber-500/40 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-200">
             <span className="flex items-center gap-2">
@@ -275,6 +293,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
                 <th className="py-2.5 px-3 text-right">Demand (৳/kW)</th>
                 <th className="py-2.5 px-3 text-right">Meter Rent</th>
                 <th className="py-2.5 px-3 text-right">VAT</th>
+                <th className="py-2.5 px-3 text-center">Charges Status</th>
                 <th className="py-2.5 px-3 text-right">Slabs</th>
                 <th className="py-2.5 px-3 text-right">Action</th>
               </tr>
@@ -284,10 +303,27 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
                 <tr key={ver.version_id} className="hover:bg-slate-900/60">
                   <td className="py-2.5 px-3 font-mono font-bold text-amber-400">{ver.version_id}</td>
                   <td className="py-2.5 px-3 font-mono tabular-nums">{ver.effective_from}</td>
-                  <td className="py-2.5 px-3 font-mono tabular-nums text-slate-300">{ver.last_verified_date}</td>
+                  <td className="py-2.5 px-3 font-mono tabular-nums text-slate-300">
+                    {ver.last_verified_date ? (
+                      ver.last_verified_date
+                    ) : (
+                      <span className="text-amber-400 font-semibold">Not verified</span>
+                    )}
+                  </td>
                   <td className="py-2.5 px-3 text-right font-mono tabular-nums">৳{(ver.demandChargePerKw ?? 42).toFixed(2)}</td>
                   <td className="py-2.5 px-3 text-right font-mono tabular-nums">৳{(ver.meterRent ?? 40).toFixed(2)}</td>
                   <td className="py-2.5 px-3 text-right font-mono tabular-nums">{ver.vatPercent ?? 5}%</td>
+                  <td className="py-2.5 px-3 text-center">
+                    {ver.charges_verified ? (
+                      <span className="inline-block px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-mono font-bold uppercase">
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 rounded bg-amber-950/70 text-amber-400 border border-amber-500/40 text-[10px] font-mono font-bold uppercase">
+                        unverified
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2.5 px-3 text-right font-mono tabular-nums">{formatNumber(ver.slabs.length)}</td>
                   <td className="py-2.5 px-3 text-right">
                     <button
@@ -348,12 +384,27 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Last Verified Date</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Last Verified Date</label>
+                  {editingVersion.last_verified_date && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingVersion({ ...editingVersion, last_verified_date: null })}
+                      className="text-[10px] text-amber-400 hover:underline cursor-pointer"
+                    >
+                      Mark Not verified
+                    </button>
+                  )}
+                </div>
                 <input
                   type="date"
-                  required
-                  value={editingVersion.last_verified_date}
-                  onChange={(e) => setEditingVersion({ ...editingVersion, last_verified_date: e.target.value })}
+                  value={editingVersion.last_verified_date || ''}
+                  onChange={(e) =>
+                    setEditingVersion({
+                      ...editingVersion,
+                      last_verified_date: e.target.value ? e.target.value : null,
+                    })
+                  }
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-amber-400 focus:outline-hidden"
                 />
               </div>
@@ -371,7 +422,9 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Demand (৳/kW) • Verify</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                  Demand (৳/kW) {!editingVersion.charges_verified && <span className="text-amber-400">• unverified</span>}
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -403,6 +456,20 @@ export const AdminTab: React.FC<AdminTabProps> = ({ households }) => {
                 </div>
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={Boolean(editingVersion.charges_verified)}
+                onChange={(e) => setEditingVersion({ ...editingVersion, charges_verified: e.target.checked })}
+                className="accent-amber-400 cursor-pointer"
+              />
+              <span>
+                {language === 'bn'
+                  ? 'ডিমান্ড চার্জ, মিটার ভাড়া ও ভ্যাট যাচাইকৃত হিসেবে চিহ্নিত করুন'
+                  : 'Mark demand charge, meter rent, and VAT as verified'}
+              </span>
+            </label>
 
             <div className="overflow-x-auto border border-slate-800 rounded-xl">
               <table className="w-full text-left text-xs">

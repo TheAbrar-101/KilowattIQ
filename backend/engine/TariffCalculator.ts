@@ -3,6 +3,39 @@ import { getActiveTariffStructure } from '../../shared/constants/bdTariffs';
 
 export class TariffCalculator {
   /**
+   * Converts a tariff record returned by SupabaseService.getTariffs() (DB or fallback)
+   * into a canonical TariffStructure so both code paths share the exact same
+   * separate non-stacked Lifeline + progressive slab evaluation rules.
+   */
+  static fromTariffRecord(record: any): TariffStructure {
+    const rawRules = Array.isArray(record?.rules) ? record.rules : [];
+    const mappedSlabs = rawRules.map((r: any, idx: number) => ({
+      step: typeof r.step_number === 'number' ? r.step_number : idx,
+      minKwh: Number(r.slab_min_kwh ?? 0),
+      maxKwh: r.slab_max_kwh === null || r.slab_max_kwh === undefined ? null : Number(r.slab_max_kwh),
+      ratePerKwh: Number(r.rate_bdt_per_kwh),
+      stepName: String(r.step_name || `Step ${idx + 1}`),
+      isLifeline: Boolean(r.is_lifeline || String(r.step_name || '').toLowerCase().includes('lifeline')),
+    }));
+
+    return {
+      id: String(record?.tariff_code || record?.id || 'DESCO-LTA'),
+      version_id: record?.tariff_code || record?.version_id,
+      effective_from: record?.effective_date || record?.effective_from,
+      source_note: record?.source_note,
+      last_verified_date: record?.last_verified_date ?? null,
+      charges_verified: Boolean(record?.charges_verified),
+      utilityName: String(record?.utility_provider || 'DESCO'),
+      tariffType: 'SLAB',
+      slabs: mappedSlabs,
+      flatRatePerKwh: Number(record?.flat_rate_per_kwh ?? 9.85),
+      demandChargePerKw: Number(record?.demand_charge_per_kw_bdt ?? 42.0),
+      meterRent: Number(record?.meter_rent_bdt ?? 40.0),
+      vatPercent: Number(record?.vat_percentage ?? 5.0),
+    };
+  }
+
+  /**
    * Resolves the effective TariffStructure for a given billingPeriod when no explicit
    * tariffConfig override is supplied.
    */

@@ -14,16 +14,21 @@ export const DEFAULT_TARIFF_FIXED_CHARGES = {
   vatPercent: 5.0,
 };
 
+export function getBuiltInTariffSeedVersions(): TariffVersion[] {
+  return (tariffVersionsSeed as TariffVersion[])
+    .map(v => ({
+      ...v,
+      charges_verified: Boolean(v.charges_verified),
+      slabs: v.slabs.map(s => ({ ...s })),
+    }))
+    .sort((a, b) => a.effective_from.localeCompare(b.effective_from));
+}
+
 /**
  * In-memory versioned tariff registry seeded from shared/data/tariffVersions.json.
  * Sorted by effective_from ascending.
  */
-let versionedTariffTable: TariffVersion[] = (tariffVersionsSeed as TariffVersion[])
-  .map(v => ({
-    ...v,
-    slabs: v.slabs.map(s => ({ ...s })),
-  }))
-  .sort((a, b) => a.effective_from.localeCompare(b.effective_from));
+let versionedTariffTable: TariffVersion[] = getBuiltInTariffSeedVersions();
 
 /**
  * Normalizes a billing period input (e.g. '2026-06-01', '2026-06', 'June 2026', Date)
@@ -81,10 +86,13 @@ export function upsertTariffVersion(newVersion: TariffVersion): TariffVersion[] 
     ...newVersion,
     version_id: newVersion.version_id.trim(),
     effective_from: normalizeBillingPeriodDate(newVersion.effective_from),
-    last_verified_date: normalizeBillingPeriodDate(newVersion.last_verified_date),
+    last_verified_date: newVersion.last_verified_date
+      ? normalizeBillingPeriodDate(newVersion.last_verified_date)
+      : null,
     demandChargePerKw: newVersion.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
     meterRent: newVersion.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
     vatPercent: newVersion.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+    charges_verified: Boolean(newVersion.charges_verified),
     slabs: newVersion.slabs.map(s => ({ ...s })),
   };
 
@@ -104,6 +112,7 @@ export function setTariffVersions(versions: TariffVersion[]): void {
   versionedTariffTable = versions
     .map(v => ({
       ...v,
+      charges_verified: Boolean(v.charges_verified),
       slabs: v.slabs.map(s => ({ ...s })),
     }))
     .sort((a, b) => a.effective_from.localeCompare(b.effective_from));
@@ -115,7 +124,8 @@ export function toTariffStructure(version: TariffVersion): TariffStructure {
     version_id: version.version_id,
     effective_from: version.effective_from,
     source_note: version.source_note,
-    last_verified_date: version.last_verified_date,
+    last_verified_date: version.last_verified_date ?? null,
+    charges_verified: Boolean(version.charges_verified),
     utilityName: 'DESCO / DPDC / BPDB (LT-A Residential)',
     tariffType: 'SLAB',
     slabs: version.slabs.map(s => ({ ...s })),

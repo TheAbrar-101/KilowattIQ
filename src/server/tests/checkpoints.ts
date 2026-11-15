@@ -14,6 +14,7 @@
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 import { BudgetEngine } from '../../../backend/engine/BudgetEngine';
 import { ROICalculator } from '../../../backend/engine/ROICalculator';
+import { SupabaseService, DEMO_HOUSEHOLD_UUID } from '../../../backend/services/SupabaseService';
 
 interface CheckpointResult {
   id: string;
@@ -139,6 +140,37 @@ async function main() {
       throw new Error('Expected higher monthly savings under June 2026 Step 3 rate');
     }
     return `Old (৳${step3Old}/kWh): ৳${roiOld.monthlySavingsBDT.toFixed(0)}/mo (${roiOld.paybackPeriodMonths}m) | Jun26+ (৳${step3New}/kWh): ৳${roiNew.monthlySavingsBDT.toFixed(0)}/mo (${roiNew.paybackPeriodMonths}m)`;
+  });
+
+  await runTest('ENG-06', 'Lifeline Parity: TariffCalculator vs SupabaseService.getTariffs (45, 50, 51, 60, 75 kWh)', 'ENGINE', async () => {
+    const db = SupabaseService.getInstance();
+    const testUnits = [45, 50, 51, 60, 75];
+    const periods = ['2026-05-15', '2026-06-15'];
+
+    for (const billingPeriod of periods) {
+      for (const kwh of testUnits) {
+        const directCalc = TariffCalculator.calculateCost(kwh, 2.0, 'SLAB', undefined, { billingPeriod });
+        const dbCalc = await db.calculateCostFromTariffs(DEMO_HOUSEHOLD_UUID, kwh, 2.0, billingPeriod);
+
+        if (
+          directCalc.energyCostBDT !== dbCalc.energyCostBDT ||
+          directCalc.demandChargeBDT !== dbCalc.demandChargeBDT ||
+          directCalc.meterRentBDT !== dbCalc.meterRentBDT ||
+          directCalc.vatBDT !== dbCalc.vatBDT ||
+          directCalc.grossTotalBDT !== dbCalc.grossTotalBDT
+        ) {
+          throw new Error(
+            `Parity mismatch at ${kwh} kWh (${billingPeriod}): direct=৳${directCalc.grossTotalBDT} vs dbPath=৳${dbCalc.grossTotalBDT}`
+          );
+        }
+
+        const expectedStep = kwh <= 50 ? 'Lifeline' : 'Step 1';
+        if (!directCalc.slabBreakdown?.[0]?.stepName.includes(expectedStep) || !dbCalc.slabBreakdown?.[0]?.stepName.includes(expectedStep)) {
+          throw new Error(`Rule mismatch at ${kwh} kWh (${billingPeriod}): expected ${expectedStep}`);
+        }
+      }
+    }
+    return `Exact parity verified for 45, 50 (Lifeline) and 51, 60, 75 kWh (Step 1) across both tariff versions`;
   });
 
   // 2. HTTP Server & REST API Endpoints

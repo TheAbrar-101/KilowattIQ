@@ -2,11 +2,12 @@
   {
     "version_id": "BERC-LTA-2024-03",
     "effective_from": "2024-03-01",
-    "source_note": "BERC / DESCO / DPDC LT-A Residential Historical Tariff (Effective before 2026-06-01)",
-    "last_verified_date": "2026-05-15",
+    "source_note": "Previous rates; effective date unverified",
+    "last_verified_date": null,
     "demandChargePerKw": 42.0,
     "meterRent": 40.0,
     "vatPercent": 5.0,
+    "charges_verified": false,
     "flatRatePerKwh": 8.95,
     "touRates": {
       "offPeakRate": 7.05,
@@ -72,11 +73,12 @@
   {
     "version_id": "BERC-LTA-2026-06",
     "effective_from": "2026-06-01",
-    "source_note": "BERC LT-A Residential Revised Tariff (Effective June 2026 bills)",
-    "last_verified_date": "2026-06-01",
+    "source_note": "Rates per news reports of BERC order of 3-4 June 2026 (bdnews24, Dhaka Tribune); lifeline and Step 1 reverted on 4 June. Confirm against the official BERC order and a real bill.",
+    "last_verified_date": "2026-11-16",
     "demandChargePerKw": 42.0,
     "meterRent": 40.0,
     "vatPercent": 5.0,
+    "charges_verified": false,
     "flatRatePerKwh": 9.85,
     "touRates": {
       "offPeakRate": 7.05,

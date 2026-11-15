@@ -1,7 +1,16 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Household, Room, Appliance } from '../../shared/types/household';
 import { IoTDevice } from '../../shared/types/iot';
-import { getTariffVersionForBillingPeriod, DEFAULT_TARIFF_FIXED_CHARGES } from '../../shared/constants/bdTariffs';
+import { TariffVersion, CostCalculation } from '../../shared/types/energy';
+import {
+  getTariffVersionForBillingPeriod,
+  getBuiltInTariffSeedVersions,
+  setTariffVersions,
+  upsertTariffVersion,
+  normalizeBillingPeriodDate,
+  DEFAULT_TARIFF_FIXED_CHARGES,
+} from '../../shared/constants/bdTariffs';
+import { TariffCalculator } from '../engine/TariffCalculator';
 
 export const DEMO_HOUSEHOLD_UUID = '11111111-1111-4111-a111-111111111111';
 
@@ -1062,35 +1071,225 @@ export class SupabaseService {
     return null;
   }
 
+  private mapDbTariffVersionRow(row: any): TariffVersion {
+    return {
+      version_id: String(row.version_id),
+      effective_from: String(row.effective_from).slice(0, 10),
+      source_note: String(row.source_note || ''),
+      last_verified_date: row.last_verified_date ? String(row.last_verified_date).slice(0, 10) : null,
+      demandChargePerKw: Number(row.demand_charge_per_kw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw),
+      meterRent: Number(row.meter_rent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent),
+      vatPercent: Number(row.vat_percent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent),
+      charges_verified: Boolean(row.charges_verified),
+      slabs: Array.isArray(row.slabs) ? row.slabs : [],
+      flatRatePerKwh: row.flat_rate_per_kwh !== null && row.flat_rate_per_kwh !== undefined ? Number(row.flat_rate_per_kwh) : undefined,
+      touRates: row.tou_rates ?? undefined,
+      seasonalMultipliers: row.seasonal_multipliers ?? undefined,
+      updated_at: row.updated_at ?? undefined,
+      updated_by: row.updated_by ?? null,
+    };
+  }
+
+  /**
+   * Reads versioned tariffs from Supabase `tariff_versions` table.
+   * - If connected and table is empty, seeds from shared/data/tariffVersions.json once.
+   * - If DB is unavailable or errors, falls back cleanly to built-in read-only JSON.
+   */
+  async getTariffVersionsFromDb(): Promise<{
+    versions: TariffVersion[];
+    usingFallback: boolean;
+    source: 'DATABASE' | 'BUILTIN_FALLBACK';
+  }> {
+    if (!this.isMockMode && this.client) {
+      try {
+        const { data, error } = await this.client
+          .from('tariff_versions')
+          .select('*')
+          .order('effective_from', { ascending: true });
+
+        if (!error && Array.isArray(data)) {
+          if (data.length === 0) {
+            const seedVersions = getBuiltInTariffSeedVersions();
+            const seedRows = seedVersions.map(v => ({
+              version_id: v.version_id,
+              effective_from: v.effective_from,
+              source_note: v.source_note,
+              last_verified_date: v.last_verified_date,
+              demand_charge_per_kw: v.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
+              meter_rent: v.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
+              vat_percent: v.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+              charges_verified: Boolean(v.charges_verified),
+              slabs: v.slabs,
+              flat_rate_per_kwh: v.flatRatePerKwh ?? null,
+              tou_rates: v.touRates ?? null,
+              seasonal_multipliers: v.seasonalMultipliers ?? null,
+              updated_at: new Date().toISOString(),
+              updated_by: 'system_seed',
+            }));
+
+            const { error: seedErr } = await this.client
+              .from('tariff_versions')
+              .upsert(seedRows, { onConflict: 'version_id' });
+
+            if (!seedErr) {
+              setTariffVersions(seedVersions);
+              return { versions: seedVersions, usingFallback: false, source: 'DATABASE' };
+            }
+            console.warn('[SupabaseService] Failed to seed tariff_versions:', seedErr.message);
+          } else {
+            const mapped = data.map(row => this.mapDbTariffVersionRow(row));
+            setTariffVersions(mapped);
+            return { versions: mapped, usingFallback: false, source: 'DATABASE' };
+          }
+        } else if (error) {
+          console.warn('[SupabaseService] tariff_versions unavailable, using built-in fallback:', error.message);
+        }
+      } catch (err: any) {
+        console.warn('[SupabaseService] tariff_versions exception, using built-in fallback:', err?.message || err);
+      }
+    }
+
+    const builtIn = getBuiltInTariffSeedVersions();
+    setTariffVersions(builtIn);
+    return {
+      versions: builtIn,
+      usingFallback: true,
+      source: 'BUILTIN_FALLBACK',
+    };
+  }
+
+  /**
+   * Persists a tariff version into Supabase `tariff_versions` table.
+   * Does NOT write to shared/data/tariffVersions.json on disk.
+   */
+  async upsertTariffVersionInDb(
+    version: TariffVersion,
+    updatedBy: string
+  ): Promise<{
+    ok: boolean;
+    usingFallback: boolean;
+    version?: TariffVersion;
+    versions: TariffVersion[];
+    error?: string;
+  }> {
+    if (this.isMockMode || !this.client) {
+      return {
+        ok: false,
+        usingFallback: true,
+        versions: getBuiltInTariffSeedVersions(),
+        error: 'Database unavailable: using built-in read-only tariff data.',
+      };
+    }
+
+    const row = {
+      version_id: version.version_id.trim(),
+      effective_from: normalizeBillingPeriodDate(version.effective_from),
+      source_note: version.source_note,
+      last_verified_date: version.last_verified_date
+        ? normalizeBillingPeriodDate(version.last_verified_date)
+        : null,
+      demand_charge_per_kw: version.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
+      meter_rent: version.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
+      vat_percent: version.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+      charges_verified: Boolean(version.charges_verified),
+      slabs: version.slabs,
+      flat_rate_per_kwh: version.flatRatePerKwh ?? null,
+      tou_rates: version.touRates ?? null,
+      seasonal_multipliers: version.seasonalMultipliers ?? null,
+      updated_at: new Date().toISOString(),
+      updated_by: updatedBy,
+    };
+
+    try {
+      const { data, error } = await this.client
+        .from('tariff_versions')
+        .upsert(row, { onConflict: 'version_id' })
+        .select('*')
+        .single();
+
+      if (error || !data) {
+        return {
+          ok: false,
+          usingFallback: true,
+          versions: getBuiltInTariffSeedVersions(),
+          error: error?.message || 'Failed to persist tariff version to database.',
+        };
+      }
+
+      const savedVersion = this.mapDbTariffVersionRow(data);
+      const allFromDb = await this.getTariffVersionsFromDb();
+      const updatedList = allFromDb.usingFallback
+        ? upsertTariffVersion(savedVersion)
+        : allFromDb.versions;
+
+      return {
+        ok: true,
+        usingFallback: false,
+        version: savedVersion,
+        versions: updatedList,
+      };
+    } catch (err: any) {
+      return {
+        ok: false,
+        usingFallback: true,
+        versions: getBuiltInTariffSeedVersions(),
+        error: err?.message || 'Database write error.',
+      };
+    }
+  }
+
   // Tariffs & Rules
-  async getTariffs(householdId: string): Promise<any> {
+  async getTariffs(householdId: string, billingPeriod?: string | Date): Promise<any> {
     const targetHhId = this.resolveHouseholdId(householdId);
     if (!this.isMockMode && this.client) {
+      const { versions, usingFallback } = await this.getTariffVersionsFromDb();
+      if (!usingFallback && versions.length > 0) {
+        const targetDate = normalizeBillingPeriodDate(billingPeriod);
+        let matched = versions[0];
+        for (const ver of versions) {
+          if (ver.effective_from <= targetDate) {
+            matched = ver;
+          }
+        }
+        return this.formatTariffVersionAsRecord(targetHhId, matched, false);
+      }
+
       const { data: tariff, error: tErr } = await this.client.from('tariffs').select('*').eq('household_id', targetHhId).single();
       if (tErr && tErr.code !== 'PGRST116') {
         console.error('[SupabaseService ERROR] getTariffs:', tErr.message);
       }
       if (tariff) {
         const { data: rules } = await this.client.from('tariff_rate_rules').select('*').eq('tariff_id', tariff.id).order('step_number', { ascending: true });
-        return { ...tariff, rules: rules || [] };
+        return { ...tariff, rules: rules || [], lifeline_rule: 'SEPARATE_NON_STACKED_MAX_50_KWH' };
       }
     }
-    const activeVersion = getTariffVersionForBillingPeriod();
+    const activeVersion = getTariffVersionForBillingPeriod(billingPeriod);
+    return this.formatTariffVersionAsRecord(targetHhId, activeVersion, true);
+  }
+
+  private formatTariffVersionAsRecord(
+    householdId: string,
+    version: TariffVersion,
+    usingFallback: boolean
+  ): any {
     return {
       id: '55555555-5555-4555-a555-555555555501',
-      household_id: targetHhId,
+      household_id: householdId,
       utility_provider: 'DESCO',
       tariff_type: 'tiered',
-      tariff_code: activeVersion.version_id,
-      effective_date: activeVersion.effective_from,
-      last_verified_date: activeVersion.last_verified_date,
-      source_note: activeVersion.source_note,
+      tariff_code: version.version_id,
+      effective_date: version.effective_from,
+      last_verified_date: version.last_verified_date,
+      source_note: version.source_note,
+      charges_verified: Boolean(version.charges_verified),
+      lifeline_rule: 'SEPARATE_NON_STACKED_MAX_50_KWH',
+      using_fallback: usingFallback,
       // TODO(verify): Configurable VAT, demand charge, and meter rent
-      vat_percentage: activeVersion.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
-      demand_charge_per_kw_bdt: activeVersion.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
-      meter_rent_bdt: activeVersion.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
+      vat_percentage: version.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+      demand_charge_per_kw_bdt: version.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
+      meter_rent_bdt: version.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
       is_system_global: true,
-      rules: activeVersion.slabs.map((slab, idx) => ({
+      rules: version.slabs.map((slab, idx) => ({
         id: `6666666${idx + 1}-${String(idx + 1).repeat(4)}-4111-a111-111111111111`,
         tariff_id: '55555555-5555-4555-a555-555555555501',
         step_number: slab.step ?? idx,
@@ -1101,6 +1300,23 @@ export class SupabaseService {
         is_lifeline: Boolean(slab.isLifeline),
       })),
     };
+  }
+
+  /**
+   * Evaluates a monthly bill strictly through the `getTariffs` data path so callers
+   * and tests can assert exact parity with `TariffCalculator.calculateCost`.
+   */
+  async calculateCostFromTariffs(
+    householdId: string,
+    kwhConsumption: number,
+    sanctionedLoadKw: number = 3.0,
+    billingPeriod?: string | Date
+  ): Promise<CostCalculation> {
+    const tariffRecord = await this.getTariffs(householdId, billingPeriod);
+    const structure = TariffCalculator.fromTariffRecord(tariffRecord);
+    return TariffCalculator.calculateCost(kwhConsumption, sanctionedLoadKw, 'SLAB', structure, {
+      billingPeriod,
+    });
   }
 
   // Budgets & History

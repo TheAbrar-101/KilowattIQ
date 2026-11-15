@@ -13,11 +13,14 @@ export interface TariffVersion {
   version_id: string;
   effective_from: string; // ISO date YYYY-MM-DD
   source_note: string;
-  last_verified_date: string; // ISO date YYYY-MM-DD
+  last_verified_date: string | null; // ISO date YYYY-MM-DD or null when unverified
   slabs: SlabTier[];
   demandChargePerKw?: number; // TODO(verify): BDT / kW / month
   meterRent?: number;         // TODO(verify): BDT / month
   vatPercent?: number;        // TODO(verify): Govt VAT %
+  charges_verified?: boolean; // Remains false ('unverified') until explicitly verified by Admin
+  updated_at?: string;
+  updated_by?: string | null;
   flatRatePerKwh?: number;
   touRates?: {
     offPeakRate: number;
@@ -34,7 +37,8 @@ export interface TariffStructure {
   version_id?: string;
   effective_from?: string;
   source_note?: string;
-  last_verified_date?: string;
+  last_verified_date?: string | null;
+  charges_verified?: boolean;
   utilityName: string; // e.g. "DESCO", "DPDC", "BPDB", "WZPDCL"
   tariffType: TariffType;
   slabs: SlabTier[];
@@ -67,7 +71,7 @@ export interface CostCalculation {
   tariffType: TariffType;
   tariffVersionId?: string;
   effectiveFrom?: string;
-  lastVerifiedDate?: string;
+  lastVerifiedDate?: string | null;
   totalKwh: number;
   energyCostBDT: number;
   slabBreakdown?: Array<{
@@ -211,7 +215,7 @@ export interface FullReportData {
 export interface SlabThresholdAnalysis {
   tariffVersionId?: string;
   effectiveFrom?: string;
-  lastVerifiedDate?: string;
+  lastVerifiedDate?: string | null;
   currentSlabName: string;
   currentRateBDT: number;
   nextSlabName: string | null;

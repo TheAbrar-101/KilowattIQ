@@ -40,8 +40,11 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
   const [kwhInput, setKwhInput] = useState<number>(285);
   const [selectedTariffType, setSelectedTariffType] = useState<TariffType>('SLAB');
   const [daysPassedInput, setDaysPassedInput] = useState<number>(18);
-  const [billingPeriod, setBillingPeriod] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const currentBillingMonth = new Date().toISOString().slice(0, 7);
+  const [billingPeriod, setBillingPeriod] = useState<string>(`${currentBillingMonth}-01`);
+  const [showAdvancedPeriod, setShowAdvancedPeriod] = useState<boolean>(false);
   const [versions, setVersionsState] = useState<TariffVersion[]>(() => getTariffVersions());
+  const [usingFallback, setUsingFallback] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,14 +53,19 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
         const res = await fetch('/api/v1/tariffs/versions', {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setUsingFallback(true);
+          return;
+        }
         const json = await res.json();
         if (!cancelled && json.status === 'success' && Array.isArray(json.data?.versions)) {
           setTariffVersions(json.data.versions);
           setVersionsState(json.data.versions);
+          setUsingFallback(Boolean(json.data?.usingFallback));
         }
       } catch {
         // Retain local seeded registry if offline
+        if (!cancelled) setUsingFallback(true);
       }
     };
     loadVersions();
@@ -138,12 +146,36 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
 
         <div className="flex flex-wrap items-center gap-2 px-2 sm:pr-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
           <span>
-            {language === 'bn'
-              ? `ট্যারিফ সংস্করণ: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, সর্বশেষ যাচাই: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date}`
-              : `Tariff version: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, last verified: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date}`}
+            {(() => {
+              const verId = costCalc.tariffVersionId || activeTariffVersion.version_id;
+              const verifiedDate =
+                costCalc.lastVerifiedDate !== undefined
+                  ? costCalc.lastVerifiedDate
+                  : activeTariffVersion.last_verified_date;
+              const verifiedLabel = verifiedDate
+                ? verifiedDate
+                : (language === 'bn' ? 'Not verified (যাচাইকৃত নয়)' : 'Not verified');
+              return language === 'bn'
+                ? `ট্যারিফ সংস্করণ: ${verId}, সর্বশেষ যাচাই: ${verifiedLabel}`
+                : `Tariff version: ${verId}, last verified: ${verifiedLabel}`;
+            })()}
           </span>
         </div>
       </div>
+
+      {usingFallback && (
+        <div
+          role="status"
+          className="bg-amber-50 dark:bg-amber-950/40 border border-amber-400/50 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300 font-['Plus_Jakarta_Sans']"
+        >
+          <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
+          <span>
+            {language === 'bn'
+              ? 'Using built-in tariff data — ডাটাবেস সংযোগ না থাকায় বিল্ট-ইন ট্যারিফ ডেটা ব্যবহৃত হচ্ছে।'
+              : 'Using built-in tariff data (read-only fallback while database is unavailable).'}
+          </span>
+        </div>
+      )}
 
       {activeSection === 'VERIFY' ? (
         <VerifyBillSection household={household} />
@@ -204,33 +236,20 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
               <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-['Outfit']">
-                {language === 'bn' ? 'বিলিং সময়:' : 'Billing Period:'}
+                {language === 'bn' ? 'মাস:' : 'Month:'}
               </span>
-              <input
-                type="date"
-                aria-label="Billing Period Date"
-                value={billingPeriod}
-                onChange={(e) => setBillingPeriod(e.target.value || new Date().toISOString().slice(0, 10))}
-                className="bg-transparent text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none cursor-pointer"
-              />
-            </div>
-
-            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 rounded-xl">
-              {versions.slice(0, 3).map((ver) => (
-                <button
-                  key={ver.version_id}
-                  type="button"
-                  onClick={() => setBillingPeriod(ver.effective_from)}
-                  aria-label={`Select tariff version ${ver.version_id}`}
-                  className={`min-h-[36px] px-2.5 py-1 rounded-lg text-[10px] font-semibold font-['Outfit'] transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400 ${
-                    activeTariffVersion.version_id === ver.version_id
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {ver.effective_from}
-                </button>
-              ))}
+              <span className="text-slate-900 dark:text-white font-mono font-bold text-xs tabular-nums">
+                {billingPeriod.slice(0, 7)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedPeriod(prev => !prev)}
+                aria-expanded={showAdvancedPeriod}
+                aria-label="Toggle Advanced billing period selector"
+                className="min-h-[32px] px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px] font-semibold font-['Outfit'] text-amber-600 dark:text-amber-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400"
+              >
+                {language === 'bn' ? 'অ্যাডভান্সড' : 'Advanced'}
+              </button>
             </div>
 
             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
@@ -248,6 +267,50 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
             </div>
           </div>
         </div>
+
+        {showAdvancedPeriod && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+              <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-['Outfit']">
+                {language === 'bn' ? 'বিলিং তারিখ:' : 'Billing Period:'}
+              </span>
+              <input
+                type="date"
+                aria-label="Billing Period Date"
+                value={billingPeriod}
+                onChange={(e) => setBillingPeriod(e.target.value || `${currentBillingMonth}-01`)}
+                className="bg-transparent text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none cursor-pointer"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 rounded-xl">
+              {versions.slice(0, 4).map((ver) => (
+                <button
+                  key={ver.version_id}
+                  type="button"
+                  onClick={() => setBillingPeriod(ver.effective_from)}
+                  aria-label={`Select tariff version ${ver.version_id}`}
+                  className={`min-h-[36px] px-2.5 py-1 rounded-lg text-[10px] font-semibold font-['Outfit'] transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400 ${
+                    activeTariffVersion.version_id === ver.version_id
+                      ? 'bg-amber-400 text-slate-950 font-bold shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {ver.version_id} ({ver.effective_from})
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setBillingPeriod(`${currentBillingMonth}-01`)}
+                aria-label="Reset to current billing month"
+                className="min-h-[36px] px-2.5 py-1 rounded-lg text-[10px] font-semibold font-['Outfit'] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                {language === 'bn' ? 'বর্তমান মাস' : 'Current Month'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Interactive Sliders for Consumption & Month Days */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -306,9 +369,19 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
                 Sanctioned Load: {household.sanctionedLoadKw} kW | Meter Rent: {formatCurrency(costCalc.meterRentBDT)} | Demand Charge: {formatCurrency(costCalc.demandChargeBDT)}
               </p>
               <p className="text-[10px] text-amber-600 dark:text-amber-400 font-mono mt-0.5">
-                {language === 'bn'
-                  ? `ট্যারিফ সংস্করণ: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, সর্বশেষ যাচাই: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date} (${activeTariffVersion.source_note})`
-                  : `Tariff version: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, last verified: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date} (${activeTariffVersion.source_note})`}
+                {(() => {
+                  const verId = costCalc.tariffVersionId || activeTariffVersion.version_id;
+                  const verifiedDate =
+                    costCalc.lastVerifiedDate !== undefined
+                      ? costCalc.lastVerifiedDate
+                      : activeTariffVersion.last_verified_date;
+                  const verifiedLabel = verifiedDate
+                    ? verifiedDate
+                    : (language === 'bn' ? 'Not verified (যাচাইকৃত নয়)' : 'Not verified');
+                  return language === 'bn'
+                    ? `ট্যারিফ সংস্করণ: ${verId}, সর্বশেষ যাচাই: ${verifiedLabel} (${activeTariffVersion.source_note})`
+                    : `Tariff version: ${verId}, last verified: ${verifiedLabel} (${activeTariffVersion.source_note})`;
+                })()}
               </p>
             </div>
             <div className="text-right">
@@ -357,6 +430,20 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
                 </div>
               ))}
             </div>
+
+            {selectedTariffType === 'SLAB' && (
+              <p
+                className={`text-[11px] rounded-xl px-3 py-2 border font-['Plus_Jakarta_Sans'] ${
+                  kwhInput >= 45 && kwhInput <= 60
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400/50 text-amber-800 dark:text-amber-300 font-medium'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                {language === 'bn'
+                  ? 'নোট (৫০–৫১ ইউনিট নিয়ম): মাসিক ব্যবহার ৫০ kWh অতিক্রম করলে লাইফলাইন হার (৳৪.৬৩) আর প্রযোজ্য থাকে না; তখন ১ম ইউনিট থেকেই ধাপ ১ (০–৭৫ kWh @ ৳৫.২৬) হিসেবে বিল গণনা হয়।'
+                  : '50–51 kWh Lifeline note: Crossing 50 kWh removes the Lifeline rate (৳4.63/kWh); all units from 0–75 kWh are billed at Step 1 (৳5.26/kWh).'}
+              </p>
+            )}
           </div>
 
           {/* Fixed Charges Table */}
