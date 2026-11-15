@@ -11,7 +11,6 @@
 
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 import { ExtractedBillData, VerificationResult, ComparisonRow, BillHistoryRecord } from './types';
-import { BD_DEFAULT_SLAB_TARIFF } from '../../../shared/constants/bdTariffs';
 
 export class BillVerifier {
   private static instance: BillVerifier;
@@ -35,12 +34,13 @@ export class BillVerifier {
   ): VerificationResult {
     const sanctionedLoad = customSanctionedLoadKw ?? billData.sanctionedLoadKw ?? 3.0;
 
-    // 1. Recalculate using canonical TariffCalculator (do not duplicate logic!)
+    // 1. Recalculate using canonical TariffCalculator resolved for the bill month
     const calculated = TariffCalculator.calculateCost(
       billData.unitsKwh,
       sanctionedLoad,
       'SLAB',
-      BD_DEFAULT_SLAB_TARIFF
+      undefined,
+      { billingPeriod: billData.month }
     );
 
     // 2. Derive utility line-item values if not itemized on the paper bill

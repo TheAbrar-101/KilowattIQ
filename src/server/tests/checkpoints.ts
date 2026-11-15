@@ -63,38 +63,82 @@ async function main() {
   const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
   let authToken = '';
 
-  // 1. Core Engines
-  await runTest('ENG-01', 'BERC LT-A Tariff Slab Calculations', 'ENGINE', () => {
-    const calc = TariffCalculator.calculateCost(285, 4.5, 'SLAB');
-    if (!calc.grossTotalBDT || calc.grossTotalBDT <= 0) throw new Error('Invalid bill total');
-    if (calc.slabBreakdown.length !== 3) throw new Error(`Expected 3 slabs for 285 kWh, got ${calc.slabBreakdown.length}`);
-    if (calc.vatBDT <= 0) throw new Error('VAT calculation missing');
-    return `285 kWh -> ৳${calc.grossTotalBDT.toFixed(2)} (Energy: ৳${calc.energyCostBDT}, Demand: ৳${calc.demandChargeBDT}, VAT: ৳${calc.vatBDT})`;
+  // 1. Core Engines (Versioned BERC LT-A: Historical BERC-LTA-2024-03 & June 2026 BERC-LTA-2026-06)
+  await runTest('ENG-01', 'BERC LT-A Tariff Slab Calculations (Both Versions)', 'ENGINE', () => {
+    const calcOld = TariffCalculator.calculateCost(285, 4.5, 'SLAB', undefined, { billingPeriod: '2026-05-15' });
+    if (calcOld.tariffVersionId !== 'BERC-LTA-2024-03') throw new Error(`Expected BERC-LTA-2024-03, got ${calcOld.tariffVersionId}`);
+    if (calcOld.slabBreakdown.length !== 3) throw new Error(`Expected 3 slabs for 285 kWh (old), got ${calcOld.slabBreakdown.length}`);
+    if (Math.abs(calcOld.grossTotalBDT - 2277.49) > 0.05) throw new Error(`Expected ৳2277.49 (old), got ৳${calcOld.grossTotalBDT}`);
+
+    const calcNew = TariffCalculator.calculateCost(285, 4.5, 'SLAB', undefined, { billingPeriod: '2026-06-15' });
+    if (calcNew.tariffVersionId !== 'BERC-LTA-2026-06') throw new Error(`Expected BERC-LTA-2026-06, got ${calcNew.tariffVersionId}`);
+    if (calcNew.slabBreakdown.length !== 3) throw new Error(`Expected 3 slabs for 285 kWh (new), got ${calcNew.slabBreakdown.length}`);
+    if (Math.abs(calcNew.grossTotalBDT - 2583.11) > 0.05) throw new Error(`Expected ৳2583.11 (new), got ৳${calcNew.grossTotalBDT}`);
+    if (calcNew.vatBDT <= 0) throw new Error('VAT calculation missing');
+
+    return `Pre-Jun26 (${calcOld.tariffVersionId}): ৳${calcOld.grossTotalBDT.toFixed(2)} | Jun26+ (${calcNew.tariffVersionId}): ৳${calcNew.grossTotalBDT.toFixed(2)}`;
   });
 
-  await runTest('ENG-02', 'Step 1 Tariff Step for <= 75 kWh', 'ENGINE', () => {
-    const calc = TariffCalculator.calculateCost(45, 2.0, 'SLAB');
-    if (calc.slabBreakdown[0].stepName !== 'Step 1 (0 - 75 kWh)') throw new Error(`Expected Step 1, got ${calc.slabBreakdown[0].stepName}`);
-    return `45 kWh correctly evaluated at Step 1 rate: ৳${calc.energyCostBDT.toFixed(2)}`;
+  await runTest('ENG-02', 'Separate Lifeline (<=50 kWh) & Non-Stacked Step 1 (>50 kWh) Across Both Versions', 'ENGINE', () => {
+    for (const billingPeriod of ['2026-05-15', '2026-06-15']) {
+      const lifeline = TariffCalculator.calculateCost(45, 2.0, 'SLAB', undefined, { billingPeriod });
+      if (lifeline.slabBreakdown.length !== 1 || !lifeline.slabBreakdown[0].stepName.includes('Lifeline')) {
+        throw new Error(`Expected separate Lifeline tier for 45 kWh (${billingPeriod}), got ${lifeline.slabBreakdown[0]?.stepName}`);
+      }
+      if (Math.abs(lifeline.energyCostBDT - 208.35) > 0.05) {
+        throw new Error(`Expected ৳208.35 Lifeline energy cost, got ৳${lifeline.energyCostBDT}`);
+      }
+
+      const step1 = TariffCalculator.calculateCost(60, 2.0, 'SLAB', undefined, { billingPeriod });
+      if (step1.slabBreakdown.length !== 1 || step1.slabBreakdown[0].stepName !== 'Step 1 (0 - 75 kWh)') {
+        throw new Error(`Expected non-stacked Step 1 (0 - 75 kWh) for 60 kWh (${billingPeriod}), got ${step1.slabBreakdown[0]?.stepName}`);
+      }
+      if (Math.abs(step1.energyCostBDT - 315.60) > 0.05) {
+        throw new Error(`Expected ৳315.60 Step 1 energy cost for 60 kWh, got ৳${step1.energyCostBDT}`);
+      }
+    }
+    return `Both versions verified: 45 kWh -> Lifeline ৳208.35 | 60 kWh -> Step 1 (not stacked) ৳315.60`;
   });
 
-  await runTest('ENG-03', 'Predictive Slab Threshold Risk & Breach Countdown', 'ENGINE', () => {
-    const analysis = TariffCalculator.analyzeSlabThreshold(285, 18, 30, 4.5);
-    if (!analysis.currentSlabName.includes('Step 3')) throw new Error(`Current slab mismatch: ${analysis.currentSlabName}`);
-    if (analysis.burnRateKwhPerDay <= 0) throw new Error('Invalid daily burn rate');
-    return `Current: ${analysis.currentSlabName}, Buffer: ${analysis.kwhRemainingToBreach} kWh, Days: ${analysis.daysUntilBreach}`;
+  await runTest('ENG-03', 'Predictive Slab Threshold Risk & Breach Countdown (Both Versions)', 'ENGINE', () => {
+    const analysisOld = TariffCalculator.analyzeSlabThreshold(285, 18, 30, 4.5, undefined, '2026-05-15');
+    if (analysisOld.tariffVersionId !== 'BERC-LTA-2024-03') throw new Error(`Expected old version, got ${analysisOld.tariffVersionId}`);
+    if (!analysisOld.currentSlabName.includes('Step 3') || analysisOld.currentRateBDT !== 7.59) {
+      throw new Error(`Old slab mismatch: ${analysisOld.currentSlabName} @ ${analysisOld.currentRateBDT}`);
+    }
+
+    const analysisNew = TariffCalculator.analyzeSlabThreshold(285, 18, 30, 4.5, undefined, '2026-06-15');
+    if (analysisNew.tariffVersionId !== 'BERC-LTA-2026-06') throw new Error(`Expected new version, got ${analysisNew.tariffVersionId}`);
+    if (!analysisNew.currentSlabName.includes('Step 3') || analysisNew.currentRateBDT !== 9.10) {
+      throw new Error(`New slab mismatch: ${analysisNew.currentSlabName} @ ${analysisNew.currentRateBDT}`);
+    }
+    if (analysisNew.burnRateKwhPerDay <= 0) throw new Error('Invalid daily burn rate');
+
+    return `Old Rate: ৳${analysisOld.currentRateBDT}/u (${analysisOld.tariffVersionId}) | New Rate: ৳${analysisNew.currentRateBDT}/u (${analysisNew.tariffVersionId}), Buffer: ${analysisNew.kwhRemainingToBreach} kWh`;
   });
 
-  await runTest('ENG-04', 'Budget Engine Overage Predictor', 'ENGINE', () => {
-    const status = BudgetEngine.evaluateBudget('h1', 3000, 285, 18, 30, 4.5, 'SLAB');
-    if (typeof status.isOverageLikely !== 'boolean') throw new Error('Invalid overage flag');
-    return `Spent: ৳${status.currentSpentBDT.toFixed(0)}, Projected: ৳${status.projectedCostBDT.toFixed(0)}, Budget: ৳3000`;
+  await runTest('ENG-04', 'Budget Engine Overage Predictor (Both Versions)', 'ENGINE', () => {
+    const statusOld = BudgetEngine.evaluateBudget('h1', 3000, 285, 18, 30, 4.5, 'SLAB', '2026-05-15');
+    const statusNew = BudgetEngine.evaluateBudget('h1', 3000, 285, 18, 30, 4.5, 'SLAB', '2026-06-15');
+    if (typeof statusOld.isOverageLikely !== 'boolean' || typeof statusNew.isOverageLikely !== 'boolean') {
+      throw new Error('Invalid overage flag');
+    }
+    if (statusNew.currentSpentBDT <= statusOld.currentSpentBDT) {
+      throw new Error(`Expected June 2026 spend (${statusNew.currentSpentBDT}) > historical spend (${statusOld.currentSpentBDT})`);
+    }
+    return `Pre-Jun26: Spent ৳${statusOld.currentSpentBDT.toFixed(0)} / Proj ৳${statusOld.projectedCostBDT.toFixed(0)} | Jun26+: Spent ৳${statusNew.currentSpentBDT.toFixed(0)} / Proj ৳${statusNew.projectedCostBDT.toFixed(0)}`;
   });
 
-  await runTest('ENG-05', 'Inverter Appliance ROI & Payback Calculator', 'ENGINE', () => {
-    const roi = ROICalculator.calculateUpgradeROI('Non-Inverter AC', '5-Star Inverter AC', 1800, 950, 8, 75000, 7.34);
-    if (roi.paybackPeriodMonths <= 0) throw new Error('Invalid payback calculation');
-    return `Monthly Savings: ৳${roi.monthlySavingsBDT.toFixed(0)}, Payback: ${roi.paybackPeriodMonths} months`;
+  await runTest('ENG-05', 'Inverter Appliance ROI & Payback Calculator (Both Versions)', 'ENGINE', () => {
+    const step3Old = TariffCalculator.analyzeSlabThreshold(285, 18, 30, 4.5, undefined, '2026-05-15').currentRateBDT;
+    const step3New = TariffCalculator.analyzeSlabThreshold(285, 18, 30, 4.5, undefined, '2026-06-15').currentRateBDT;
+    const roiOld = ROICalculator.calculateUpgradeROI('Non-Inverter AC', '5-Star Inverter AC', 1800, 950, 8, 75000, step3Old);
+    const roiNew = ROICalculator.calculateUpgradeROI('Non-Inverter AC', '5-Star Inverter AC', 1800, 950, 8, 75000, step3New);
+    if (roiOld.paybackPeriodMonths <= 0 || roiNew.paybackPeriodMonths <= 0) throw new Error('Invalid payback calculation');
+    if (roiNew.monthlySavingsBDT <= roiOld.monthlySavingsBDT) {
+      throw new Error('Expected higher monthly savings under June 2026 Step 3 rate');
+    }
+    return `Old (৳${step3Old}/kWh): ৳${roiOld.monthlySavingsBDT.toFixed(0)}/mo (${roiOld.paybackPeriodMonths}m) | Jun26+ (৳${step3New}/kWh): ৳${roiNew.monthlySavingsBDT.toFixed(0)}/mo (${roiNew.paybackPeriodMonths}m)`;
   });
 
   // 2. HTTP Server & REST API Endpoints

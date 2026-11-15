@@ -106,60 +106,25 @@ export const SLAB_JUMP_4_5: number = 1.35;
  */
 export const CARBON_FACTOR_BD: number = 0.62;
 
+import { getActiveTariffStructure } from '../../shared/constants/bdTariffs';
+
+const activeTariff = getActiveTariffStructure();
+
 /**
  * Official BERC LT-A Domestic Residential 6-Step Progressive Tariff Slabs
+ * Derived from versioned tariff data in shared/data/tariffVersions.json
  * Applied across DESCO, DPDC, BPDB, and WZPDCL jurisdictions
  */
-export const BERC_LTA_6_SLABS: readonly BercSlabTier[] = [
-  {
-    step: 1,
-    minKwh: 0,
-    maxKwh: 75,
-    ratePerKwh: 5.26,
-    stepName: 'Step 1 (0 - 75 kWh)',
-    stepCapacity: 75,
-  },
-  {
-    step: 2,
-    minKwh: 76,
-    maxKwh: 200,
-    ratePerKwh: 7.20,
-    stepName: 'Step 2 (76 - 200 kWh)',
-    stepCapacity: 125,
-  },
-  {
-    step: 3,
-    minKwh: 201,
-    maxKwh: 300,
-    ratePerKwh: 7.59,
-    stepName: 'Step 3 (201 - 300 kWh)',
-    stepCapacity: 100,
-  },
-  {
-    step: 4,
-    minKwh: 301,
-    maxKwh: 400,
-    ratePerKwh: 8.02,
-    stepName: 'Step 4 (301 - 400 kWh)',
-    stepCapacity: 100,
-  },
-  {
-    step: 5,
-    minKwh: 401,
-    maxKwh: 600,
-    ratePerKwh: 12.67,
-    stepName: 'Step 5 (401 - 600 kWh)',
-    stepCapacity: 200,
-  },
-  {
-    step: 6,
-    minKwh: 601,
-    maxKwh: null,
-    ratePerKwh: 14.61,
-    stepName: 'Step 6 (Above 600 kWh)',
-    stepCapacity: null,
-  },
-] as const;
+export const BERC_LTA_6_SLABS: readonly BercSlabTier[] = activeTariff.slabs
+  .filter(s => !s.isLifeline && !s.stepName.toLowerCase().includes('lifeline'))
+  .map((s, idx) => ({
+    step: s.step ?? idx + 1,
+    minKwh: s.minKwh,
+    maxKwh: s.maxKwh,
+    ratePerKwh: s.ratePerKwh,
+    stepName: s.stepName,
+    stepCapacity: s.maxKwh !== null ? (s.minKwh === 0 ? s.maxKwh : s.maxKwh - s.minKwh + 1) : null,
+  }));
 
 /**
  * Canonical alias for the 6-slab array

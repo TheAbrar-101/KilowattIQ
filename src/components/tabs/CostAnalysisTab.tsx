@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   Calculator,
@@ -13,12 +13,18 @@ import {
   Clock,
   Target,
   ArrowUpRight,
-  Zap
+  Zap,
+  Calendar
 } from 'lucide-react';
-import { TariffType, CostCalculation, BudgetStatus, SlabThresholdAnalysis } from '../../../shared/types/energy';
+import { TariffType, CostCalculation, BudgetStatus, SlabThresholdAnalysis, TariffVersion } from '../../../shared/types/energy';
 import { Household } from '../../../shared/types/household';
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 import { BudgetEngine } from '../../../backend/engine/BudgetEngine';
+import {
+  getTariffVersions,
+  getTariffVersionForBillingPeriod,
+  setTariffVersions,
+} from '../../../shared/constants/bdTariffs';
 import { VerifyBillSection } from '../bills/VerifyBillSection';
 import { WeatherImpactCard } from '../cost/WeatherImpactCard';
 import { useLanguage } from '../../context/LanguageContext';
@@ -34,12 +40,41 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
   const [kwhInput, setKwhInput] = useState<number>(285);
   const [selectedTariffType, setSelectedTariffType] = useState<TariffType>('SLAB');
   const [daysPassedInput, setDaysPassedInput] = useState<number>(18);
+  const [billingPeriod, setBillingPeriod] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [versions, setVersionsState] = useState<TariffVersion[]>(() => getTariffVersions());
 
-  // Compute live cost calculation
+  useEffect(() => {
+    let cancelled = false;
+    const loadVersions = async () => {
+      try {
+        const res = await fetch('/api/v1/tariffs/versions', {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && json.status === 'success' && Array.isArray(json.data?.versions)) {
+          setTariffVersions(json.data.versions);
+          setVersionsState(json.data.versions);
+        }
+      } catch {
+        // Retain local seeded registry if offline
+      }
+    };
+    loadVersions();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const activeTariffVersion = getTariffVersionForBillingPeriod(billingPeriod);
+
+  // Compute live cost calculation for the selected billing period
   const costCalc: CostCalculation = TariffCalculator.calculateCost(
     kwhInput,
     household.sanctionedLoadKw,
-    selectedTariffType
+    selectedTariffType,
+    undefined,
+    { billingPeriod }
   );
 
   // Compute live budget status
@@ -50,7 +85,8 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
     daysPassedInput,
     30,
     household.sanctionedLoadKw,
-    selectedTariffType
+    selectedTariffType,
+    billingPeriod
   );
 
   // Compute predictive BERC slab threshold risk analysis
@@ -58,7 +94,9 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
     kwhInput,
     daysPassedInput,
     30,
-    household.sanctionedLoadKw
+    household.sanctionedLoadKw,
+    undefined,
+    billingPeriod
   );
 
   return (
@@ -98,8 +136,12 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
           </button>
         </div>
 
-        <div className="hidden md:flex items-center gap-2 pr-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-          <span>DESCO / DPDC Official LT-A Schedule</span>
+        <div className="flex flex-wrap items-center gap-2 px-2 sm:pr-3 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+          <span>
+            {language === 'bn'
+              ? `ট্যারিফ সংস্করণ: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, সর্বশেষ যাচাই: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date}`
+              : `Tariff version: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, last verified: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date}`}
+          </span>
         </div>
       </div>
 
@@ -160,11 +202,44 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
             </div>
 
             <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+              <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-['Outfit']">
+                {language === 'bn' ? 'বিলিং সময়:' : 'Billing Period:'}
+              </span>
+              <input
+                type="date"
+                aria-label="Billing Period Date"
+                value={billingPeriod}
+                onChange={(e) => setBillingPeriod(e.target.value || new Date().toISOString().slice(0, 10))}
+                className="bg-transparent text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none cursor-pointer"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 rounded-xl">
+              {versions.slice(0, 3).map((ver) => (
+                <button
+                  key={ver.version_id}
+                  type="button"
+                  onClick={() => setBillingPeriod(ver.effective_from)}
+                  aria-label={`Select tariff version ${ver.version_id}`}
+                  className={`min-h-[36px] px-2.5 py-1 rounded-lg text-[10px] font-semibold font-['Outfit'] transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400 ${
+                    activeTariffVersion.version_id === ver.version_id
+                      ? 'bg-amber-400 text-slate-950 font-bold shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {ver.effective_from}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-display">Consumption:</span>
               <input
                 type="number"
                 min="0"
                 max="1500"
+                aria-label="Monthly Consumption kWh"
                 value={kwhInput}
                 onChange={(e) => setKwhInput(Math.max(0, Number(e.target.value)))}
                 className="w-16 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-900 dark:text-white font-mono font-bold text-xs focus:border-amber-500 focus:outline-none"
@@ -227,7 +302,14 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
               <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">Electricity Bill Detailed Breakdown</h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">Sanctioned Load: {household.sanctionedLoadKw} kW | Meter Rent: ৳40 | Demand Charge: ৳{household.sanctionedLoadKw * 42}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
+                Sanctioned Load: {household.sanctionedLoadKw} kW | Meter Rent: {formatCurrency(costCalc.meterRentBDT)} | Demand Charge: {formatCurrency(costCalc.demandChargeBDT)}
+              </p>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-mono mt-0.5">
+                {language === 'bn'
+                  ? `ট্যারিফ সংস্করণ: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, সর্বশেষ যাচাই: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date} (${activeTariffVersion.source_note})`
+                  : `Tariff version: ${costCalc.tariffVersionId || activeTariffVersion.version_id}, last verified: ${costCalc.lastVerifiedDate || activeTariffVersion.last_verified_date} (${activeTariffVersion.source_note})`}
+              </p>
             </div>
             <div className="text-right">
               <motion.span

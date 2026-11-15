@@ -12,14 +12,15 @@ export class BudgetEngine {
     daysPassed: number,
     daysInMonth: number = 30,
     sanctionedLoadKw: number = 3.0,
-    tariffType: TariffType = 'SLAB'
+    tariffType: TariffType = 'SLAB',
+    billingPeriod?: string | Date
   ): BudgetStatus {
     const validDaysPassed = Math.max(1, daysPassed);
     const dailyKwhAverage = currentKwh / validDaysPassed;
     const projectedKwh = dailyKwhAverage * daysInMonth;
 
-    const currentCost = TariffCalculator.calculateCost(currentKwh, sanctionedLoadKw, tariffType);
-    const projectedCost = TariffCalculator.calculateCost(projectedKwh, sanctionedLoadKw, tariffType);
+    const currentCost = TariffCalculator.calculateCost(currentKwh, sanctionedLoadKw, tariffType, undefined, { billingPeriod });
+    const projectedCost = TariffCalculator.calculateCost(projectedKwh, sanctionedLoadKw, tariffType, undefined, { billingPeriod });
 
     const projectedCostBDT = projectedCost.grossTotalBDT;
     const isOverageLikely = projectedCostBDT > monthlyBudgetBDT;

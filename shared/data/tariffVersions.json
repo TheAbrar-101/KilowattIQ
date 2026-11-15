@@ -1,0 +1,142 @@
+[
+  {
+    "version_id": "BERC-LTA-2024-03",
+    "effective_from": "2024-03-01",
+    "source_note": "BERC / DESCO / DPDC LT-A Residential Historical Tariff (Effective before 2026-06-01)",
+    "last_verified_date": "2026-05-15",
+    "demandChargePerKw": 42.0,
+    "meterRent": 40.0,
+    "vatPercent": 5.0,
+    "flatRatePerKwh": 8.95,
+    "touRates": {
+      "offPeakRate": 7.05,
+      "peakRate": 12.10
+    },
+    "seasonalMultipliers": {
+      "summer": 1.15,
+      "winter": 0.85
+    },
+    "slabs": [
+      {
+        "step": 0,
+        "minKwh": 0,
+        "maxKwh": 50,
+        "ratePerKwh": 4.63,
+        "stepName": "Lifeline (0 - 50 kWh)",
+        "isLifeline": true
+      },
+      {
+        "step": 1,
+        "minKwh": 0,
+        "maxKwh": 75,
+        "ratePerKwh": 5.26,
+        "stepName": "Step 1 (0 - 75 kWh)"
+      },
+      {
+        "step": 2,
+        "minKwh": 76,
+        "maxKwh": 200,
+        "ratePerKwh": 7.20,
+        "stepName": "Step 2 (76 - 200 kWh)"
+      },
+      {
+        "step": 3,
+        "minKwh": 201,
+        "maxKwh": 300,
+        "ratePerKwh": 7.59,
+        "stepName": "Step 3 (201 - 300 kWh)"
+      },
+      {
+        "step": 4,
+        "minKwh": 301,
+        "maxKwh": 400,
+        "ratePerKwh": 8.02,
+        "stepName": "Step 4 (301 - 400 kWh)"
+      },
+      {
+        "step": 5,
+        "minKwh": 401,
+        "maxKwh": 600,
+        "ratePerKwh": 12.67,
+        "stepName": "Step 5 (401 - 600 kWh)"
+      },
+      {
+        "step": 6,
+        "minKwh": 601,
+        "maxKwh": null,
+        "ratePerKwh": 14.61,
+        "stepName": "Step 6 (Above 600 kWh)"
+      }
+    ]
+  },
+  {
+    "version_id": "BERC-LTA-2026-06",
+    "effective_from": "2026-06-01",
+    "source_note": "BERC LT-A Residential Revised Tariff (Effective June 2026 bills)",
+    "last_verified_date": "2026-06-01",
+    "demandChargePerKw": 42.0,
+    "meterRent": 40.0,
+    "vatPercent": 5.0,
+    "flatRatePerKwh": 9.85,
+    "touRates": {
+      "offPeakRate": 7.05,
+      "peakRate": 12.10
+    },
+    "seasonalMultipliers": {
+      "summer": 1.15,
+      "winter": 0.85
+    },
+    "slabs": [
+      {
+        "step": 0,
+        "minKwh": 0,
+        "maxKwh": 50,
+        "ratePerKwh": 4.63,
+        "stepName": "Lifeline (0 - 50 kWh)",
+        "isLifeline": true
+      },
+      {
+        "step": 1,
+        "minKwh": 0,
+        "maxKwh": 75,
+        "ratePerKwh": 5.26,
+        "stepName": "Step 1 (0 - 75 kWh)"
+      },
+      {
+        "step": 2,
+        "minKwh": 76,
+        "maxKwh": 200,
+        "ratePerKwh": 8.50,
+        "stepName": "Step 2 (76 - 200 kWh)"
+      },
+      {
+        "step": 3,
+        "minKwh": 201,
+        "maxKwh": 300,
+        "ratePerKwh": 9.10,
+        "stepName": "Step 3 (201 - 300 kWh)"
+      },
+      {
+        "step": 4,
+        "minKwh": 301,
+        "maxKwh": 400,
+        "ratePerKwh": 9.62,
+        "stepName": "Step 4 (301 - 400 kWh)"
+      },
+      {
+        "step": 5,
+        "minKwh": 401,
+        "maxKwh": 600,
+        "ratePerKwh": 15.01,
+        "stepName": "Step 5 (401 - 600 kWh)"
+      },
+      {
+        "step": 6,
+        "minKwh": 601,
+        "maxKwh": null,
+        "ratePerKwh": 17.35,
+        "stepName": "Step 6 (Above 600 kWh)"
+      }
+    ]
+  }
+]

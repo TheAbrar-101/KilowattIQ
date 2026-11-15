@@ -1,34 +1,149 @@
-import { TariffStructure } from '../types/energy';
+import { TariffStructure, TariffVersion } from '../types/energy';
+import tariffVersionsSeed from '../data/tariffVersions.json';
 
 /**
- * Official Bangladesh Energy Regulatory Commission (BERC) / DESCO / DPDC / BPDB
- * Domestic Residential Category LT-A Tariff Rates (Effective 2024-2026)
+ * Configurable statutory & fixed residential tariff charges.
+ * Current values are kept unchanged and flagged for regulatory verification.
  */
-export const BD_DEFAULT_SLAB_TARIFF: TariffStructure = {
-  id: 'DESCO-LTA-2025',
-  utilityName: 'DESCO / DPDC / BPDB (LT-A Residential)',
-  tariffType: 'SLAB',
-  slabs: [
-    { minKwh: 0, maxKwh: 75, ratePerKwh: 5.26, stepName: 'Step 1 (0 - 75 kWh)' },
-    { minKwh: 76, maxKwh: 200, ratePerKwh: 7.20, stepName: 'Step 2 (76 - 200 kWh)' },
-    { minKwh: 201, maxKwh: 300, ratePerKwh: 7.59, stepName: 'Step 3 (201 - 300 kWh)' },
-    { minKwh: 301, maxKwh: 400, ratePerKwh: 8.02, stepName: 'Step 4 (301 - 400 kWh)' },
-    { minKwh: 401, maxKwh: 600, ratePerKwh: 12.67, stepName: 'Step 5 (401 - 600 kWh)' },
-    { minKwh: 601, maxKwh: null, ratePerKwh: 14.61, stepName: 'Step 6 (Above 600 kWh)' },
-  ],
-  flatRatePerKwh: 8.95,
-  touRates: {
-    offPeakRate: 7.05, // 23:00 to 17:00
-    peakRate: 12.10,   // 17:00 to 23:00 (Peak hours in BD)
-  },
-  seasonalMultipliers: {
-    summer: 1.15, // Hot summer humidity increases AC/Fan load
-    winter: 0.85, // Cooler winter reduces AC load
-  },
-  demandChargePerKw: 42.0, // BDT 42/kW/month
-  meterRent: 40.0,         // BDT 40/month
-  vatPercent: 5.0,         // 5% Govt VAT
+export const DEFAULT_TARIFF_FIXED_CHARGES = {
+  // TODO(verify): Confirm BERC/DESCO/DPDC LT-A demand charge per kW per month
+  demandChargePerKw: 42.0,
+  // TODO(verify): Confirm single-phase LT-A residential monthly meter rent (BDT)
+  meterRent: 40.0,
+  // TODO(verify): Confirm statutory government VAT percentage on electricity bills
+  vatPercent: 5.0,
 };
+
+/**
+ * In-memory versioned tariff registry seeded from shared/data/tariffVersions.json.
+ * Sorted by effective_from ascending.
+ */
+let versionedTariffTable: TariffVersion[] = (tariffVersionsSeed as TariffVersion[])
+  .map(v => ({
+    ...v,
+    slabs: v.slabs.map(s => ({ ...s })),
+  }))
+  .sort((a, b) => a.effective_from.localeCompare(b.effective_from));
+
+/**
+ * Normalizes a billing period input (e.g. '2026-06-01', '2026-06', 'June 2026', Date)
+ * into an ISO YYYY-MM-DD date string for version matching against effective_from.
+ */
+export function normalizeBillingPeriodDate(billingPeriod?: string | Date): string {
+  if (!billingPeriod) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  if (billingPeriod instanceof Date) {
+    return Number.isNaN(billingPeriod.getTime())
+      ? new Date().toISOString().slice(0, 10)
+      : billingPeriod.toISOString().slice(0, 10);
+  }
+
+  const trimmed = billingPeriod.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  if (/^\d{4}-\d{2}$/.test(trimmed)) {
+    return `${trimmed}-01`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function getTariffVersions(): TariffVersion[] {
+  return [...versionedTariffTable].sort((a, b) => a.effective_from.localeCompare(b.effective_from));
+}
+
+export function getTariffVersionForBillingPeriod(billingPeriod?: string | Date): TariffVersion {
+  const targetDate = normalizeBillingPeriodDate(billingPeriod);
+  const sorted = getTariffVersions();
+  let matched = sorted[0];
+
+  for (const version of sorted) {
+    if (version.effective_from <= targetDate) {
+      matched = version;
+    }
+  }
+
+  return matched;
+}
+
+export function upsertTariffVersion(newVersion: TariffVersion): TariffVersion[] {
+  const normalized: TariffVersion = {
+    ...newVersion,
+    version_id: newVersion.version_id.trim(),
+    effective_from: normalizeBillingPeriodDate(newVersion.effective_from),
+    last_verified_date: normalizeBillingPeriodDate(newVersion.last_verified_date),
+    demandChargePerKw: newVersion.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
+    meterRent: newVersion.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
+    vatPercent: newVersion.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+    slabs: newVersion.slabs.map(s => ({ ...s })),
+  };
+
+  const existingIndex = versionedTariffTable.findIndex(v => v.version_id === normalized.version_id);
+  if (existingIndex >= 0) {
+    versionedTariffTable[existingIndex] = normalized;
+  } else {
+    versionedTariffTable.push(normalized);
+  }
+
+  versionedTariffTable.sort((a, b) => a.effective_from.localeCompare(b.effective_from));
+  return getTariffVersions();
+}
+
+export function setTariffVersions(versions: TariffVersion[]): void {
+  if (!Array.isArray(versions) || versions.length === 0) return;
+  versionedTariffTable = versions
+    .map(v => ({
+      ...v,
+      slabs: v.slabs.map(s => ({ ...s })),
+    }))
+    .sort((a, b) => a.effective_from.localeCompare(b.effective_from));
+}
+
+export function toTariffStructure(version: TariffVersion): TariffStructure {
+  return {
+    id: version.version_id,
+    version_id: version.version_id,
+    effective_from: version.effective_from,
+    source_note: version.source_note,
+    last_verified_date: version.last_verified_date,
+    utilityName: 'DESCO / DPDC / BPDB (LT-A Residential)',
+    tariffType: 'SLAB',
+    slabs: version.slabs.map(s => ({ ...s })),
+    flatRatePerKwh: version.flatRatePerKwh ?? 9.85,
+    touRates: version.touRates ?? {
+      offPeakRate: 7.05,
+      peakRate: 12.10,
+    },
+    seasonalMultipliers: version.seasonalMultipliers ?? {
+      summer: 1.15,
+      winter: 0.85,
+    },
+    // TODO(verify): Configurable demand charge, meter rent, and VAT
+    demandChargePerKw: version.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
+    meterRent: version.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
+    vatPercent: version.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+  };
+}
+
+/**
+ * Active BERC / DESCO / DPDC Domestic Residential Category LT-A Tariff Structure
+ * resolved from the versioned tariff table for the current billing period.
+ */
+export function getActiveTariffStructure(billingPeriod?: string | Date): TariffStructure {
+  return toTariffStructure(getTariffVersionForBillingPeriod(billingPeriod));
+}
+
+export const BD_DEFAULT_SLAB_TARIFF: TariffStructure = getActiveTariffStructure();
 
 export const COMMON_BD_APPLIANCES_PRESETS = [
   {

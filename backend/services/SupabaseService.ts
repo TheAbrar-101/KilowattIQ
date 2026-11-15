@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Household, Room, Appliance } from '../../shared/types/household';
 import { IoTDevice } from '../../shared/types/iot';
+import { getTariffVersionForBillingPeriod, DEFAULT_TARIFF_FIXED_CHARGES } from '../../shared/constants/bdTariffs';
 
 export const DEMO_HOUSEHOLD_UUID = '11111111-1111-4111-a111-111111111111';
 
@@ -1074,26 +1075,31 @@ export class SupabaseService {
         return { ...tariff, rules: rules || [] };
       }
     }
+    const activeVersion = getTariffVersionForBillingPeriod();
     return {
       id: '55555555-5555-4555-a555-555555555501',
       household_id: targetHhId,
       utility_provider: 'DESCO',
       tariff_type: 'tiered',
-      tariff_code: 'DESCO_LT_A_2024',
-      effective_date: '2024-03-01',
-      vat_percentage: 5.0,
-      demand_charge_per_kw_bdt: 42.0,
-      meter_rent_bdt: 40.0,
+      tariff_code: activeVersion.version_id,
+      effective_date: activeVersion.effective_from,
+      last_verified_date: activeVersion.last_verified_date,
+      source_note: activeVersion.source_note,
+      // TODO(verify): Configurable VAT, demand charge, and meter rent
+      vat_percentage: activeVersion.vatPercent ?? DEFAULT_TARIFF_FIXED_CHARGES.vatPercent,
+      demand_charge_per_kw_bdt: activeVersion.demandChargePerKw ?? DEFAULT_TARIFF_FIXED_CHARGES.demandChargePerKw,
+      meter_rent_bdt: activeVersion.meterRent ?? DEFAULT_TARIFF_FIXED_CHARGES.meterRent,
       is_system_global: true,
-      rules: [
-        { id: '66666661-1111-4111-a111-111111111111', tariff_id: '55555555-5555-4555-a555-555555555501', step_number: 1, step_name: 'Life Line (0-50 kWh)', slab_min_kwh: 0, slab_max_kwh: 50, rate_bdt_per_kwh: 4.63 },
-        { id: '66666662-2222-4222-a222-222222222222', tariff_id: '55555555-5555-4555-a555-555555555501', step_number: 2, step_name: 'First Step (51-75 kWh)', slab_min_kwh: 51, slab_max_kwh: 75, rate_bdt_per_kwh: 5.26 },
-        { id: '66666663-3333-4333-a333-333333333333', tariff_id: '55555555-5555-4555-a555-555555555501', step_number: 3, step_name: 'Second Step (76-200 kWh)', slab_min_kwh: 76, slab_max_kwh: 200, rate_bdt_per_kwh: 7.20 },
-        { id: '66666664-4444-4444-a444-444444444444', tariff_id: '55555555-5555-4555-a555-555555555501', step_number: 4, step_name: 'Third Step (201-300 kWh)', slab_min_kwh: 201, slab_max_kwh: 300, rate_bdt_per_kwh: 7.59 },
-        { id: '66666665-5555-4555-a555-555555555555', tariff_id: '55555555-5555-4555-a555-555555555501', step_number: 5, step_name: 'Fourth Step (301-400 kWh)', slab_min_kwh: 301, slab_max_kwh: 400, rate_bdt_per_kwh: 8.02 },
-        { id: '66666666-6666-4666-a666-666666666666', tariff_id: '55555555-5555-4555-a555-555555555501', step_number: 6, step_name: 'Fifth Step (401-600 kWh)', slab_min_kwh: 401, slab_max_kwh: 600, rate_bdt_per_kwh: 12.67 },
-        { id: '66666667-7777-4777-a777-777777777777', tariff_id: '55555555-5555-4555-a555-555555555501', step_number: 7, step_name: 'Sixth Step (>600 kWh)', slab_min_kwh: 601, slab_max_kwh: null, rate_bdt_per_kwh: 14.61 }
-      ]
+      rules: activeVersion.slabs.map((slab, idx) => ({
+        id: `6666666${idx + 1}-${String(idx + 1).repeat(4)}-4111-a111-111111111111`,
+        tariff_id: '55555555-5555-4555-a555-555555555501',
+        step_number: slab.step ?? idx,
+        step_name: slab.stepName,
+        slab_min_kwh: slab.minKwh,
+        slab_max_kwh: slab.maxKwh,
+        rate_bdt_per_kwh: slab.ratePerKwh,
+        is_lifeline: Boolean(slab.isLifeline),
+      })),
     };
   }
 

@@ -25,6 +25,7 @@ import { apiClient, ApiError } from '../../lib/apiClient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { getTariffVersionForBillingPeriod } from '../../../shared/constants/bdTariffs';
 import { UserRole, normalizeRole, canToggleLoads } from '../../server/auth/roles';
 import { AnomalyFeedPanel } from '../dashboard/AnomalyFeedPanel';
 
@@ -574,46 +575,58 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
       <AnomalyFeedPanel householdId={household.id} token={token} />
 
       {/* DESCO LT-A Tiered Tariff Slab Tracker Bar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">DESCO Residential LT-A Tariff Slab Step Bar</h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">BERC 2026 Tiered Pricing Structure</p>
+      {(() => {
+        const activeTariffVer = getTariffVersionForBillingPeriod();
+        const monthlyKwh = 245;
+        return (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">DESCO Residential LT-A Tariff Slab Step Bar</h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-sans">
+                    Version: {activeTariffVer.version_id} • Effective: {activeTariffVer.effective_from}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400 font-mono tabular-nums">
+                Current Position: Step 3 ({monthlyKwh} kWh)
+              </span>
+            </div>
+
+            {/* Multi-step progress bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 text-center text-[10px]">
+              {activeTariffVer.slabs.map((slab, i) => {
+                const isLifeline = Boolean(slab.isLifeline);
+                const isCurrent = isLifeline
+                  ? monthlyKwh <= (slab.maxKwh ?? 50)
+                  : monthlyKwh > 50 && monthlyKwh >= slab.minKwh && (slab.maxKwh === null || monthlyKwh <= slab.maxKwh);
+                const isPassed = !isLifeline && monthlyKwh > (slab.maxKwh ?? Infinity);
+                const rangeLabel = slab.maxKwh !== null ? `${slab.minKwh}-${slab.maxKwh}` : `${slab.minKwh}+`;
+                const shortDesc = isLifeline ? 'Lifeline (<=50)' : `Step ${slab.step ?? i}`;
+
+                return (
+                  <div
+                    key={slab.stepName}
+                    className={`p-2 rounded-xl border flex flex-col justify-between transition-all ${
+                      isCurrent
+                        ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-500 text-amber-900 dark:text-amber-200 shadow-xs ring-1 ring-amber-500/50'
+                        : isPassed
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    <span className="font-mono font-bold text-[11px] tabular-nums block">{rangeLabel} kWh</span>
+                    <span className="font-bold font-mono tabular-nums text-xs block my-0.5">৳{slab.ratePerKwh.toFixed(2)}</span>
+                    <span className="text-[8px] uppercase tracking-wider font-semibold opacity-80">{shortDesc}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <span className="text-xs font-bold text-amber-600 dark:text-amber-400 font-mono">Current Position: Slab 4 (245 kWh)</span>
-        </div>
-
-        {/* Multi-step progress bar */}
-        <div className="grid grid-cols-7 gap-1.5 text-center text-[10px]">
-          {[
-            { label: '0-50', rate: '৳4.35', active: true, desc: 'Lifeline' },
-            { label: '51-75', rate: '৳4.85', active: true, desc: 'Slab 1' },
-            { label: '76-200', rate: '৳6.63', active: true, desc: 'Slab 2' },
-            { label: '201-300', rate: '৳6.95', active: true, desc: 'Slab 3 (CURRENT)' },
-            { label: '301-400', rate: '৳7.34', active: false, desc: 'Slab 4' },
-            { label: '401-600', rate: '৳11.51', active: false, desc: 'Slab 5' },
-            { label: '601+', rate: '৳13.26', active: false, desc: 'Upper Tier' },
-          ].map((slab, i) => (
-            <div
-              key={i}
-              className={`p-2 rounded-xl border flex flex-col justify-between transition-all ${
-                slab.desc.includes('CURRENT')
-                  ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-500 text-amber-900 dark:text-amber-200 shadow-xs ring-1 ring-amber-500/50'
-                  : slab.active
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-                  : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500'
-              }`}
-            >
-              <span className="font-mono font-bold text-[11px] block">{slab.label} kWh</span>
-              <span className="font-bold text-xs block my-0.5">{slab.rate}</span>
-              <span className="text-[8px] uppercase tracking-wider font-semibold opacity-80">{slab.desc.replace(' (CURRENT)', '')}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+        );
+      })()}
 
     </div>
   );

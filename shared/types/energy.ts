@@ -1,14 +1,40 @@
 export type TariffType = 'SLAB' | 'FLAT' | 'TOU' | 'SEASONAL';
 
 export interface SlabTier {
+  step?: number;
   minKwh: number;
   maxKwh: number | null; // null for unlimited (top step)
   ratePerKwh: number; // in BDT
   stepName: string;
+  isLifeline?: boolean; // Separate rule: applies only when monthly usage <= 50 kWh
+}
+
+export interface TariffVersion {
+  version_id: string;
+  effective_from: string; // ISO date YYYY-MM-DD
+  source_note: string;
+  last_verified_date: string; // ISO date YYYY-MM-DD
+  slabs: SlabTier[];
+  demandChargePerKw?: number; // TODO(verify): BDT / kW / month
+  meterRent?: number;         // TODO(verify): BDT / month
+  vatPercent?: number;        // TODO(verify): Govt VAT %
+  flatRatePerKwh?: number;
+  touRates?: {
+    offPeakRate: number;
+    peakRate: number;
+  };
+  seasonalMultipliers?: {
+    summer: number;
+    winter: number;
+  };
 }
 
 export interface TariffStructure {
   id: string;
+  version_id?: string;
+  effective_from?: string;
+  source_note?: string;
+  last_verified_date?: string;
   utilityName: string; // e.g. "DESCO", "DPDC", "BPDB", "WZPDCL"
   tariffType: TariffType;
   slabs: SlabTier[];
@@ -21,9 +47,9 @@ export interface TariffStructure {
     summer: number; // Apr - Sep
     winter: number; // Oct - Mar
   };
-  demandChargePerKw: number; // BDT / kW / month
-  meterRent: number;          // BDT / month
-  vatPercent: number;         // e.g., 5.0 for 5%
+  demandChargePerKw: number; // TODO(verify): BDT / kW / month
+  meterRent: number;          // TODO(verify): BDT / month
+  vatPercent: number;         // TODO(verify): e.g., 5.0 for 5%
 }
 
 export interface PowerReading {
@@ -39,6 +65,9 @@ export interface PowerReading {
 
 export interface CostCalculation {
   tariffType: TariffType;
+  tariffVersionId?: string;
+  effectiveFrom?: string;
+  lastVerifiedDate?: string;
   totalKwh: number;
   energyCostBDT: number;
   slabBreakdown?: Array<{
@@ -180,6 +209,9 @@ export interface FullReportData {
 }
 
 export interface SlabThresholdAnalysis {
+  tariffVersionId?: string;
+  effectiveFrom?: string;
+  lastVerifiedDate?: string;
   currentSlabName: string;
   currentRateBDT: number;
   nextSlabName: string | null;
