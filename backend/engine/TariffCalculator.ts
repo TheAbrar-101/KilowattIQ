@@ -1,5 +1,22 @@
-import { TariffStructure, CostCalculation, TariffType, SlabThresholdAnalysis } from '../../shared/types/energy';
+import {
+  TariffStructure,
+  CostCalculation,
+  TariffType,
+  SlabThresholdAnalysis,
+  BillRoundingMode,
+} from '../../shared/types/energy';
 import { getActiveTariffStructure } from '../../shared/constants/bdTariffs';
+
+/**
+ * Configurable bill rounding rule:
+ * - 'FINAL' (default): retains exact sub-paisa precision per slab and rounds at final line items.
+ * - 'PER_SLAB': rounds each slab/component to 2 decimals before summing subtotal and VAT.
+ */
+export const DEFAULT_BILL_ROUNDING_MODE: BillRoundingMode = 'FINAL';
+
+function roundCurrency(amount: number): number {
+  return Number(amount.toFixed(2));
+}
 
 export class TariffCalculator {
   /**
@@ -63,9 +80,15 @@ export class TariffCalculator {
     sanctionedLoadKw: number = 3.0,
     tariffType: TariffType = 'SLAB',
     tariffConfig?: TariffStructure,
-    options?: { isPeakHourRatio?: number; seasonMultiplier?: number; billingPeriod?: string | Date }
+    options?: {
+      isPeakHourRatio?: number;
+      seasonMultiplier?: number;
+      billingPeriod?: string | Date;
+      roundingMode?: BillRoundingMode;
+    }
   ): CostCalculation {
     const resolvedConfig = this.resolveTariffConfig(tariffConfig, options?.billingPeriod);
+    const roundingMode: BillRoundingMode = options?.roundingMode ?? DEFAULT_BILL_ROUNDING_MODE;
     const totalKwh = Math.max(0, kwhConsumption);
     let energyCostBDT = 0;
     const slabBreakdown: Array<{ stepName: string; kwhInSlab: number; rate: number; costBDT: number }> = [];
@@ -80,13 +103,14 @@ export class TariffCalculator {
 
       // Separate Lifeline rule: applies ONLY when total monthly usage <= 50 kWh
       if (lifelineSlab && totalKwh <= (lifelineSlab.maxKwh ?? 50)) {
-        const costForLifeline = totalKwh * lifelineSlab.ratePerKwh;
-        energyCostBDT = costForLifeline;
+        const rawCostForLifeline = totalKwh * lifelineSlab.ratePerKwh;
+        const roundedLifelineCost = roundCurrency(rawCostForLifeline);
+        energyCostBDT = roundingMode === 'PER_SLAB' ? roundedLifelineCost : rawCostForLifeline;
         slabBreakdown.push({
           stepName: lifelineSlab.stepName,
-          kwhInSlab: Number(totalKwh.toFixed(2)),
+          kwhInSlab: roundCurrency(totalKwh),
           rate: lifelineSlab.ratePerKwh,
-          costBDT: Number(costForLifeline.toFixed(2)),
+          costBDT: roundedLifelineCost,
         });
       } else {
         // Above 50 kWh: use the progressive Step 1..6 slab structure (not stacked on Lifeline)
@@ -97,21 +121,23 @@ export class TariffCalculator {
 
           const maxInSlab = slab.maxKwh !== null ? (slab.maxKwh - slab.minKwh) : Infinity;
           const kwhInSlab = Math.min(remainingKwh, maxInSlab);
-          const costForSlab = kwhInSlab * slab.ratePerKwh;
+          const rawCostForSlab = kwhInSlab * slab.ratePerKwh;
+          const roundedSlabCost = roundCurrency(rawCostForSlab);
 
-          energyCostBDT += costForSlab;
+          energyCostBDT += roundingMode === 'PER_SLAB' ? roundedSlabCost : rawCostForSlab;
           slabBreakdown.push({
             stepName: slab.stepName,
-            kwhInSlab: Number(kwhInSlab.toFixed(2)),
+            kwhInSlab: roundCurrency(kwhInSlab),
             rate: slab.ratePerKwh,
-            costBDT: Number(costForSlab.toFixed(2)),
+            costBDT: roundedSlabCost,
           });
 
           remainingKwh -= kwhInSlab;
         }
       }
     } else if (tariffType === 'FLAT') {
-      energyCostBDT = totalKwh * resolvedConfig.flatRatePerKwh;
+      const rawFlat = totalKwh * resolvedConfig.flatRatePerKwh;
+      energyCostBDT = roundingMode === 'PER_SLAB' ? roundCurrency(rawFlat) : rawFlat;
     } else if (tariffType === 'TOU') {
       const peakRatio = options?.isPeakHourRatio ?? 0.25; // Default ~25% consumption during peak 17:00-23:00
       const peakKwh = totalKwh * peakRatio;
@@ -120,19 +146,34 @@ export class TariffCalculator {
       const peakRate = resolvedConfig.touRates?.peakRate ?? 12.10;
       const offPeakRate = resolvedConfig.touRates?.offPeakRate ?? 7.05;
 
-      energyCostBDT = (peakKwh * peakRate) + (offPeakKwh * offPeakRate);
+      const rawPeak = peakKwh * peakRate;
+      const rawOffPeak = offPeakKwh * offPeakRate;
+      energyCostBDT = roundingMode === 'PER_SLAB'
+        ? roundCurrency(roundCurrency(rawPeak) + roundCurrency(rawOffPeak))
+        : (rawPeak + rawOffPeak);
     } else if (tariffType === 'SEASONAL') {
       const multiplier = options?.seasonMultiplier ?? 1.0;
       // Calculate base slab and apply seasonal multiplier
-      const baseCalc = this.calculateCost(totalKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, options);
-      energyCostBDT = baseCalc.energyCostBDT * multiplier;
+      const baseCalc = this.calculateCost(totalKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, {
+        ...options,
+        roundingMode,
+      });
+      const rawSeasonal = baseCalc.energyCostBDT * multiplier;
+      energyCostBDT = roundingMode === 'PER_SLAB' ? roundCurrency(rawSeasonal) : rawSeasonal;
     }
 
-    const demandChargeBDT = sanctionedLoadKw * resolvedConfig.demandChargePerKw;
-    const meterRentBDT = resolvedConfig.meterRent;
-    const subtotal = energyCostBDT + demandChargeBDT + meterRentBDT;
-    const vatBDT = subtotal * (resolvedConfig.vatPercent / 100);
-    const grossTotalBDT = subtotal + vatBDT;
+    const rawDemandCharge = sanctionedLoadKw * resolvedConfig.demandChargePerKw;
+    const rawMeterRent = resolvedConfig.meterRent;
+    const demandChargeBDT = roundingMode === 'PER_SLAB' ? roundCurrency(rawDemandCharge) : rawDemandCharge;
+    const meterRentBDT = roundingMode === 'PER_SLAB' ? roundCurrency(rawMeterRent) : rawMeterRent;
+
+    const rawSubtotal = energyCostBDT + demandChargeBDT + meterRentBDT;
+    const subtotal = roundingMode === 'PER_SLAB' ? roundCurrency(rawSubtotal) : rawSubtotal;
+    const rawVat = subtotal * (resolvedConfig.vatPercent / 100);
+    const vatBDT = roundingMode === 'PER_SLAB' ? roundCurrency(rawVat) : rawVat;
+    const grossTotalBDT = roundingMode === 'PER_SLAB'
+      ? roundCurrency(subtotal + vatBDT)
+      : (subtotal + vatBDT);
     const effectiveRate = totalKwh > 0 ? grossTotalBDT / totalKwh : 0;
 
     return {
@@ -140,14 +181,16 @@ export class TariffCalculator {
       tariffVersionId: resolvedConfig.version_id || resolvedConfig.id,
       effectiveFrom: resolvedConfig.effective_from,
       lastVerifiedDate: resolvedConfig.last_verified_date,
-      totalKwh: Number(totalKwh.toFixed(2)),
-      energyCostBDT: Number(energyCostBDT.toFixed(2)),
+      roundingMode,
+      totalKwh: roundCurrency(totalKwh),
+      energyCostBDT: roundCurrency(energyCostBDT),
       slabBreakdown,
-      demandChargeBDT: Number(demandChargeBDT.toFixed(2)),
-      meterRentBDT: Number(meterRentBDT.toFixed(2)),
-      vatBDT: Number(vatBDT.toFixed(2)),
-      grossTotalBDT: Number(grossTotalBDT.toFixed(2)),
-      effectiveRatePerKwh: Number(effectiveRate.toFixed(2)),
+      demandChargeBDT: roundCurrency(demandChargeBDT),
+      meterRentBDT: roundCurrency(meterRentBDT),
+      subtotalBDT: roundCurrency(subtotal),
+      vatBDT: roundCurrency(vatBDT),
+      grossTotalBDT: roundCurrency(grossTotalBDT),
+      effectiveRatePerKwh: roundCurrency(effectiveRate),
     };
   }
 

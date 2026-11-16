@@ -16,9 +16,16 @@ import {
   Zap,
   Calendar
 } from 'lucide-react';
-import { TariffType, CostCalculation, BudgetStatus, SlabThresholdAnalysis, TariffVersion } from '../../../shared/types/energy';
+import {
+  TariffType,
+  CostCalculation,
+  BudgetStatus,
+  SlabThresholdAnalysis,
+  TariffVersion,
+  BillRoundingMode,
+} from '../../../shared/types/energy';
 import { Household } from '../../../shared/types/household';
-import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
+import { TariffCalculator, DEFAULT_BILL_ROUNDING_MODE } from '../../../backend/engine/TariffCalculator';
 import { BudgetEngine } from '../../../backend/engine/BudgetEngine';
 import {
   getTariffVersions,
@@ -27,7 +34,7 @@ import {
 } from '../../../shared/constants/bdTariffs';
 import { VerifyBillSection } from '../bills/VerifyBillSection';
 import { WeatherImpactCard } from '../cost/WeatherImpactCard';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage, toBengaliNumerals } from '../../context/LanguageContext';
 
 interface CostAnalysisTabProps {
   household: Household;
@@ -43,6 +50,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
   const currentBillingMonth = new Date().toISOString().slice(0, 7);
   const [billingPeriod, setBillingPeriod] = useState<string>(`${currentBillingMonth}-01`);
   const [showAdvancedPeriod, setShowAdvancedPeriod] = useState<boolean>(false);
+  const [roundingMode, setRoundingMode] = useState<BillRoundingMode>(DEFAULT_BILL_ROUNDING_MODE);
   const [versions, setVersionsState] = useState<TariffVersion[]>(() => getTariffVersions());
   const [usingFallback, setUsingFallback] = useState<boolean>(false);
 
@@ -76,13 +84,13 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
 
   const activeTariffVersion = getTariffVersionForBillingPeriod(billingPeriod);
 
-  // Compute live cost calculation for the selected billing period
+  // Compute live cost calculation for the selected billing period and rounding rule
   const costCalc: CostCalculation = TariffCalculator.calculateCost(
     kwhInput,
     household.sanctionedLoadKw,
     selectedTariffType,
     undefined,
-    { billingPeriod }
+    { billingPeriod, roundingMode }
   );
 
   // Compute live budget status
@@ -270,18 +278,39 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
 
         {showAdvancedPeriod && (
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
-              <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-['Outfit']">
-                {language === 'bn' ? 'বিলিং তারিখ:' : 'Billing Period:'}
-              </span>
-              <input
-                type="date"
-                aria-label="Billing Period Date"
-                value={billingPeriod}
-                onChange={(e) => setBillingPeriod(e.target.value || `${currentBillingMonth}-01`)}
-                className="bg-transparent text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none cursor-pointer"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+                <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-['Outfit']">
+                  {language === 'bn' ? 'বিলিং তারিখ:' : 'Billing Period:'}
+                </span>
+                <input
+                  type="date"
+                  aria-label="Billing Period Date"
+                  value={billingPeriod}
+                  onChange={(e) => setBillingPeriod(e.target.value || `${currentBillingMonth}-01`)}
+                  className="bg-transparent text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-1.5 text-xs">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase font-['Outfit']">
+                  {language === 'bn' ? 'রাউন্ডিং নিয়ম:' : 'Rounding:'}
+                </span>
+                <select
+                  aria-label="Bill Rounding Rule"
+                  value={roundingMode}
+                  onChange={(e) => setRoundingMode(e.target.value as BillRoundingMode)}
+                  className="bg-transparent text-amber-600 dark:text-amber-400 font-bold font-['Outfit'] text-xs focus:outline-none cursor-pointer"
+                >
+                  <option value="FINAL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200">
+                    {language === 'bn' ? 'চূড়ান্ত রাউন্ডিং (ডিফল্ট)' : 'Final Total (Default)'}
+                  </option>
+                  <option value="PER_SLAB" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200">
+                    {language === 'bn' ? 'প্রতি-স্ল্যাব রাউন্ডিং' : 'Per-Slab Rounding'}
+                  </option>
+                </select>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 rounded-xl">
@@ -399,36 +428,150 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
             </div>
           </div>
 
-          {/* Slab Breakdown Items */}
-          <div className="space-y-2">
-            <h5 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-['Outfit']">
-              <Layers className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span>DESCO LT-A Tiered Slab Distribution ({formatNumber(kwhInput)} kWh)</span>
-            </h5>
+          {/* Itemized Bill Breakdown Panel (units × rate = amount, then fixed charges, VAT, total) */}
+          <div className="space-y-3" data-testid="bill-breakdown-panel">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h5 className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5 font-['Outfit']">
+                <Layers className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                <span>
+                  {language === 'bn'
+                    ? `বিল বিশ্লেষণ (${formatNumber(kwhInput)} ইউনিট)`
+                    : `Bill Breakdown (${formatNumber(kwhInput)} kWh)`}
+                </span>
+              </h5>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                {language === 'bn'
+                  ? `রাউন্ডিং: ${roundingMode === 'PER_SLAB' ? 'প্রতি-স্ল্যাব' : 'চূড়ান্ত'}`
+                  : `Rounding: ${roundingMode === 'PER_SLAB' ? 'Per-Slab' : 'Final'}`}
+              </span>
+            </div>
 
-            <div className="space-y-1.5">
-              {(costCalc.slabBreakdown || []).map((s, idx) => (
-                <div
-                  key={idx}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold font-mono text-[11px]">
-                      {idx + 1}
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-900 dark:text-white block font-['Outfit']">{s.stepName}</span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                        {formatNumber(s.kwhInSlab)} kWh @ {formatCurrency(s.rate)}/kWh
-                      </span>
-                    </div>
-                  </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100/80 dark:bg-slate-900/90 text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 font-['Outfit'] border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="py-2.5 px-3 text-left">
+                      {language === 'bn' ? 'ধাপ / খাত' : 'Slab / Line Item'}
+                    </th>
+                    <th className="py-2.5 px-3 text-right">
+                      {language === 'bn' ? 'ইউনিট (kWh)' : 'Units'}
+                    </th>
+                    <th className="py-2.5 px-3 text-right">
+                      {language === 'bn' ? 'হার (৳/kWh)' : 'Rate'}
+                    </th>
+                    <th className="py-2.5 px-3 text-right">
+                      {language === 'bn' ? 'পরিমাণ (৳)' : 'Amount'}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70 font-['Plus_Jakarta_Sans']">
+                  {(costCalc.slabBreakdown && costCalc.slabBreakdown.length > 0) ? (
+                    costCalc.slabBreakdown.map((s, idx) => {
+                      const unitsStr = language === 'bn'
+                        ? toBengaliNumerals(s.kwhInSlab.toFixed(s.kwhInSlab % 1 === 0 ? 0 : 2))
+                        : s.kwhInSlab.toFixed(s.kwhInSlab % 1 === 0 ? 0 : 2);
+                      return (
+                        <tr key={idx} className="hover:bg-white/60 dark:hover:bg-slate-900/50 transition-colors">
+                          <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
+                            <span className="font-['Outfit'] font-semibold">{s.stepName}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                            {unitsStr}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                            × {formatCurrency(s.rate, { showDecimals: true })}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                            {formatCurrency(s.costBDT, { showDecimals: true })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
+                        {language === 'bn' ? `বিদ্যুৎ চার্জ (${selectedTariffType})` : `Energy Charge (${selectedTariffType})`}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                        {formatNumber(costCalc.totalKwh)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                        —
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                        {formatCurrency(costCalc.energyCostBDT, { showDecimals: true })}
+                      </td>
+                    </tr>
+                  )}
 
-                  <span className="font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                    {formatCurrency(s.costBDT)}
-                  </span>
-                </div>
-              ))}
+                  {/* Energy Subtotal */}
+                  <tr className="bg-slate-100/60 dark:bg-slate-900/50">
+                    <td colSpan={3} className="py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-300 font-['Outfit']">
+                      {language === 'bn' ? 'মোট বিদ্যুৎ শক্তি চার্জ' : 'Electricity Energy Charge'}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-slate-900 dark:text-white">
+                      {formatCurrency(costCalc.energyCostBDT, { showDecimals: true })}
+                    </td>
+                  </tr>
+
+                  {/* Demand Charge */}
+                  <tr>
+                    <td colSpan={3} className="py-2 px-3 text-xs text-slate-600 dark:text-slate-300">
+                      {language === 'bn'
+                        ? `ডিমান্ড চার্জ (${toBengaliNumerals(household.sanctionedLoadKw)} কিও × ${formatCurrency(activeTariffVersion.demandChargePerKw ?? 42, { showDecimals: false })})`
+                        : `Demand Charge (${household.sanctionedLoadKw} kW × ${formatCurrency(activeTariffVersion.demandChargePerKw ?? 42, { showDecimals: false })})`}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">
+                      {formatCurrency(costCalc.demandChargeBDT, { showDecimals: true })}
+                    </td>
+                  </tr>
+
+                  {/* Meter Rent */}
+                  <tr>
+                    <td colSpan={3} className="py-2 px-3 text-xs text-slate-600 dark:text-slate-300">
+                      {language === 'bn' ? 'মিটার ভাড়া' : 'Meter Rent'}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">
+                      {formatCurrency(costCalc.meterRentBDT, { showDecimals: true })}
+                    </td>
+                  </tr>
+
+                  {/* Subtotal */}
+                  <tr className="bg-slate-100/60 dark:bg-slate-900/50">
+                    <td colSpan={3} className="py-2 px-3 text-xs font-semibold text-slate-700 dark:text-slate-300 font-['Outfit']">
+                      {language === 'bn' ? 'উপমোট (ভ্যাট পূর্বে)' : 'Principal / Subtotal'}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums font-semibold text-slate-900 dark:text-white">
+                      {formatCurrency(
+                        costCalc.subtotalBDT ?? (costCalc.energyCostBDT + costCalc.demandChargeBDT + costCalc.meterRentBDT),
+                        { showDecimals: true }
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* VAT */}
+                  <tr>
+                    <td colSpan={3} className="py-2 px-3 text-xs text-slate-600 dark:text-slate-300">
+                      {language === 'bn'
+                        ? `সরকারি ভ্যাট (${toBengaliNumerals(activeTariffVersion.vatPercent ?? 5)}%)`
+                        : `Government VAT (${activeTariffVersion.vatPercent ?? 5}%)`}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400 font-semibold">
+                      {formatCurrency(costCalc.vatBDT, { showDecimals: true })}
+                    </td>
+                  </tr>
+
+                  {/* Gross Total */}
+                  <tr className="bg-amber-500/10 dark:bg-amber-500/15 border-t-2 border-amber-500/30">
+                    <td colSpan={3} className="py-3 px-3 text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white font-['Outfit']">
+                      {language === 'bn' ? 'সর্বমোট প্রদেয় বিল' : 'Total Payable Bill'}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono tabular-nums text-base font-black text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(costCalc.grossTotalBDT, { showDecimals: true })}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             {selectedTariffType === 'SLAB' && (
@@ -446,19 +589,31 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
             )}
           </div>
 
-          {/* Fixed Charges Table */}
+          {/* Fixed Charges Summary Cards */}
           <div className="grid grid-cols-3 gap-3 pt-2">
             <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">Energy Cost</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono tabular-nums">{formatCurrency(costCalc.energyCostBDT)}</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">
+                {language === 'bn' ? 'বিদ্যুৎ চার্জ' : 'Energy Cost'}
+              </span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono tabular-nums">
+                {formatCurrency(costCalc.energyCostBDT, { showDecimals: true })}
+              </span>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">Fixed & Demand</span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono tabular-nums">{formatCurrency(costCalc.demandChargeBDT + costCalc.meterRentBDT)}</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">
+                {language === 'bn' ? 'ডিমান্ড ও মিটার' : 'Demand & Meter'}
+              </span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white font-mono tabular-nums">
+                {formatCurrency(costCalc.demandChargeBDT + costCalc.meterRentBDT, { showDecimals: true })}
+              </span>
             </div>
             <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">VAT (5%)</span>
-              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">{formatCurrency(costCalc.vatBDT)}</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase block font-['Outfit']">
+                {language === 'bn' ? 'ভ্যাট (৫%)' : 'VAT (5%)'}
+              </span>
+              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
+                {formatCurrency(costCalc.vatBDT, { showDecimals: true })}
+              </span>
             </div>
           </div>
 

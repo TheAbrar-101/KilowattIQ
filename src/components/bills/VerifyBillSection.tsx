@@ -27,6 +27,7 @@ import {
 import { Household } from '../../../shared/types/household';
 import { VerificationResult, ExtractedBillData, BillHistoryRecord } from '../../server/bills/types';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage, toBengaliNumerals } from '../../context/LanguageContext';
 
 interface VerifyBillSectionProps {
   household: Household;
@@ -34,6 +35,7 @@ interface VerifyBillSectionProps {
 
 export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household }) => {
   const { token } = useAuth();
+  const { language, formatCurrency, formatNumber } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mode: 'PHOTO' or 'MANUAL'
@@ -610,29 +612,137 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                       )}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold font-display">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-bold font-['Outfit']">
                           {verificationResult.summary.hasDiscrepancy
-                            ? 'Check with Utility — Discrepancy Flagged'
-                            : 'Bill Verified — Accurate & Compliant'}
+                            ? (language === 'bn' ? 'ইউটিলিটির সাথে যাচাই করুন — গরমিল পাওয়া গেছে' : 'Check with Utility — Discrepancy Flagged')
+                            : (language === 'bn' ? 'বিল যাচাই সম্পন্ন — সঠিক হিসাব' : 'Bill Verified — Accurate & Compliant')}
                         </h4>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono ${
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono tabular-nums ${
                           verificationResult.summary.hasDiscrepancy
                             ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
                             : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                         }`}>
                           {verificationResult.summary.differencePercent > 0 ? '+' : ''}
-                          {verificationResult.summary.differencePercent}%
+                          {language === 'bn'
+                            ? toBengaliNumerals(verificationResult.summary.differencePercent)
+                            : verificationResult.summary.differencePercent}%
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                        {verificationResult.summary.hasDiscrepancy
-                          ? `Utility billed ৳${verificationResult.summary.billedTotalBdt} BDT, but BERC official slabs recalculate to ৳${verificationResult.summary.calculatedTotalBdt} BDT (Variance: ৳${Math.abs(verificationResult.summary.differenceBdt)} BDT).`
-                          : `Utility billed ৳${verificationResult.summary.billedTotalBdt} BDT, which matches the BERC residential calculation (৳${verificationResult.summary.calculatedTotalBdt} BDT within tolerance).`}
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-['Plus_Jakarta_Sans']">
+                        {verificationResult.differenceSummary?.[language] ||
+                          (verificationResult.summary.hasDiscrepancy
+                            ? `Utility billed ${formatCurrency(verificationResult.summary.billedTotalBdt, { showDecimals: true })}, but BERC official slabs recalculate to ${formatCurrency(verificationResult.summary.calculatedTotalBdt, { showDecimals: true })} (Variance: ${formatCurrency(Math.abs(verificationResult.summary.differenceBdt), { showDecimals: true })}).`
+                            : `Utility billed ${formatCurrency(verificationResult.summary.billedTotalBdt, { showDecimals: true })}, which matches the BERC residential calculation (${formatCurrency(verificationResult.summary.calculatedTotalBdt, { showDecimals: true })} within tolerance).`)}
                       </p>
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Difference & Likely Cause Explanation Card */}
+              <div
+                data-testid="bill-difference-causes"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <HelpCircle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Outfit']">
+                      {language === 'bn' ? 'পার্থক্য ও সম্ভাব্য কারণ বিশ্লেষণ' : 'Difference & Likely Cause Diagnosis'}
+                    </h4>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {language === 'bn' ? 'পার্থক্য:' : 'Diff:'}{' '}
+                      <strong className={Math.abs(verificationResult.summary.differencePercent) > 1 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                        {verificationResult.summary.differenceBdt > 0 ? '+' : ''}
+                        {formatCurrency(verificationResult.summary.differenceBdt, { showDecimals: true })}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-['Outfit'] uppercase">
+                      {language === 'bn' ? 'প্রদত্ত বিল' : 'Entered / Billed'}
+                    </span>
+                    <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-white block text-right">
+                      {formatCurrency(verificationResult.summary.billedTotalBdt, { showDecimals: true })}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-['Outfit'] uppercase">
+                      {language === 'bn' ? 'হিসাবকৃত বিল' : 'Calculated BERC'}
+                    </span>
+                    <span className="font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400 block text-right">
+                      {formatCurrency(verificationResult.summary.calculatedTotalBdt, { showDecimals: true })}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-['Outfit'] uppercase">
+                      {language === 'bn' ? 'পার্থক্য (৳)' : 'Difference'}
+                    </span>
+                    <span className={`font-mono tabular-nums font-bold block text-right ${
+                      Math.abs(verificationResult.summary.differencePercent) > 1
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {verificationResult.summary.differenceBdt > 0 ? '+' : ''}
+                      {formatCurrency(verificationResult.summary.differenceBdt, { showDecimals: true })}
+                    </span>
+                  </div>
+                </div>
+
+                {verificationResult.likelyCauses && verificationResult.likelyCauses.length > 0 && (
+                  <div className="space-y-2">
+                    {verificationResult.likelyCauses.map((cause, cIdx) => {
+                      const badgeColor =
+                        cause.code === 'METER_READING_ERROR'
+                          ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                          : cause.code === 'MATCH'
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40';
+                      const causeLabel =
+                        cause.code === 'WRONG_SLAB'
+                          ? (language === 'bn' ? 'ভুল স্ল্যাব' : 'Wrong Slab')
+                          : cause.code === 'VAT_MISMATCH'
+                            ? (language === 'bn' ? 'ভ্যাট অমিল' : 'VAT')
+                            : cause.code === 'DEMAND_CHARGE'
+                              ? (language === 'bn' ? 'ডিমান্ড চার্জ' : 'Demand Charge')
+                              : cause.code === 'METER_READING_ERROR'
+                                ? (language === 'bn' ? 'মিটার রিডিং' : 'Meter Reading')
+                                : (language === 'bn' ? 'সঠিক' : 'Matched');
+
+                      return (
+                        <div
+                          key={`${cause.code}-${cIdx}`}
+                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border font-['Outfit'] ${badgeColor}`}>
+                                {causeLabel}
+                              </span>
+                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-['Outfit']">
+                                {language === 'bn' ? cause.titleBn : cause.titleEn}
+                              </span>
+                            </div>
+                            {typeof cause.estimatedImpactBdt === 'number' && cause.estimatedImpactBdt > 0 && (
+                              <span className="text-[11px] font-mono tabular-nums font-bold text-amber-600 dark:text-amber-400">
+                                ~{formatCurrency(cause.estimatedImpactBdt, { showDecimals: true })}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-['Plus_Jakarta_Sans']">
+                            {language === 'bn' ? cause.detailBn : cause.detailEn}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Side-by-Side Comparison Table */}
@@ -687,38 +797,40 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                                 {row.itemBn}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-300">
-                              ৳{row.utility.toFixed(2)}
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                              {formatCurrency(row.utility, { showDecimals: true })}
                             </td>
-                            <td className="py-2.5 px-3 text-right text-amber-700 dark:text-amber-400 font-bold">
-                              ৳{row.kilowattiq.toFixed(2)}
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-amber-700 dark:text-amber-400 font-bold">
+                              {formatCurrency(row.kilowattiq, { showDecimals: true })}
                             </td>
-                            <td className={`py-2.5 px-3 text-right ${
+                            <td className={`py-2.5 px-3 text-right font-mono tabular-nums ${
                               Math.abs(row.difference) > 1
                                 ? isOver
-                                  ? 'text-rose-500 font-bold'
+                                  ? 'text-amber-600 dark:text-amber-400 font-bold'
                                   : 'text-sky-500 font-bold'
                                 : 'text-slate-400'
                             }`}>
-                              {row.difference > 0 ? `+৳${row.difference.toFixed(2)}` : `৳${row.difference.toFixed(2)}`}
+                              {row.difference > 0 ? '+' : ''}
+                              {formatCurrency(row.difference, { showDecimals: true })}
                               {Math.abs(row.diffPercent) > 0 && (
                                 <span className="text-[10px] text-slate-400 ml-1">
-                                  ({row.diffPercent > 0 ? '+' : ''}{row.diffPercent}%)
+                                  ({row.diffPercent > 0 ? '+' : ''}
+                                  {language === 'bn' ? toBengaliNumerals(row.diffPercent) : row.diffPercent}%)
                                 </span>
                               )}
                             </td>
                             <td className="py-2.5 px-4 text-center">
                               {Math.abs(row.diffPercent) <= 1.0 ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-display">
-                                  <Check className="w-3 h-3" /> Exact
+                                  <Check className="w-3 h-3" /> {language === 'bn' ? 'সঠিক' : 'Exact'}
                                 </span>
                               ) : isOver ? (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 font-display">
-                                  +Over
+                                  {language === 'bn' ? '+বেশি' : '+Over'}
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 font-display">
-                                  -Under
+                                  {language === 'bn' ? '-কম' : '-Under'}
                                 </span>
                               )}
                             </td>
@@ -745,15 +857,19 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
 
                 {/* Expanded Slabs */}
                 {showDetailedSlabs && (
-                  <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs font-mono tabular-nums">
                     {verificationResult.slabBreakdown.map((s, idx) => (
                       <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-200 dark:border-slate-800/60 last:border-0">
                         <span className="font-display font-bold text-slate-800 dark:text-slate-200">
                           {s.stepName}
                         </span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-slate-500">{s.kwhInSlab} kWh @ ৳{s.rate}/unit</span>
-                          <span className="font-bold text-amber-600 dark:text-amber-400">৳{s.costBDT.toFixed(2)}</span>
+                        <div className="flex items-center gap-3 text-right">
+                          <span className="text-slate-500">
+                            {formatNumber(s.kwhInSlab)} kWh × {formatCurrency(s.rate, { showDecimals: true })}
+                          </span>
+                          <span className="font-bold text-amber-600 dark:text-amber-400">
+                            {formatCurrency(s.costBDT, { showDecimals: true })}
+                          </span>
                         </div>
                       </div>
                     ))}

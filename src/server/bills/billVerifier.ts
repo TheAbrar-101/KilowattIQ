@@ -9,8 +9,15 @@
  * persists historical verification records for audit trend tracking.
  */
 
-import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
-import { ExtractedBillData, VerificationResult, ComparisonRow, BillHistoryRecord } from './types';
+import { TariffCalculator, DEFAULT_BILL_ROUNDING_MODE } from '../../../backend/engine/TariffCalculator';
+import { BillRoundingMode, CostCalculation } from '../../../shared/types/energy';
+import {
+  ExtractedBillData,
+  VerificationResult,
+  ComparisonRow,
+  BillHistoryRecord,
+  BillLikelyCause,
+} from './types';
 
 export class BillVerifier {
   private static instance: BillVerifier;
@@ -30,7 +37,8 @@ export class BillVerifier {
     householdId: string,
     billData: ExtractedBillData,
     customSanctionedLoadKw?: number,
-    billImageUrl?: string
+    billImageUrl?: string,
+    roundingMode: BillRoundingMode = DEFAULT_BILL_ROUNDING_MODE
   ): VerificationResult {
     const sanctionedLoad = customSanctionedLoadKw ?? billData.sanctionedLoadKw ?? 3.0;
 
@@ -40,7 +48,7 @@ export class BillVerifier {
       sanctionedLoad,
       'SLAB',
       undefined,
-      { billingPeriod: billData.month }
+      { billingPeriod: billData.month, roundingMode }
     );
 
     // 2. Derive utility line-item values if not itemized on the paper bill
@@ -90,6 +98,21 @@ export class BillVerifier {
       ? 'CHECK_WITH_UTILITY'
       : 'VERIFIED_ACCURATE';
 
+    // 4b. Explain exact difference & likely cause(s)
+    const { differenceSummary, likelyCauses } = this.diagnoseBillDifference(
+      billData,
+      calculated,
+      sanctionedLoad,
+      diffGross,
+      diffGrossPercent,
+      {
+        utilityEnergy,
+        utilityDemand,
+        utilityMeterRent,
+        utilityVat,
+      }
+    );
+
     // 5. Generate copy-ready dispute letters in English and Bangla
     const disputeMessage = this.generateDisputeDrafts(
       billData,
@@ -107,6 +130,7 @@ export class BillVerifier {
       unitsKwh: billData.unitsKwh,
       meterReading: billData.meterReading,
       sanctionedLoadKw: sanctionedLoad,
+      roundingMode,
       comparison: {
         energyCost: energyRow,
         demandCharge: demandRow,
@@ -124,6 +148,8 @@ export class BillVerifier {
         hasDiscrepancy,
         statusLabel,
       },
+      differenceSummary,
+      likelyCauses,
       disputeMessage,
       slabBreakdown: calculated.slabBreakdown || [],
       verifiedAt: new Date().toISOString(),
@@ -148,6 +174,181 @@ export class BillVerifier {
     });
 
     return verificationResult;
+  }
+
+  /**
+   * Diagnoses the difference between entered/billed bill and BERC calculated bill
+   * and identifies the likely root cause(s): meter reading error, demand charge,
+   * VAT mismatch, or wrong slab / tariff tiering.
+   */
+  private diagnoseBillDifference(
+    billData: ExtractedBillData,
+    calculated: CostCalculation,
+    sanctionedLoad: number,
+    diffGross: number,
+    diffGrossPercent: number,
+    claimed: {
+      utilityEnergy: number;
+      utilityDemand: number;
+      utilityMeterRent: number;
+      utilityVat: number;
+    }
+  ): {
+    differenceSummary: { en: string; bn: string };
+    likelyCauses: BillLikelyCause[];
+  } {
+    const causes: BillLikelyCause[] = [];
+    const absDiff = Math.abs(diffGross);
+    const absPct = Math.abs(diffGrossPercent);
+    const signedDiff = `${diffGross >= 0 ? '+' : '-'}৳${absDiff.toFixed(2)}`;
+    const signedPct = `${diffGrossPercent >= 0 ? '+' : ''}${diffGrossPercent.toFixed(2)}%`;
+
+    // 1. Meter reading consistency check
+    const prevReading = billData.meterReading?.previous;
+    const presReading = billData.meterReading?.present;
+    if (
+      typeof prevReading === 'number' &&
+      typeof presReading === 'number' &&
+      !Number.isNaN(prevReading) &&
+      !Number.isNaN(presReading) &&
+      (prevReading > 0 || presReading > 0)
+    ) {
+      const meterDelta = presReading - prevReading;
+      if (meterDelta < 0) {
+        causes.push({
+          code: 'METER_READING_ERROR',
+          severity: 'HIGH',
+          titleEn: 'Meter Reading Error (Inverted Readings)',
+          titleBn: 'মিটার রিডিং ত্রুটি (উল্টো রিডিং)',
+          detailEn: `Present reading (${presReading}) is lower than previous reading (${prevReading}), giving a negative delta (${meterDelta} kWh) vs billed ${billData.unitsKwh} kWh.`,
+          detailBn: `বর্তমান রিডিং (${presReading}) পূর্বের রিডিং (${prevReading}) থেকে কম, ফলে নেগেটিভ ব্যবধান (${meterDelta} kWh) দেখাচ্ছে কিন্তু বিল করা হয়েছে ${billData.unitsKwh} ইউনিটে।`,
+        });
+      } else if (Math.abs(meterDelta - billData.unitsKwh) > 0.5) {
+        const impliedDiffUnits = billData.unitsKwh - meterDelta;
+        const deltaCalc = TariffCalculator.calculateCost(meterDelta, sanctionedLoad, 'SLAB', undefined, {
+          billingPeriod: billData.month,
+          roundingMode: calculated.roundingMode,
+        });
+        const unitImpact = Number((calculated.grossTotalBDT - deltaCalc.grossTotalBDT).toFixed(2));
+        causes.push({
+          code: 'METER_READING_ERROR',
+          severity: 'HIGH',
+          titleEn: 'Meter Reading Error (Units Mismatch)',
+          titleBn: 'মিটার রিডিং ত্রুটি (ইউনিট অমিল)',
+          detailEn: `Meter delta (${presReading} − ${prevReading} = ${meterDelta} kWh) differs from billed units (${billData.unitsKwh} kWh) by ${impliedDiffUnits > 0 ? '+' : ''}${impliedDiffUnits.toFixed(1)} kWh.`,
+          detailBn: `মিটারের রিডিং পার্থক্য (${presReading} − ${prevReading} = ${meterDelta} kWh) ও বিলকৃত ইউনিটের (${billData.unitsKwh} kWh) মধ্যে ${impliedDiffUnits > 0 ? '+' : ''}${impliedDiffUnits.toFixed(1)} ইউনিটের অমিল রয়েছে।`,
+          estimatedImpactBdt: Math.abs(unitImpact),
+        });
+      }
+    }
+
+    // 2. Demand Charge check (explicit or inferred from kW multiple)
+    const demandDiff = Number((claimed.utilityDemand - calculated.demandChargeBDT).toFixed(2));
+    if (billData.claimedDemandChargeBdt !== undefined && Math.abs(demandDiff) > 1.0) {
+      causes.push({
+        code: 'DEMAND_CHARGE',
+        severity: Math.abs(demandDiff) > 40 ? 'HIGH' : 'MEDIUM',
+        titleEn: 'Demand Charge Mismatch',
+        titleBn: 'ডিমান্ড চার্জ অমিল',
+        detailEn: `Bill shows ৳${claimed.utilityDemand.toFixed(2)} vs expected ৳${calculated.demandChargeBDT.toFixed(2)} for ${sanctionedLoad} kW sanctioned load (diff: ${demandDiff > 0 ? '+' : '-'}৳${Math.abs(demandDiff).toFixed(2)}). Check kW load or rate per kW.`,
+        detailBn: `${sanctionedLoad} কিলোওয়াট লোডের জন্য প্রত্যাশিত ডিমান্ড চার্জ ৳${calculated.demandChargeBDT.toFixed(2)}, কিন্তু বিলে রয়েছে ৳${claimed.utilityDemand.toFixed(2)}। অনুমোদিত লোড বা প্রতি কিও হার যাচাই করুন।`,
+        estimatedImpactBdt: Math.abs(demandDiff),
+      });
+    } else if (billData.claimedDemandChargeBdt === undefined && absDiff >= 38) {
+      // Check if total difference with 5% VAT closely corresponds to an integer 1..5 kW load discrepancy at ~৳42/kW
+      const ratePerKw = sanctionedLoad > 0 ? calculated.demandChargeBDT / sanctionedLoad : 42;
+      const preVatDiff = diffGross / 1.05;
+      const impliedExtraKw = preVatDiff / ratePerKw;
+      if (Math.abs(impliedExtraKw - Math.round(impliedExtraKw)) <= 0.15 && Math.abs(Math.round(impliedExtraKw)) >= 1) {
+        const kwDelta = Math.round(impliedExtraKw);
+        causes.push({
+          code: 'DEMAND_CHARGE',
+          severity: 'MEDIUM',
+          titleEn: 'Possible Sanctioned Load / Demand Charge Difference',
+          titleBn: 'সম্ভাব্য অনুমোদিত লোড / ডিমান্ড চার্জ পার্থক্য',
+          detailEn: `The ৳${absDiff.toFixed(2)} difference matches roughly ${kwDelta > 0 ? '+' : ''}${kwDelta} kW of sanctioned load (at ৳${ratePerKw.toFixed(0)}/kW + 5% VAT). Verify the S.LOAD (kW) printed on your bill.`,
+          detailBn: `৳${absDiff.toFixed(2)} ব্যবধানটি প্রায় ${kwDelta > 0 ? '+' : ''}${kwDelta} কিলোওয়াট ডিমান্ড চার্জের সমতুল্য। আপনার কাগজের বিলে S.LOAD (kW) যাচাই করুন।`,
+          estimatedImpactBdt: Number((Math.abs(kwDelta) * ratePerKw * 1.05).toFixed(2)),
+        });
+      }
+    }
+
+    // 3. VAT discrepancy check
+    const vatDiff = Number((claimed.utilityVat - calculated.vatBDT).toFixed(2));
+    if (billData.claimedVatBdt !== undefined && Math.abs(vatDiff) > 1.5) {
+      const principal = claimed.utilityEnergy + claimed.utilityDemand + claimed.utilityMeterRent;
+      const impliedVatPct = principal > 0 ? (claimed.utilityVat / principal) * 100 : 0;
+      causes.push({
+        code: 'VAT_MISMATCH',
+        severity: Math.abs(vatDiff) > 15 ? 'HIGH' : 'MEDIUM',
+        titleEn: 'VAT Calculation Discrepancy',
+        titleBn: 'ভ্যাট হিসাবের অমিল',
+        detailEn: `Bill VAT is ৳${claimed.utilityVat.toFixed(2)} (~${impliedVatPct.toFixed(1)}%) vs BERC 5% VAT of ৳${calculated.vatBDT.toFixed(2)} (diff: ${vatDiff > 0 ? '+' : '-'}৳${Math.abs(vatDiff).toFixed(2)}). Utilities sometimes round VAT to whole Taka or include arrears.`,
+        detailBn: `বিলে ভ্যাট ধরা হয়েছে ৳${claimed.utilityVat.toFixed(2)} (~${impliedVatPct.toFixed(1)}%), যেখানে ৫% ভ্যাট হওয়া উচিত ৳${calculated.vatBDT.toFixed(2)}। বকেয়া বা পূর্ণসংখ্যা রাউন্ডিংয়ের কারণে এমন হতে পারে।`,
+        estimatedImpactBdt: Math.abs(vatDiff),
+      });
+    }
+
+    // 4. Wrong Slab / Tariff Rule mismatch
+    const energyDiff = Number((claimed.utilityEnergy - calculated.energyCostBDT).toFixed(2));
+    if (
+      (billData.claimedEnergyCostBdt !== undefined && Math.abs(energyDiff) > 2.0) ||
+      (absPct > 1.0 && (causes.length === 0 || Math.abs(energyDiff) > 10.0))
+    ) {
+      const nearLifelineBoundary = billData.unitsKwh >= 45 && billData.unitsKwh <= 75;
+      causes.push({
+        code: 'WRONG_SLAB',
+        severity: absPct > 5.0 ? 'HIGH' : 'MEDIUM',
+        titleEn: nearLifelineBoundary
+          ? 'Possible Wrong Slab or Lifeline Rule Difference'
+          : 'Wrong Tariff Slab or Rate Schedule Applied',
+        titleBn: nearLifelineBoundary
+          ? 'সম্ভাব্য ভুল স্ল্যাব বা লাইফলাইন নিয়মের পার্থক্য'
+          : 'ভুল ট্যারিফ স্ল্যাব বা রেট প্রয়োগ',
+        detailEn: nearLifelineBoundary
+          ? `Energy charge differs by ${energyDiff >= 0 ? '+' : '-'}৳${Math.abs(energyDiff).toFixed(2)}. Crossing 50 kWh removes the Lifeline rate (৳4.63) and bills all 0–75 kWh at Step 1 (৳5.26), or the utility may have applied a flat/higher tier.`
+          : `Energy charge differs by ${energyDiff >= 0 ? '+' : '-'}৳${Math.abs(energyDiff).toFixed(2)} (billed ৳${claimed.utilityEnergy.toFixed(2)} vs BERC slab ৳${calculated.energyCostBDT.toFixed(2)}). Utility may have billed on a different tariff version, combined days >30, or applied a higher slab tier.`,
+        detailBn: nearLifelineBoundary
+          ? `বিদ্যুৎ শক্তি চার্জে ${energyDiff >= 0 ? '+' : '-'}৳${Math.abs(energyDiff).toFixed(2)} পার্থক্য রয়েছে। ৫০ ইউনিট অতিক্রম করলে লাইফলাইন (৳৪.৬৩) বাতিল হয়ে ধাপ ১ (৳৫.২৬) প্রযোজ্য হয়, অথবা ইউটিলিটি ভিন্ন স্ল্যাব ধরেছে।`
+          : `স্ল্যাবভিত্তিক বিদ্যুৎ চার্জে ${energyDiff >= 0 ? '+' : '-'}৳${Math.abs(energyDiff).toFixed(2)} পার্থক্য রয়েছে। ভিন্ন ট্যারিফ সংস্করণ, ৩০ দিনের বেশি বিলিং সাইকেল বা উচ্চতর স্ল্যাব প্রয়োগ হয়ে থাকতে পারে।`,
+        estimatedImpactBdt: Math.abs(energyDiff),
+      });
+    }
+
+    // 5. Within 1% tolerance or exact match
+    if (causes.length === 0) {
+      causes.push({
+        code: 'MATCH',
+        severity: 'INFO',
+        titleEn: absDiff < 0.05 ? 'Exact Tariff Match' : 'Minor Rounding / Paisa Carry-Forward',
+        titleBn: absDiff < 0.05 ? 'ট্যারিফ সম্পূর্ণ মিলেছে' : 'সামান্য পয়সা রাউন্ডিং পার্থক্য',
+        detailEn:
+          absDiff < 0.05
+            ? 'Your bill matches the BERC LT-A calculation to the paisa.'
+            : `Variance of ${signedDiff} (${signedPct}) is within ±1% tolerance — typically caused by utility whole-Taka rounding or paisa carried to the next bill.`,
+        detailBn:
+          absDiff < 0.05
+            ? 'আপনার বিলটি বিইআরসি এলটি-এ হিসাবের সাথে শতভাগ মিলেছে।'
+            : `${signedDiff} (${signedPct}) পার্থক্যটি ±১% সীমার মধ্যে রয়েছে, যা সাধারণত ইউটিলিটির পূর্ণটাকা রাউন্ডিং বা পরবর্তী বিলে পয়সা সমন্বয়ের কারণে হয়।`,
+        estimatedImpactBdt: absDiff,
+      });
+    }
+
+    const differenceSummary =
+      absDiff < 0.05
+        ? {
+            en: `No difference detected: Utility bill (${billData.totalBdt.toFixed(2)} BDT) matches calculated BERC total (${calculated.grossTotalBDT.toFixed(2)} BDT).`,
+            bn: `কোনো গরমিল নেই: ইউটিলিটি বিল (৳${billData.totalBdt.toFixed(2)}) ও বিইআরসি হিসাব (৳${calculated.grossTotalBDT.toFixed(2)}) সম্পূর্ণ মিলেছে।`,
+          }
+        : {
+            en: `Difference of ${signedDiff} (${signedPct}): Utility billed ৳${billData.totalBdt.toFixed(2)} vs KilowattIQ calculated ৳${calculated.grossTotalBDT.toFixed(2)}. Primary driver: ${causes[0].titleEn}.`,
+            bn: `পার্থক্য ${signedDiff} (${signedPct}): বিলে ৳${billData.totalBdt.toFixed(2)} এবং সঠিক হিসাব ৳${calculated.grossTotalBDT.toFixed(2)}। সম্ভাব্য কারণ: ${causes[0].titleBn}।`,
+          };
+
+    return {
+      differenceSummary,
+      likelyCauses: causes,
+    };
   }
 
   /**

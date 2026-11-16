@@ -56,7 +56,7 @@ router.post('/extract', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/v1/bills/verify
 router.post('/verify', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { householdId, billData, sanctionedLoadKw, billImageUrl } = req.body;
+    const { householdId, billData, sanctionedLoadKw, billImageUrl, roundingMode } = req.body;
 
     const targetHouseholdId = householdId || (req.user?.id ? `hh_${req.user.id}` : 'hh_default');
 
@@ -67,11 +67,14 @@ router.post('/verify', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
+    const resolvedRoundingMode = roundingMode === 'PER_SLAB' ? 'PER_SLAB' : 'FINAL';
+
     const result = billVerifier.verifyBill(
       targetHouseholdId,
       billData,
       sanctionedLoadKw,
-      billImageUrl
+      billImageUrl,
+      resolvedRoundingMode
     );
 
     return res.json({

@@ -2,6 +2,8 @@
  * Types & Schemas for Bill Verification & OCR Subsystem
  */
 
+import { BillRoundingMode } from '../../../shared/types/energy';
+
 export interface ExtractedBillData {
   utility: 'DESCO' | 'DPDC' | 'BPDB' | 'WZPDCL' | 'BREB' | 'NESCO' | 'UNKNOWN';
   customerAccount?: string;
@@ -33,6 +35,23 @@ export interface ComparisonRow {
   status: 'MATCH' | 'DISCREPANCY' | 'OVERCHARGED' | 'UNDERCHARGED';
 }
 
+export type LikelyCauseCode =
+  | 'WRONG_SLAB'
+  | 'VAT_MISMATCH'
+  | 'DEMAND_CHARGE'
+  | 'METER_READING_ERROR'
+  | 'MATCH';
+
+export interface BillLikelyCause {
+  code: LikelyCauseCode;
+  severity: 'HIGH' | 'MEDIUM' | 'INFO';
+  titleEn: string;
+  titleBn: string;
+  detailEn: string;
+  detailBn: string;
+  estimatedImpactBdt?: number;
+}
+
 export interface VerificationResult {
   id: string;
   householdId: string;
@@ -45,6 +64,7 @@ export interface VerificationResult {
     difference?: number;
   };
   sanctionedLoadKw: number;
+  roundingMode?: BillRoundingMode;
   comparison: {
     energyCost: ComparisonRow;
     demandCharge: ComparisonRow;
@@ -62,6 +82,11 @@ export interface VerificationResult {
     hasDiscrepancy: boolean; // true if Math.abs(differencePercent) > 5.0
     statusLabel: 'VERIFIED_ACCURATE' | 'CHECK_WITH_UTILITY' | 'INCONCLUSIVE';
   };
+  differenceSummary: {
+    en: string;
+    bn: string;
+  };
+  likelyCauses: BillLikelyCause[];
   disputeMessage: {
     en: string;
     bn: string;

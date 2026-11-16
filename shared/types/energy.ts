@@ -1,4 +1,5 @@
 export type TariffType = 'SLAB' | 'FLAT' | 'TOU' | 'SEASONAL';
+export type BillRoundingMode = 'FINAL' | 'PER_SLAB';
 
 export interface SlabTier {
   step?: number;
@@ -72,6 +73,7 @@ export interface CostCalculation {
   tariffVersionId?: string;
   effectiveFrom?: string;
   lastVerifiedDate?: string | null;
+  roundingMode?: BillRoundingMode;
   totalKwh: number;
   energyCostBDT: number;
   slabBreakdown?: Array<{
@@ -82,6 +84,7 @@ export interface CostCalculation {
   }>;
   demandChargeBDT: number;
   meterRentBDT: number;
+  subtotalBDT?: number;
   vatBDT: number;
   grossTotalBDT: number;
   effectiveRatePerKwh: number;
