@@ -1,9 +1,12 @@
 /**
  * Golden Bills Verifiability Fixture & Regression Guard
  *
- * Replace the 3 placeholder entries below (marked isExample: true) with real utility bills.
- * Each bill MUST match TariffCalculator.calculateCost() within 1.0% tolerance, otherwise
- * this suite fails loudly with a non-zero exit code.
+ * NOTE: The starter EXAMPLE entries below are SYNTHETIC — replace them with
+ * real DESCO / DPDC / BPDB paper bills before trusting this test suite.
+ * This test run will fail with a warning if every entry is still marked as Example.
+ *
+ * Each bill MUST match TariffCalculator.calculateCost() within 1.0% tolerance,
+ * otherwise this suite fails loudly with a non-zero exit code.
  */
 
 import { TariffCalculator, DEFAULT_BILL_ROUNDING_MODE } from '../../../backend/engine/TariffCalculator';
@@ -190,29 +193,35 @@ export async function runGoldenBillsSuite(): Promise<void> {
     `  ✓ Configurable rounding verified: FINAL=৳${finalCalc.grossTotalBDT.toFixed(2)} vs PER_SLAB=৳${perSlabCalc.grossTotalBDT.toFixed(2)}`
   );
 
-  // 4. Verify BillVerifier explains difference and likely causes (meter reading, demand charge, VAT, wrong slab)
+  // 4. Verify BillVerifier hypothesis diagnosis (old tariff vs random unexplained)
   const verifier = BillVerifier.getInstance();
-  const meterMismatchResult = verifier.verifyBill('hh_golden_test', {
+  const oldTariffDiag = verifier.verifyBill('hh_golden_test', {
     utility: 'DESCO',
     month: '2026-07',
     unitsKwh: 285,
-    totalBdt: 2950,
+    totalBdt: 2277.49,
     sanctionedLoadKw: 4.5,
-    claimedDemandChargeBdt: 273, // +84 over 189
-    claimedVatBdt: 170,
-    meterReading: { previous: 12000, present: 12260, difference: 260 }, // delta 260 != 285
+    meterReading: { previous: 10000, present: 10285, difference: 285 },
     confidence: 1.0,
   }, 4.5);
 
-  const causeCodes = new Set(meterMismatchResult.likelyCauses.map(c => c.code));
-  for (const requiredCode of ['METER_READING_ERROR', 'DEMAND_CHARGE', 'VAT_MISMATCH', 'WRONG_SLAB'] as const) {
-    if (!causeCodes.has(requiredCode)) {
-      throw new Error(`Expected BillVerifier likelyCauses to detect ${requiredCode}, got: ${[...causeCodes].join(', ')}`);
-    }
+  if (oldTariffDiag.topExplanation?.code !== 'TARIFF_VERSION') {
+    throw new Error(`Expected TARIFF_VERSION top explanation, got: ${oldTariffDiag.topExplanation?.code}`);
   }
   console.log(
-    `  ✓ BillVerifier difference & likely causes verified: ${[...causeCodes].join(', ')}`
+    `  ✓ BillVerifier hypothesis diagnosis verified: ${oldTariffDiag.topExplanation.code} (residual ৳${oldTariffDiag.topExplanation.residualBdt.toFixed(2)})`
   );
+
+  // 5. Fail with a clear warning if every entry in GOLDEN_BILLS is still a synthetic Example
+  if (GOLDEN_BILLS.every(b => b.isExample)) {
+    console.warn(
+      '⚠️  WARNING: Every entry in GOLDEN_BILLS is still a synthetic EXAMPLE. ' +
+      'Replace at least one entry with a verified real utility bill (isExample: false) before trusting this test.'
+    );
+    throw new Error(
+      'GOLDEN_BILLS contains only synthetic EXAMPLE entries — replace with real bills before trusting the test.'
+    );
+  }
 
   console.log('✅ [PASS] Golden Bills & Verifiability Suite Passed!');
 }

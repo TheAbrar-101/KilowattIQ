@@ -640,7 +640,7 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                 </div>
               </div>
 
-              {/* Difference & Likely Cause Explanation Card */}
+              {/* Top Explanation & Qualifying Hypotheses Card */}
               <div
                 data-testid="bill-difference-causes"
                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3"
@@ -649,13 +649,13 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                   <div className="flex items-center gap-2">
                     <HelpCircle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Outfit']">
-                      {language === 'bn' ? 'পার্থক্য ও সম্ভাব্য কারণ বিশ্লেষণ' : 'Difference & Likely Cause Diagnosis'}
+                      {language === 'bn' ? 'পার্থক্য ও কারণ বিশ্লেষণ' : 'Difference & Likely Cause Diagnosis'}
                     </h4>
                   </div>
                   <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
                     <span className="text-slate-500 dark:text-slate-400">
                       {language === 'bn' ? 'পার্থক্য:' : 'Diff:'}{' '}
-                      <strong className={Math.abs(verificationResult.summary.differencePercent) > 1 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                      <strong className={Math.abs(verificationResult.summary.differenceBdt) > 5 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>
                         {verificationResult.summary.differenceBdt > 0 ? '+' : ''}
                         {formatCurrency(verificationResult.summary.differenceBdt, { showDecimals: true })}
                       </strong>
@@ -685,7 +685,7 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                       {language === 'bn' ? 'পার্থক্য (৳)' : 'Difference'}
                     </span>
                     <span className={`font-mono tabular-nums font-bold block text-right ${
-                      Math.abs(verificationResult.summary.differencePercent) > 1
+                      Math.abs(verificationResult.summary.differenceBdt) > 5
                         ? 'text-amber-600 dark:text-amber-400'
                         : 'text-emerald-600 dark:text-emerald-400'
                     }`}>
@@ -698,30 +698,46 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                 {verificationResult.likelyCauses && verificationResult.likelyCauses.length > 0 && (
                   <div className="space-y-2">
                     {verificationResult.likelyCauses.map((cause, cIdx) => {
+                      const isTop = cIdx === 0;
                       const badgeColor =
-                        cause.code === 'METER_READING_ERROR'
+                        cause.code === 'UNEXPLAINED'
                           ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
                           : cause.code === 'MATCH'
                             ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
                             : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40';
                       const causeLabel =
-                        cause.code === 'WRONG_SLAB'
-                          ? (language === 'bn' ? 'ভুল স্ল্যাব' : 'Wrong Slab')
-                          : cause.code === 'VAT_MISMATCH'
-                            ? (language === 'bn' ? 'ভ্যাট অমিল' : 'VAT')
+                        cause.code === 'TARIFF_VERSION'
+                          ? (language === 'bn' ? 'ট্যারিফ সংস্করণ' : 'Tariff Version')
+                          : cause.code === 'VAT'
+                            ? (language === 'bn' ? 'ভ্যাট' : 'VAT')
                             : cause.code === 'DEMAND_CHARGE'
                               ? (language === 'bn' ? 'ডিমান্ড চার্জ' : 'Demand Charge')
-                              : cause.code === 'METER_READING_ERROR'
+                              : cause.code === 'METER_READING'
                                 ? (language === 'bn' ? 'মিটার রিডিং' : 'Meter Reading')
-                                : (language === 'bn' ? 'সঠিক' : 'Matched');
+                                : cause.code === 'ROUNDING'
+                                  ? (language === 'bn' ? 'রাউন্ডিং' : 'Rounding')
+                                  : cause.code === 'COMBINATION'
+                                    ? (language === 'bn' ? 'যৌথ কারণ' : 'Combined')
+                                    : cause.code === 'UNEXPLAINED'
+                                      ? (language === 'bn' ? 'অব্যাখ্যাত' : 'Unexplained')
+                                      : (language === 'bn' ? 'সঠিক' : 'Matched');
 
                       return (
                         <div
                           key={`${cause.code}-${cIdx}`}
-                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1"
+                          className={`p-3 rounded-xl border space-y-1 ${
+                            isTop && cause.code !== 'MATCH'
+                              ? 'bg-amber-500/5 border-amber-500/40'
+                              : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                          }`}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {isTop && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950 font-['Outfit']">
+                                  {language === 'bn' ? 'প্রধান ব্যাখ্যা' : 'Top Match'}
+                                </span>
+                              )}
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded border font-['Outfit'] ${badgeColor}`}>
                                 {causeLabel}
                               </span>
@@ -729,11 +745,10 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                                 {language === 'bn' ? cause.titleBn : cause.titleEn}
                               </span>
                             </div>
-                            {typeof cause.estimatedImpactBdt === 'number' && cause.estimatedImpactBdt > 0 && (
-                              <span className="text-[11px] font-mono tabular-nums font-bold text-amber-600 dark:text-amber-400">
-                                ~{formatCurrency(cause.estimatedImpactBdt, { showDecimals: true })}
-                              </span>
-                            )}
+                            <span className="text-[11px] font-mono tabular-nums font-bold text-slate-600 dark:text-slate-300">
+                              {language === 'bn' ? 'অবশিষ্ট:' : 'Residual:'}{' '}
+                              {formatCurrency(cause.residualBdt, { showDecimals: true })}
+                            </span>
                           </div>
                           <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-['Plus_Jakarta_Sans']">
                             {language === 'bn' ? cause.detailBn : cause.detailEn}
@@ -877,14 +892,14 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                 )}
               </div>
 
-              {/* Copy-Ready Dispute Letter (Visible if Discrepancy > 5%) */}
-              {verificationResult.summary.hasDiscrepancy && (
+              {/* Copy-Ready Dispute Letter (Only when explanation favors the customer) */}
+              {verificationResult.disputeFavorsCustomer && (
                 <div className="bg-white dark:bg-slate-900 border border-amber-500/40 rounded-2xl p-5 shadow-xs space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-amber-500" />
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-display">
-                        Copy-Ready Utility Dispute Draft
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Outfit']">
+                        {language === 'bn' ? 'সংক্ষিপ্ত ও ভদ্র ডিসপিউট চিঠি' : 'Short Polite Utility Dispute Draft'}
                       </h4>
                     </div>
 
@@ -892,7 +907,7 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                     <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800">
                       <button
                         onClick={() => setDisputeLang('en')}
-                        className={`px-2.5 py-1 text-[11px] font-bold font-display rounded-md transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 text-[11px] font-bold font-['Outfit'] rounded-md transition-all cursor-pointer ${
                           disputeLang === 'en'
                             ? 'bg-amber-500 text-slate-950 shadow-xs'
                             : 'text-slate-500 dark:text-slate-400'
@@ -902,7 +917,7 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                       </button>
                       <button
                         onClick={() => setDisputeLang('bn')}
-                        className={`px-2.5 py-1 text-[11px] font-bold font-display rounded-md transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 text-[11px] font-bold font-['Outfit'] rounded-md transition-all cursor-pointer ${
                           disputeLang === 'bn'
                             ? 'bg-amber-500 text-slate-950 shadow-xs'
                             : 'text-slate-500 dark:text-slate-400'
@@ -913,8 +928,10 @@ export const VerifyBillSection: React.FC<VerifyBillSectionProps> = ({ household 
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-sans">
-                    Send this formal letter to {verificationResult.utility} customer care or submit it to the billing executive for manual reconciliation.
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-['Plus_Jakarta_Sans']">
+                    {language === 'bn'
+                      ? `সম্ভাব্য অতিরিক্ত চার্জের (${formatCurrency(verificationResult.summary.differenceBdt, { showDecimals: true })}) বিষয়ে ${verificationResult.utility} গ্রাহক সেবায় এই বার্তাটি পাঠাতে পারেন।`
+                      : `Send this brief inquiry to ${verificationResult.utility} customer care regarding the ${formatCurrency(verificationResult.summary.differenceBdt, { showDecimals: true })} overcharge.`}
                   </p>
 
                   {/* Letter Content Preview Box */}

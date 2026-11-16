@@ -36,11 +36,14 @@ export interface ComparisonRow {
 }
 
 export type LikelyCauseCode =
-  | 'WRONG_SLAB'
-  | 'VAT_MISMATCH'
+  | 'TARIFF_VERSION'
+  | 'VAT'
   | 'DEMAND_CHARGE'
-  | 'METER_READING_ERROR'
-  | 'MATCH';
+  | 'METER_READING'
+  | 'ROUNDING'
+  | 'COMBINATION'
+  | 'MATCH'
+  | 'UNEXPLAINED';
 
 export interface BillLikelyCause {
   code: LikelyCauseCode;
@@ -49,6 +52,11 @@ export interface BillLikelyCause {
   titleBn: string;
   detailEn: string;
   detailBn: string;
+  residualBdt: number;
+  recomputedTotalBdt: number;
+  factorCount: number;
+  factors?: LikelyCauseCode[];
+  favorsCustomer: boolean;
   estimatedImpactBdt?: number;
 }
 
@@ -86,7 +94,9 @@ export interface VerificationResult {
     en: string;
     bn: string;
   };
+  topExplanation?: BillLikelyCause;
   likelyCauses: BillLikelyCause[];
+  disputeFavorsCustomer: boolean;
   disputeMessage: {
     en: string;
     bn: string;
