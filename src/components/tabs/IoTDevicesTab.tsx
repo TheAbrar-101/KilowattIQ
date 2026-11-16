@@ -4,6 +4,7 @@ import { Cpu, Radio, ShieldCheck, Plus, Terminal, RefreshCw, CheckCircle2, Wifi,
 import { IoTDevice, AdapterType } from '../../../shared/types/iot';
 import { Household } from '../../../shared/types/household';
 import { useLanguage } from '../../context/LanguageContext';
+import { useDataMode } from '../../context/DataModeContext';
 import { EmptyState } from '../common/EmptyState';
 
 interface IoTDevicesTabProps {
@@ -14,6 +15,7 @@ interface IoTDevicesTabProps {
 
 export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices, onAddDevice }) => {
   const { language, t, formatNumber } = useLanguage();
+  const { isDemoData, setDataMode } = useDataMode();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<IoTDevice | null>(devices[0] || null);
   const [logs, setLogs] = useState<string[]>([
@@ -67,7 +69,30 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
 
   return (
     <div className="space-y-5">
-      
+      {!isDemoData && (
+        <div className="bg-slate-900 border border-amber-400/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-200">
+          <div>
+            <span className="font-bold font-['Outfit'] text-amber-300 block">
+              {language === 'bn'
+                ? 'আমার ডেটা মোডে সিমুলেটেড আইওটি অ্যাডাপ্টার নিষ্ক্রিয় রয়েছে'
+                : 'Simulated IoT adapters are paused in My data mode'}
+            </span>
+            <span className="text-slate-300">
+              {language === 'bn'
+                ? 'লাইভ মনিটর ট্যাব থেকে আপনার আসল মিটার রিডিং, ছবি স্ক্যান বা এসএমএস যোগ করুন।'
+                : 'Use manual meter readings, Scan meter, or Paste SMS in the Live Monitor tab, or switch back to Demo to test virtual hardware.'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDataMode('DEMO')}
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-['Outfit'] font-semibold text-xs shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            {language === 'bn' ? 'ডেমো চালু করুন' : 'Switch to Demo'}
+          </button>
+        </div>
+      )}
+
       {/* Header & Add Button */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between">
         <div>

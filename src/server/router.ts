@@ -35,6 +35,7 @@ import anomalyRoutes from '../../backend/routes/v1/anomalies';
 import weatherRoutes from '../../backend/routes/v1/weather';
 import paymentRoutes from '../../backend/routes/v1/payments';
 import voiceRoutes from '../../backend/routes/v1/voice';
+import metersRoutes from '../../backend/routes/v1/meters';
 import { openTelemetryTracingMiddleware, ObservabilityTracer } from './observability/tracing';
 import { structuredRequestLoggerMiddleware } from './observability/logger';
 import { HealthEvaluator } from './observability/healthEvaluator';
@@ -151,6 +152,7 @@ export function createV1Router(): Router {
   v1.use('/weather', authMiddleware, weatherRoutes);
   v1.use('/payments', authMiddleware, paymentRoutes);
   v1.use('/voice', authMiddleware, voiceRoutes);
+  v1.use('/meters', authMiddleware, metersRoutes);
 
   return v1;
 }

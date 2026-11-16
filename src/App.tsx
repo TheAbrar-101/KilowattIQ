@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { DataModeProvider, useDataMode } from './context/DataModeContext';
 import { AuthPage } from './components/auth/AuthPage';
 import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
@@ -17,6 +18,7 @@ import { ReportsTab } from './components/tabs/ReportsTab';
 import { AlertsTab } from './components/tabs/AlertsTab';
 import { AdminTab } from './components/tabs/AdminTab';
 import { OfflineBanner } from './components/pwa/OfflineBanner';
+import { DemoDataBanner } from './components/common/DemoDataBanner';
 import { PWAInstallPrompt } from './components/pwa/PWAInstallPrompt';
 
 import { Household, Room, Appliance } from '../shared/types/household';
@@ -25,6 +27,7 @@ import { PowerReading, RecommendationItem } from '../shared/types/energy';
 
 function MainAppContent() {
   const { user, token, loading, households, activeHousehold, setActiveHousehold } = useAuth();
+  const { isDemoData } = useDataMode();
 
   const [activeTab, setActiveTab] = useState<TabType>('LIVE');
   const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
@@ -148,9 +151,11 @@ function MainAppContent() {
       });
   }, [activeHousehold, token]);
 
-  // Real-Time Telemetry: Server-Sent Events (SSE) Stream with Polling Fallback
+  // Real-Time Telemetry: Server-Sent Events (SSE) Stream with Polling Fallback (Demo mode only)
   useEffect(() => {
-    if (!activeHousehold) return;
+    if (!activeHousehold || !isDemoData) {
+      return;
+    }
 
     let eventSource: EventSource | null = null;
     let fallbackInterval: any = null;
@@ -216,7 +221,7 @@ function MainAppContent() {
       if (eventSource) eventSource.close();
       if (fallbackInterval) clearInterval(fallbackInterval);
     };
-  }, [activeHousehold, token, pollTelemetry]);
+  }, [activeHousehold, token, pollTelemetry, isDemoData]);
 
   // Toggle Appliance Active State via Supabase API
   const handleToggleAppliance = async (applianceId: string) => {
@@ -334,6 +339,9 @@ function MainAppContent() {
       {/* Offline Status Warning Banner */}
       <OfflineBanner />
 
+      {/* Global Demo Data Notice Banner (Visible whenever telemetry/device data is simulated) */}
+      <DemoDataBanner />
+
       {/* Navigation Sub-header Bar */}
       <Navigation
         activeTab={activeTab}
@@ -443,7 +451,9 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <LanguageProvider>
-          <MainAppContent />
+          <DataModeProvider>
+            <MainAppContent />
+          </DataModeProvider>
         </LanguageProvider>
       </ThemeProvider>
     </AuthProvider>

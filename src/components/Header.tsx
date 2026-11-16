@@ -22,11 +22,14 @@ import {
   Sliders,
   ShieldCheck,
   Globe,
+  FlaskConical,
+  Database,
 } from 'lucide-react';
 import { Household } from '../../shared/types/household';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useDataMode } from '../context/DataModeContext';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import {
   UserRole,
@@ -61,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { user, signOut, switchRole, token } = useAuth();
   const { themeMode, setThemeMode } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
+  const { dataMode, isDemoData, setDataMode } = useDataMode();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
 
   const [showUserMenu, setShowUserMenu] = useState<boolean>(false);
@@ -222,15 +226,49 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Realtime Live Watts Badge */}
-            <div className="hidden xl:flex items-center gap-2 bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-[11px]">
-              <div className={`w-2 h-2 rounded-full ${isLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-              <span className="text-slate-600 dark:text-slate-400 font-mono font-medium">
-                {isLiveConnected
-                  ? `${(totalActiveWatts / 1000).toFixed(2)} kW ${streamMode === 'SSE' ? '• SSE Live' : '• Polling'}`
-                  : 'Offline'}
-              </span>
+            {/* Global Demo / My data Mode Toggle & Status Badge */}
+            <div className="hidden lg:flex items-center gap-1 bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 text-[11px]" role="group" aria-label={language === 'bn' ? 'ডেটা উৎস পরিবর্তন' : 'Data source toggle'}>
+              <button
+                type="button"
+                onClick={() => setDataMode('DEMO')}
+                aria-pressed={isDemoData}
+                aria-label={language === 'bn' ? 'ডেমো ডেটা চালু করুন' : 'Switch to Demo data'}
+                className={`min-h-[36px] px-2.5 py-1 rounded-lg font-['Outfit'] font-semibold flex items-center gap-1.5 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                  isDemoData
+                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                <span>{language === 'bn' ? 'ডেমো' : 'Demo'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDataMode('REAL')}
+                aria-pressed={!isDemoData}
+                aria-label={language === 'bn' ? 'আমার প্রকৃত ডেটায় যান' : 'Switch to My data (real readings only)'}
+                className={`min-h-[36px] px-2.5 py-1 rounded-lg font-['Outfit'] font-semibold flex items-center gap-1.5 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                  !isDemoData
+                    ? 'bg-emerald-500 text-slate-950 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span>{language === 'bn' ? 'আমার ডেটা' : 'My data'}</span>
+              </button>
             </div>
+
+            {/* Realtime Live Watts Badge (Demo mode only) */}
+            {isDemoData && (
+              <div className="hidden xl:flex items-center gap-2 bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-[11px]">
+                <div className={`w-2 h-2 rounded-full ${isLiveConnected ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'}`} />
+                <span className="text-slate-600 dark:text-slate-400 font-mono font-medium">
+                  {isLiveConnected
+                    ? `${(totalActiveWatts / 1000).toFixed(2)} kW • ${streamMode === 'SSE' ? 'Demo SSE' : 'Demo Poll'}`
+                    : 'Offline'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Right Action Controls: Invite + Audit Trail + Install + Theme + Profile */}
@@ -272,6 +310,29 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-xs font-bold">{isIOS ? (language === 'bn' ? 'ইনস্টল' : 'Install') : (language === 'bn' ? 'অ্যাপ ইনস্টল' : 'Install App')}</span>
               </button>
             )}
+
+            {/* Mobile Demo / My data Quick Toggle (< lg) */}
+            <button
+              type="button"
+              onClick={() => setDataMode(isDemoData ? 'REAL' : 'DEMO')}
+              aria-label={
+                isDemoData
+                  ? language === 'bn'
+                    ? 'আমার প্রকৃত ডেটায় যান'
+                    : 'Switch to My data (real readings only)'
+                  : language === 'bn'
+                    ? 'ডেমো ডেটা চালু করুন'
+                    : 'Switch to Demo data'
+              }
+              className={`lg:hidden min-h-[44px] px-2.5 py-1.5 rounded-xl border text-[11px] font-['Outfit'] font-semibold flex items-center gap-1 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                isDemoData
+                  ? 'bg-amber-400/15 border-amber-400/50 text-amber-800 dark:text-amber-200'
+                  : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-200'
+              }`}
+            >
+              {isDemoData ? <FlaskConical className="w-3.5 h-3.5" /> : <Database className="w-3.5 h-3.5" />}
+              <span>{isDemoData ? (language === 'bn' ? 'ডেমো' : 'Demo') : (language === 'bn' ? 'আমার' : 'Mine')}</span>
+            </button>
 
             {/* Global Language Toggle (English <-> বাংলা) */}
             <button

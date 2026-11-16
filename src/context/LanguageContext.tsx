@@ -84,6 +84,11 @@ const translations: Record<string, { en: string; bn: string }> = {
   'empty.no_alerts_desc': { en: 'Your household electrical grid and appliance health are operating within optimal parameters.', bn: 'আপনার বাসাবাড়ির বিদ্যুৎ গ্রিড ও যন্ত্রপাতি সম্পূর্ণ স্বাভাবিক রয়েছে।' },
   'error.generic_title': { en: 'Something Went Wrong', bn: 'একটি সমস্যা হয়েছে' },
   'error.generic_desc': { en: 'Unable to complete the requested operation. Please verify your connection and try again.', bn: 'অনুরোধটি সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে ইন্টারনেট চেক করে পুনরায় চেষ্টা করুন।' },
+
+  // Data Mode (Demo vs My Data)
+  'mode.demo_banner': { en: 'Demo data: not from a real meter', bn: 'ডেমো ডেটা: এটি প্রকৃত মিটার থেকে প্রাপ্ত নয়' },
+  'mode.demo': { en: 'Demo', bn: 'ডেমো' },
+  'mode.my_data': { en: 'My data', bn: 'আমার ডেটা' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);

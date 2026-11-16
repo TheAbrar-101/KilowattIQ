@@ -53,6 +53,7 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
   const [roundingMode, setRoundingMode] = useState<BillRoundingMode>(DEFAULT_BILL_ROUNDING_MODE);
   const [versions, setVersionsState] = useState<TariffVersion[]>(() => getTariffVersions());
   const [usingFallback, setUsingFallback] = useState<boolean>(false);
+  const [realMtdKwh, setRealMtdKwh] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,10 +78,24 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
       }
     };
     loadVersions();
+
+    // Also check if household has real Month-to-Date kWh from logged meter readings
+    fetch(`/api/v1/meters/readings?householdId=${encodeURIComponent(household.id)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const mtd = json?.data?.metrics?.monthToDateKwh;
+        if (!cancelled && typeof mtd === 'number' && mtd > 0) {
+          setRealMtdKwh(mtd);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, household.id]);
 
   const activeTariffVersion = getTariffVersionForBillingPeriod(billingPeriod);
 
@@ -273,6 +288,18 @@ export const CostAnalysisTab: React.FC<CostAnalysisTabProps> = ({ household, tok
               />
               <span className="text-slate-500 dark:text-slate-400 font-mono font-bold">kWh</span>
             </div>
+
+            {realMtdKwh !== null && (
+              <button
+                type="button"
+                onClick={() => setKwhInput(Math.round(realMtdKwh))}
+                className="min-h-[44px] px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-['Outfit'] font-semibold text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                {language === 'bn'
+                  ? `আমার মিটার (${formatNumber(realMtdKwh.toFixed(1))} kWh)`
+                  : `Use My Data (${realMtdKwh.toFixed(1)} kWh)`}
+              </button>
+            )}
           </div>
         </div>
 

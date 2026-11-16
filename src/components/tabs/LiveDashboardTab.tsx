@@ -16,7 +16,12 @@ import {
   Wind,
   Droplets,
   Microwave,
-  Info
+  Info,
+  Camera,
+  ClipboardPaste,
+  Plus,
+  Database,
+  FlaskConical
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { PowerReading } from '../../../shared/types/energy';
@@ -25,9 +30,12 @@ import { apiClient, ApiError } from '../../lib/apiClient';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useDataMode } from '../../context/DataModeContext';
 import { getTariffVersionForBillingPeriod } from '../../../shared/constants/bdTariffs';
 import { UserRole, normalizeRole, canToggleLoads } from '../../server/auth/roles';
 import { AnomalyFeedPanel } from '../dashboard/AnomalyFeedPanel';
+import { RealMeterHub, MeterWorkflowTab } from '../meters/RealMeterHub';
+import { MeterUsageMetrics } from '../../server/meters/types';
 
 interface LiveDashboardTabProps {
   household: Household;
@@ -53,6 +61,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
   const { isDark } = useTheme();
   const { user } = useAuth();
   const { language, t, formatCurrency, formatNumber } = useLanguage();
+  const { isDemoData, setDataMode } = useDataMode();
   const currentRole: UserRole = normalizeRole(user?.householdRole || user?.role);
   const canToggle = canToggleLoads(currentRole, user?.auditorExpiresAt);
 
@@ -61,6 +70,8 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
   const [auditorNotice, setAuditorNotice] = useState<string | null>(null);
+  const [meterWorkflow, setMeterWorkflow] = useState<MeterWorkflowTab>('ADD_READING');
+  const [realMetrics, setRealMetrics] = useState<MeterUsageMetrics | null>(null);
 
   const currentKw = totalActiveWatts / 1000;
   const maxKw = household.sanctionedLoadKw || 4.5;
@@ -159,8 +170,152 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
     }
   };
 
+  const jumpToRealWorkflow = (wf: MeterWorkflowTab) => {
+    setMeterWorkflow(wf);
+    setDataMode('REAL');
+  };
+
+  if (!isDemoData) {
+    const activeTariffVer = getTariffVersionForBillingPeriod();
+    const mtdKwh = realMetrics?.monthToDateKwh ?? 0;
+
+    return (
+      <div className="space-y-5">
+        {/* Real Mode Header Strip */}
+        <div className="bg-white dark:bg-slate-900 border border-emerald-500/30 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-['Outfit']">
+                {language === 'bn' ? 'আমার ডেটা (শুধুমাত্র প্রকৃত মিটার রিডিং)' : 'My data (real readings only)'}
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-['Plus_Jakarta_Sans']">
+                {language === 'bn'
+                  ? 'সিমুলেটেড টেলিমেট্রি বন্ধ রয়েছে। আপনার নিজের মিটার রিডিং ও ইউটিলিটি এসএমএস থেকে হিসাব দেখানো হচ্ছে।'
+                  : 'Simulated IoT telemetry is turned off. All figures below come solely from your saved readings and utility SMS.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setDataMode('DEMO')}
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-['Outfit'] font-semibold flex items-center gap-2 shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <FlaskConical className="w-4 h-4 text-amber-500" />
+            <span>{language === 'bn' ? 'ডেমো মোডে দেখুন' : 'Switch to Demo'}</span>
+          </button>
+        </div>
+
+        {/* Add Reading / Scan Meter / Paste SMS Hub */}
+        <RealMeterHub
+          key={meterWorkflow}
+          household={household}
+          token={token}
+          initialWorkflow={meterWorkflow}
+          onMetricsUpdated={setRealMetrics}
+        />
+
+        {/* Real MTD Tariff Slab Progress */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-['Outfit']">
+                  {language === 'bn' ? 'আপনার চলতি মাসের ট্যারিফ স্ল্যাব অবস্থান' : 'Your Month-to-Date Tariff Slab Position'}
+                </h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-['Plus_Jakarta_Sans']">
+                  {activeTariffVer.version_id} • {language === 'bn' ? 'প্রকৃত রিডিং ভিত্তিক' : 'Based on your real readings'}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 font-mono tabular-nums">
+              {realMetrics?.monthToDateKwh !== null && realMetrics?.monthToDateKwh !== undefined
+                ? `${formatNumber(realMetrics.monthToDateKwh.toFixed(1))} kWh MTD`
+                : language === 'bn'
+                  ? 'এখনো পর্যাপ্ত রিডিং নেই'
+                  : 'Add 2+ readings for MTD slab'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 text-center text-[10px]">
+            {activeTariffVer.slabs.map((slab, i) => {
+              const isLifeline = Boolean(slab.isLifeline);
+              const hasMtd = realMetrics?.monthToDateKwh !== null && realMetrics?.monthToDateKwh !== undefined;
+              const isCurrent = hasMtd && (isLifeline
+                ? mtdKwh <= (slab.maxKwh ?? 50)
+                : mtdKwh > 50 && mtdKwh >= slab.minKwh && (slab.maxKwh === null || mtdKwh <= slab.maxKwh));
+              const isPassed = hasMtd && !isLifeline && mtdKwh > (slab.maxKwh ?? Infinity);
+              const rangeLabel = slab.maxKwh !== null ? `${slab.minKwh}-${slab.maxKwh}` : `${slab.minKwh}+`;
+              const shortDesc = isLifeline ? 'Lifeline (<=50)' : `Step ${slab.step ?? i}`;
+
+              return (
+                <div
+                  key={slab.stepName}
+                  className={`p-2 rounded-xl border flex flex-col justify-between transition-all ${
+                    isCurrent
+                      ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-500 text-amber-900 dark:text-amber-200 shadow-xs ring-1 ring-amber-500/50'
+                      : isPassed
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  <span className="font-mono font-bold text-[11px] tabular-nums block">{rangeLabel} kWh</span>
+                  <span className="font-bold font-mono tabular-nums text-xs block my-0.5">৳{slab.ratePerKwh.toFixed(2)}</span>
+                  <span className="text-[8px] uppercase tracking-wider font-semibold opacity-80">{shortDesc}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
+      {/* Quick Entry Strip for No-IoT Real Household Tracking */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="text-xs">
+          <span className="font-bold text-slate-900 dark:text-slate-100 font-['Outfit']">
+            {language === 'bn' ? 'স্মার্ট হার্ডওয়্যার ছাড়াই ব্যবহার করুন:' : 'Have no IoT hardware? Track your real meter:'}
+          </span>
+          <span className="text-slate-600 dark:text-slate-300 ml-1.5 font-['Plus_Jakarta_Sans']">
+            {language === 'bn'
+              ? 'রিডিং, মিটার ছবি বা ইউটিলিটি এসএমএস দিয়ে "আমার ডেটা" চালু করুন।'
+              : 'Log a kWh reading, scan your meter photo, or paste a recharge/bill SMS in My data.'}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => jumpToRealWorkflow('ADD_READING')}
+            className="min-h-[44px] px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-['Outfit'] font-semibold text-xs flex items-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{language === 'bn' ? 'রিডিং যোগ' : 'Add reading'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => jumpToRealWorkflow('SCAN_METER')}
+            className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-['Outfit'] font-semibold text-xs flex items-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <Camera className="w-3.5 h-3.5 text-amber-500" />
+            <span>{language === 'bn' ? 'মিটার স্ক্যান' : 'Scan meter'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => jumpToRealWorkflow('PASTE_SMS')}
+            className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-['Outfit'] font-semibold text-xs flex items-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <ClipboardPaste className="w-3.5 h-3.5 text-sky-500" />
+            <span>{language === 'bn' ? 'এসএমএস পেস্ট' : 'Paste SMS'}</span>
+          </button>
+        </div>
+      </div>
       
       {/* Top Banner Alert if load > 80% */}
       <AnimatePresence>
