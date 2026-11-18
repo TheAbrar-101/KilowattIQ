@@ -19,6 +19,14 @@ export interface ManualMeterReading {
   createdAt: string;
 }
 
+export interface MeterCycleSummary {
+  cycleStartDate: string; // YYYY-MM-DD
+  cycleEndDate: string; // YYYY-MM-DD
+  kwhUsed: number | null;
+  estimatedCostBdt: number | null;
+  tariffVersionId: string;
+}
+
 export interface MeterUsageMetrics {
   readingCount: number;
   latestReading: ManualMeterReading | null;
@@ -31,6 +39,9 @@ export interface MeterUsageMetrics {
   billingDay: number;
   cycleStartDate: string; // YYYY-MM-DD
   cycleEndDate: string; // YYYY-MM-DD
+  cycleDaysElapsed: number;
+  cycleTotalDays: number;
+  previousCycle?: MeterCycleSummary;
   activeSegment: number;
   tariffVersionId: string;
   needsMoreReadings: boolean;

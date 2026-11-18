@@ -151,9 +151,40 @@ export function sortReadingsChronologically(readings: ManualMeterReading[]): Man
   });
 }
 
+function sumSegmentUsageInWindow(
+  bySegment: Map<number, ManualMeterReading[]>,
+  startDate: string,
+  endDate: string
+): number | null {
+  let totalKwh = 0;
+  let hasInterval = false;
+
+  for (const segReadings of bySegment.values()) {
+    const inWindow = segReadings.filter(
+      (r) => r.readingDate >= startDate && r.readingDate <= endDate
+    );
+    if (inWindow.length === 0) continue;
+
+    const priorBeforeWindow = segReadings.filter((r) => r.readingDate < startDate);
+    const baseline =
+      priorBeforeWindow.length > 0 ? priorBeforeWindow[priorBeforeWindow.length - 1] : inWindow[0];
+    const latestInSeg = inWindow[inWindow.length - 1];
+
+    if (baseline.id !== latestInSeg.id) {
+      hasInterval = true;
+      totalKwh += Math.max(0, latestInSeg.readingKwh - baseline.readingKwh);
+    } else if (inWindow.length >= 2) {
+      hasInterval = true;
+      totalKwh += Math.max(0, latestInSeg.readingKwh - inWindow[0].readingKwh);
+    }
+  }
+
+  return hasInterval ? Number(totalKwh.toFixed(2)) : null;
+}
+
 /**
- * Pure computation of Daily Usage (kWh/day) and Month-to-Date usage & cost from real readings,
- * honoring meter replacement segments (no negative usage across swaps) and household billingDay.
+ * Pure computation of Daily Usage (kWh/day), Month-to-Date usage & cost, and previous billing cycle
+ * summary from real readings, honoring meter replacement segments and household billingDay.
  */
 export function computeMeterUsageMetrics(
   readings: ManualMeterReading[],
@@ -167,6 +198,10 @@ export function computeMeterUsageMetrics(
       : new Date().toISOString().slice(0, 10);
 
   const cycle = getBillingCycleWindow(refDate, billingDay);
+  const prevCycleWindow = getBillingCycleWindow(addDaysUtc(cycle.cycleStartDate, -1), billingDay);
+  const cycleDaysElapsed = Math.max(1, daysBetweenDates(cycle.cycleStartDate, refDate) + 1);
+  const cycleTotalDays = Math.max(cycleDaysElapsed, daysBetweenDates(cycle.cycleStartDate, cycle.cycleEndDate) + 1);
+
   const sorted = sortReadingsChronologically(readings);
   const latestReading = sorted.length > 0 ? sorted[sorted.length - 1] : null;
   const activeSegment = latestReading?.meterSegment || 1;
@@ -174,6 +209,9 @@ export function computeMeterUsageMetrics(
   if (sorted.length < 2 || !latestReading) {
     const emptyCalc = TariffCalculator.calculateCost(0, sanctionedLoadKw, 'SLAB', undefined, {
       billingPeriod: cycle.cycleStartDate,
+    });
+    const prevEmptyCalc = TariffCalculator.calculateCost(0, sanctionedLoadKw, 'SLAB', undefined, {
+      billingPeriod: prevCycleWindow.cycleStartDate,
     });
     return {
       readingCount: sorted.length,
@@ -187,6 +225,15 @@ export function computeMeterUsageMetrics(
       billingDay: cycle.billingDay,
       cycleStartDate: cycle.cycleStartDate,
       cycleEndDate: cycle.cycleEndDate,
+      cycleDaysElapsed,
+      cycleTotalDays,
+      previousCycle: {
+        cycleStartDate: prevCycleWindow.cycleStartDate,
+        cycleEndDate: prevCycleWindow.cycleEndDate,
+        kwhUsed: null,
+        estimatedCostBdt: null,
+        tariffVersionId: prevEmptyCalc.tariffVersionId || 'BERC-LTA',
+      },
       activeSegment,
       tariffVersionId: emptyCalc.tariffVersionId || 'BERC-LTA',
       needsMoreReadings: true,
@@ -203,30 +250,21 @@ export function computeMeterUsageMetrics(
   }
 
   // Month-to-Date (Billing-Cycle-to-Date): sum usage per segment inside [cycleStartDate, refDate]
-  let totalCycleKwh = 0;
-  let hasCycleInterval = false;
+  const monthToDateKwh = sumSegmentUsageInWindow(bySegment, cycle.cycleStartDate, refDate);
 
-  for (const segReadings of bySegment.values()) {
-    const inCycle = segReadings.filter(
-      (r) => r.readingDate >= cycle.cycleStartDate && r.readingDate <= refDate
-    );
-    if (inCycle.length === 0) continue;
-
-    const priorBeforeCycle = segReadings.filter((r) => r.readingDate < cycle.cycleStartDate);
-    const baseline =
-      priorBeforeCycle.length > 0 ? priorBeforeCycle[priorBeforeCycle.length - 1] : inCycle[0];
-    const latestInSeg = inCycle[inCycle.length - 1];
-
-    if (baseline.id !== latestInSeg.id) {
-      hasCycleInterval = true;
-      totalCycleKwh += Math.max(0, latestInSeg.readingKwh - baseline.readingKwh);
-    } else if (inCycle.length >= 2) {
-      hasCycleInterval = true;
-      totalCycleKwh += Math.max(0, latestInSeg.readingKwh - inCycle[0].readingKwh);
-    }
-  }
-
-  const monthToDateKwh = hasCycleInterval ? Number(totalCycleKwh.toFixed(2)) : null;
+  // Previous Billing Cycle: sum usage per segment inside [prevCycleStartDate, prevCycleEndDate]
+  const prevCycleKwh = sumSegmentUsageInWindow(
+    bySegment,
+    prevCycleWindow.cycleStartDate,
+    prevCycleWindow.cycleEndDate
+  );
+  const prevCycleCalc = TariffCalculator.calculateCost(
+    prevCycleKwh ?? 0,
+    sanctionedLoadKw,
+    'SLAB',
+    undefined,
+    { billingPeriod: prevCycleWindow.cycleStartDate }
+  );
 
   // Daily usage: computed strictly within the active segment, anchored to current billing cycle
   let dailyUsageKwh: number | null = null;
@@ -274,6 +312,15 @@ export function computeMeterUsageMetrics(
     billingDay: cycle.billingDay,
     cycleStartDate: cycle.cycleStartDate,
     cycleEndDate: cycle.cycleEndDate,
+    cycleDaysElapsed,
+    cycleTotalDays,
+    previousCycle: {
+      cycleStartDate: prevCycleWindow.cycleStartDate,
+      cycleEndDate: prevCycleWindow.cycleEndDate,
+      kwhUsed: prevCycleKwh,
+      estimatedCostBdt: prevCycleKwh !== null ? prevCycleCalc.grossTotalBDT : null,
+      tariffVersionId: prevCycleCalc.tariffVersionId || 'BERC-LTA',
+    },
     activeSegment,
     tariffVersionId: calc.tariffVersionId || 'BERC-LTA',
     needsMoreReadings: monthToDateKwh === null,

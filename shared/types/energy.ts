@@ -215,6 +215,41 @@ export interface FullReportData {
   aiAdvice?: AiAdvisoryResponse;
 }
 
+export interface SlabLimitAlert {
+  level: '80_PERCENT' | '100_PERCENT';
+  thresholdKwh: number;
+  utilizationPercent: number;
+  crossedSlabName?: string;
+  titleEn: string;
+  titleBn: string;
+  messageEn: string;
+  messageBn: string;
+}
+
+export interface MonthlyComparisonSummary {
+  hasComparison: boolean;
+  thisMonthKwh: number;
+  lastMonthKwh: number | null;
+  kwhDelta: number | null;
+  kwhDeltaPercent: number | null;
+  thisMonthBillBDT: number;
+  lastMonthBillBDT: number | null;
+  billDeltaBDT: number | null;
+  tariffChanged: boolean;
+  thisTariffVersionId: string;
+  lastTariffVersionId: string | null;
+  thisSlabName: string;
+  lastSlabName: string | null;
+  drivers: Array<{
+    key: string;
+    labelEn: string;
+    labelBn: string;
+    impactBDT?: number;
+  }>;
+  summaryEn: string;
+  summaryBn: string;
+}
+
 export interface SlabThresholdAnalysis {
   tariffVersionId?: string;
   effectiveFrom?: string;
@@ -225,14 +260,23 @@ export interface SlabThresholdAnalysis {
   nextRateBDT: number | null;
   rateJumpPercentage: number;
   thresholdKwh: number | null;
+  unitsUsedThisMonth: number;
   kwhRemainingToBreach: number;
+  slabUtilizationPercent: number;
   burnRateKwhPerDay: number;
   projectedMonthEndKwh: number;
+  currentBillBDT: number;
+  projectedBillBDT: number;
+  daysPassed: number;
+  totalDaysInCycle: number;
+  daysLeftInCycle: number;
   daysUntilBreach: number | null;
   projectedBreachOccurs: boolean;
   maxDailyKwhToStayInSlab: number;
   avoidableMonthlySurchargeBDT: number;
+  slabAlerts: SlabLimitAlert[];
 }
+
 
 
 

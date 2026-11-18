@@ -30,6 +30,7 @@
     "test:observability": "tsx src/server/tests/observability.test.ts",
     "test:golden-bills": "tsx src/server/tests/goldenBills.test.ts",
     "test:meters": "tsx src/server/tests/meters.test.ts",
+    "test:slab": "tsx src/server/tests/slabPrediction.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

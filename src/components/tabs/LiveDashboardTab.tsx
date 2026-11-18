@@ -34,8 +34,10 @@ import { useDataMode } from '../../context/DataModeContext';
 import { getTariffVersionForBillingPeriod } from '../../../shared/constants/bdTariffs';
 import { UserRole, normalizeRole, canToggleLoads } from '../../server/auth/roles';
 import { AnomalyFeedPanel } from '../dashboard/AnomalyFeedPanel';
+import { SlabPredictionHero } from '../dashboard/SlabPredictionHero';
 import { RealMeterHub, MeterWorkflowTab } from '../meters/RealMeterHub';
 import { MeterUsageMetrics } from '../../server/meters/types';
+import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
 
 interface LiveDashboardTabProps {
   household: Household;
@@ -86,10 +88,20 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
 
   const statusStyle = getStatusColor();
 
-  // BDT Cost estimation
-  const currentHourlyCostBDT = currentKw * 7.34; // DESCO LT-A Step 4 rate
+  // Deterministic BERC LT-A baseline (active tariff version)
+  const demoUnitsThisMonth = 245;
+  const demoUnitsLastMonth = 210;
+  const demoDaysPassed = 18;
+  const demoTotalDays = 30;
+  const demoSlabAnalysis = TariffCalculator.analyzeSlabThreshold(
+    demoUnitsThisMonth,
+    demoDaysPassed,
+    demoTotalDays,
+    household.sanctionedLoadKw || 3.0
+  );
+  const currentHourlyCostBDT = currentKw * demoSlabAnalysis.currentRateBDT;
   const estimatedDailyCostBDT = currentHourlyCostBDT * 14;
-  const estimatedMonthlyCostBDT = currentKw * 18 * 30 * 6.95;
+  const estimatedMonthlyCostBDT = demoSlabAnalysis.projectedBillBDT;
 
   // Real-time telemetry query using typed apiClient with retry and error handling
   const handleSyncTelemetry = async () => {
@@ -209,6 +221,15 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
           </button>
         </div>
 
+        {/* Hero Slab Prediction Card (Centerpiece) */}
+        <SlabPredictionHero
+          household={household}
+          isDemoData={false}
+          realMetrics={realMetrics}
+          onQuickAddReading={() => setMeterWorkflow('ADD_READING')}
+          onQuickScanMeter={() => setMeterWorkflow('SCAN_METER')}
+        />
+
         {/* Add Reading / Scan Meter / Paste SMS Hub */}
         <RealMeterHub
           key={meterWorkflow}
@@ -316,32 +337,44 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
           </button>
         </div>
       </div>
-      
-      {/* Top Banner Alert if load > 80% */}
+      {/* Hero Slab Prediction Card (Centerpiece) */}
+      <SlabPredictionHero
+        household={household}
+        isDemoData={true}
+        realMetrics={realMetrics}
+        demoUnitsThisMonth={demoUnitsThisMonth}
+        demoUnitsLastMonth={demoUnitsLastMonth}
+        demoDaysPassed={demoDaysPassed}
+        demoTotalDays={demoTotalDays}
+        onQuickAddReading={() => jumpToRealWorkflow('ADD_READING')}
+        onQuickScanMeter={() => jumpToRealWorkflow('SCAN_METER')}
+      />
+
+      {/* Top Banner Alert if load > 80% (Calm Amber Protocol) */}
       <AnimatePresence>
         {loadPercentage > 80 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 rounded-2xl p-3.5 flex items-center justify-between text-xs text-rose-800 dark:text-rose-200 shadow-lg shadow-rose-950/10"
+            className="bg-amber-50 dark:bg-amber-950/60 border border-amber-400/60 dark:border-amber-700 rounded-2xl p-3.5 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 shadow-sm"
           >
             <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-rose-100 dark:bg-rose-900 rounded-xl text-rose-600 dark:text-rose-300 animate-pulse">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/80 rounded-xl text-amber-600 dark:text-amber-300">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-rose-900 dark:text-rose-100 uppercase tracking-wide block">
-                  High Load Warning ({loadPercentage.toFixed(0)}% of Sanctioned Capacity)
+                <span className="font-bold text-amber-900 dark:text-amber-100 uppercase tracking-wide block">
+                  High Load Advisory ({loadPercentage.toFixed(0)}% of Sanctioned Capacity)
                 </span>
-                <span className="text-rose-700 dark:text-rose-300 text-[11px]">
+                <span className="text-amber-800 dark:text-amber-300 text-[11px]">
                   Current power draw ({currentKw.toFixed(2)} kW) is approaching sanctioned limit of {maxKw} kW.
                 </span>
               </div>
             </div>
             <button
               onClick={() => onSetTotalWatts && onSetTotalWatts(1200)}
-              className="min-h-[44px] bg-rose-500 hover:bg-rose-400 text-slate-950 font-['Outfit'] font-semibold px-4 py-2 rounded-xl text-xs transition-all shadow-md shrink-0 cursor-pointer active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-rose-400/50"
+              className="min-h-[44px] bg-amber-400 hover:bg-amber-300 text-slate-950 font-['Outfit'] font-semibold px-4 py-2 rounded-xl text-xs transition-all shadow-md shrink-0 cursor-pointer active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-amber-400/50"
             >
               Reduce Load Now
             </button>
@@ -518,9 +551,9 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                   {formatCurrency(estimatedDailyCostBDT)}
                 </span>
               </div>
-              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 font-mono">
-                <TrendingUp className="w-3 h-3" />
-                Step 4 LT-A
+              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 font-mono truncate">
+                <TrendingUp className="w-3 h-3 shrink-0" />
+                {demoSlabAnalysis.currentSlabName}
               </span>
             </div>
 
@@ -732,7 +765,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
       {/* DESCO LT-A Tiered Tariff Slab Tracker Bar */}
       {(() => {
         const activeTariffVer = getTariffVersionForBillingPeriod();
-        const monthlyKwh = 245;
+        const monthlyKwh = demoUnitsThisMonth;
         return (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -746,7 +779,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
                 </div>
               </div>
               <span className="text-xs font-bold text-amber-600 dark:text-amber-400 font-mono tabular-nums">
-                Current Position: Step 3 ({monthlyKwh} kWh)
+                Current Position: {demoSlabAnalysis.currentSlabName} ({monthlyKwh} kWh)
               </span>
             </div>
 

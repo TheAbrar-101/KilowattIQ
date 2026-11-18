@@ -3,6 +3,8 @@ import {
   CostCalculation,
   TariffType,
   SlabThresholdAnalysis,
+  SlabLimitAlert,
+  MonthlyComparisonSummary,
   BillRoundingMode,
 } from '../../shared/types/energy';
 import { getActiveTariffStructure } from '../../shared/constants/bdTariffs';
@@ -195,7 +197,7 @@ export class TariffCalculator {
   }
 
   /**
-   * Predictive analysis for BERC slab step-jump risks and countdown
+   * Predictive analysis for BERC slab step-jump risks, daily cap, avoidable cost, and 80%/100% in-app alerts.
    */
   static analyzeSlabThreshold(
     currentKwh: number,
@@ -206,11 +208,12 @@ export class TariffCalculator {
     billingPeriod?: string | Date
   ): SlabThresholdAnalysis {
     const resolvedConfig = this.resolveTariffConfig(tariffConfig, billingPeriod);
-    const safeDaysPassed = Math.max(1, daysPassed);
-    const safeTotalDays = Math.max(safeDaysPassed, totalDaysInMonth);
-    const remainingDays = safeTotalDays - safeDaysPassed;
+    const safeUnits = Math.max(0, Number(currentKwh || 0));
+    const safeDaysPassed = Math.max(1, Math.round(daysPassed));
+    const safeTotalDays = Math.max(safeDaysPassed, Math.round(totalDaysInMonth));
+    const remainingDays = Math.max(0, safeTotalDays - safeDaysPassed);
 
-    const burnRateKwhPerDay = currentKwh / safeDaysPassed;
+    const burnRateKwhPerDay = safeUnits / safeDaysPassed;
     const projectedMonthEndKwh = burnRateKwhPerDay * safeTotalDays;
 
     const lifelineSlab = resolvedConfig.slabs.find(
@@ -223,23 +226,31 @@ export class TariffCalculator {
     // Determine current active slab (respecting separate Lifeline <= 50 kWh rule)
     let currentSlab = regularSlabs[0] || resolvedConfig.slabs[0];
     let nextSlab = regularSlabs[1] || null;
+    let currentRegularIdx = 0;
+    let isInLifeline = false;
 
-    if (lifelineSlab && currentKwh <= (lifelineSlab.maxKwh ?? 50)) {
+    if (lifelineSlab && safeUnits <= (lifelineSlab.maxKwh ?? 50)) {
       currentSlab = lifelineSlab;
       nextSlab = regularSlabs[0] || null;
+      isInLifeline = true;
     } else {
       for (let i = 0; i < regularSlabs.length; i++) {
         const slab = regularSlabs[i];
-        if (currentKwh >= slab.minKwh && (slab.maxKwh === null || currentKwh <= slab.maxKwh)) {
+        if (safeUnits >= slab.minKwh && (slab.maxKwh === null || safeUnits <= slab.maxKwh)) {
           currentSlab = slab;
           nextSlab = regularSlabs[i + 1] || null;
+          currentRegularIdx = i;
           break;
         }
       }
     }
 
     const thresholdKwh = currentSlab.maxKwh;
-    const kwhRemainingToBreach = thresholdKwh !== null ? Math.max(0, thresholdKwh - currentKwh) : 0;
+    const kwhRemainingToBreach = thresholdKwh !== null ? Math.max(0, thresholdKwh - safeUnits) : 0;
+    const slabUtilizationPercent =
+      thresholdKwh !== null && thresholdKwh > 0
+        ? Number(((safeUnits / thresholdKwh) * 100).toFixed(1))
+        : 100;
 
     let daysUntilBreach: number | null = null;
     if (thresholdKwh !== null && burnRateKwhPerDay > 0) {
@@ -254,16 +265,75 @@ export class TariffCalculator {
       ? Number((((nextRateBDT - currentRateBDT) / currentRateBDT) * 100).toFixed(1))
       : 0;
 
-    const maxDailyKwhToStayInSlab = remainingDays > 0 && thresholdKwh !== null
-      ? Number((kwhRemainingToBreach / remainingDays).toFixed(1))
-      : 0;
+    const maxDailyKwhToStayInSlab =
+      remainingDays > 0 && thresholdKwh !== null
+        ? Number((kwhRemainingToBreach / remainingDays).toFixed(1))
+        : thresholdKwh !== null && remainingDays === 0
+          ? Number(kwhRemainingToStayAtZero(kwhRemainingToBreach))
+          : 0;
 
-    // Calculate financial impact: difference between staying at current slab cap vs projected month-end bill
+    const currentCalc = this.calculateCost(safeUnits, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod });
+    const projectedCalc = this.calculateCost(projectedMonthEndKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod });
     const costAtCap = thresholdKwh !== null
       ? this.calculateCost(thresholdKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod }).grossTotalBDT
       : 0;
-    const costAtProjected = this.calculateCost(projectedMonthEndKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod }).grossTotalBDT;
-    const avoidableMonthlySurchargeBDT = Math.max(0, Number((costAtProjected - costAtCap).toFixed(2)));
+    const avoidableMonthlySurchargeBDT =
+      thresholdKwh !== null
+        ? Math.max(0, Number((projectedCalc.grossTotalBDT - costAtCap).toFixed(2)))
+        : 0;
+
+    // Build deterministic 80% and 100% slab limit alerts (calm amber protocol, never red)
+    const slabAlerts: SlabLimitAlert[] = [];
+
+    if (thresholdKwh !== null && safeUnits >= thresholdKwh) {
+      slabAlerts.push({
+        level: '100_PERCENT',
+        thresholdKwh,
+        utilizationPercent: slabUtilizationPercent,
+        crossedSlabName: currentSlab.stepName,
+        titleEn: `100% of ${currentSlab.stepName} Limit Reached (${safeUnits.toFixed(1)} / ${thresholdKwh} kWh)`,
+        titleBn: `${currentSlab.stepName} সীমার ১০০% পূর্ণ হয়েছে (${safeUnits.toFixed(1)} / ${thresholdKwh} kWh)`,
+        messageEn: isInLifeline
+          ? `Any additional unit moves your bill out of Lifeline (৳${currentRateBDT.toFixed(2)}/kWh) to Step 1 (৳${(nextRateBDT ?? currentRateBDT).toFixed(2)}/kWh across all units).`
+          : `You are right at the ${thresholdKwh} kWh ceiling. Next units enter ${nextSlab?.stepName || 'the next tier'} at ৳${(nextRateBDT ?? currentRateBDT).toFixed(2)}/kWh.`,
+        messageBn: isInLifeline
+          ? `আর ১ ইউনিট বাড়লেই লাইফলাইন সুবিধা (৳${currentRateBDT.toFixed(2)}) বাদ হয়ে ধাপ ১ হারে বিল গণনা হবে।`
+          : `আপনি ${thresholdKwh} kWh সীমায় পৌঁছেছেন। এর পরের ইউনিটগুলোতে ৳${(nextRateBDT ?? currentRateBDT).toFixed(2)}/kWh হার প্রযোজ্য হবে।`,
+      });
+    } else if (thresholdKwh !== null && safeUnits >= thresholdKwh * 0.8) {
+      slabAlerts.push({
+        level: '80_PERCENT',
+        thresholdKwh,
+        utilizationPercent: slabUtilizationPercent,
+        titleEn: `80%+ of ${currentSlab.stepName} Limit Used (${slabUtilizationPercent}%)`,
+        titleBn: `${currentSlab.stepName} সীমার ৮০%+ ব্যবহৃত হয়েছে (${slabUtilizationPercent}%)`,
+        messageEn: `${kwhRemainingToBreach.toFixed(1)} kWh remaining before ${nextSlab?.stepName || 'next slab'}${nextRateBDT ? ` (৳${nextRateBDT.toFixed(2)}/kWh)` : ''}. Keep daily use at or below ${maxDailyKwhToStayInSlab.toFixed(1)} kWh/day.`,
+        messageBn: `পরবর্তী স্ল্যাবে যাওয়ার আগে আর ${kwhRemainingToBreach.toFixed(1)} kWh বাকি আছে। বর্তমান ধাপে থাকতে দৈনিক সর্বোচ্চ ${maxDailyKwhToStayInSlab.toFixed(1)} kWh ব্যবহার করুন।`,
+      });
+    }
+
+    // If usage has already crossed 100% of a previous slab ceiling (e.g. >50, >75, >200, >300, >400, >600 kWh)
+    if (!isInLifeline) {
+      const crossedSlab =
+        currentRegularIdx > 0
+          ? regularSlabs[currentRegularIdx - 1]
+          : lifelineSlab && safeUnits > (lifelineSlab.maxKwh ?? 50)
+            ? lifelineSlab
+            : null;
+
+      if (crossedSlab && crossedSlab.maxKwh !== null && safeUnits > crossedSlab.maxKwh) {
+        slabAlerts.push({
+          level: '100_PERCENT',
+          thresholdKwh: crossedSlab.maxKwh,
+          utilizationPercent: Number(((safeUnits / crossedSlab.maxKwh) * 100).toFixed(1)),
+          crossedSlabName: crossedSlab.stepName,
+          titleEn: `Crossed 100% of ${crossedSlab.stepName} (${crossedSlab.maxKwh} kWh Limit)`,
+          titleBn: `${crossedSlab.stepName} (${crossedSlab.maxKwh} kWh) সীমার ১০০% অতিক্রান্ত হয়েছে`,
+          messageEn: `Usage this cycle passed ${crossedSlab.maxKwh} kWh and is now billed under ${currentSlab.stepName} at ৳${currentRateBDT.toFixed(2)}/kWh.`,
+          messageBn: `এই চক্রে ব্যবহার ${crossedSlab.maxKwh} kWh ছাড়িয়েছে; এখন ${currentSlab.stepName} (৳${currentRateBDT.toFixed(2)}/kWh) ধাপ সক্রিয় রয়েছে।`,
+        });
+      }
+    }
 
     return {
       tariffVersionId: resolvedConfig.version_id || resolvedConfig.id,
@@ -275,14 +345,195 @@ export class TariffCalculator {
       nextRateBDT,
       rateJumpPercentage,
       thresholdKwh,
+      unitsUsedThisMonth: Number(safeUnits.toFixed(2)),
       kwhRemainingToBreach: Number(kwhRemainingToBreach.toFixed(1)),
+      slabUtilizationPercent,
       burnRateKwhPerDay: Number(burnRateKwhPerDay.toFixed(2)),
       projectedMonthEndKwh: Number(projectedMonthEndKwh.toFixed(1)),
+      currentBillBDT: currentCalc.grossTotalBDT,
+      projectedBillBDT: projectedCalc.grossTotalBDT,
+      daysPassed: safeDaysPassed,
+      totalDaysInCycle: safeTotalDays,
+      daysLeftInCycle: remainingDays,
       daysUntilBreach,
       projectedBreachOccurs,
       maxDailyKwhToStayInSlab,
       avoidableMonthlySurchargeBDT,
+      slabAlerts,
+    };
+  }
+
+  /**
+   * Deterministic plain-language comparison between this billing cycle/month and last month.
+   * Never uses LLM text generation — all numbers and causes come strictly from TariffCalculator.
+   */
+  static compareBillingMonths(params: {
+    thisMonthKwh: number;
+    lastMonthKwh: number | null;
+    sanctionedLoadKw?: number;
+    thisBillingPeriod?: string | Date;
+    lastBillingPeriod?: string | Date;
+    tariffConfig?: TariffStructure;
+  }): MonthlyComparisonSummary {
+    const loadKw = params.sanctionedLoadKw ?? 3.0;
+    const thisKwh = Math.max(0, Number(params.thisMonthKwh || 0));
+    const thisCalc = this.calculateCost(thisKwh, loadKw, 'SLAB', params.tariffConfig, {
+      billingPeriod: params.thisBillingPeriod,
+    });
+    const thisSlab = this.analyzeSlabThreshold(
+      thisKwh,
+      30,
+      30,
+      loadKw,
+      params.tariffConfig,
+      params.thisBillingPeriod
+    );
+    const thisVer = thisCalc.tariffVersionId || 'BERC-LTA';
+
+    if (params.lastMonthKwh === null || params.lastMonthKwh === undefined || !Number.isFinite(params.lastMonthKwh)) {
+      return {
+        hasComparison: false,
+        thisMonthKwh: Number(thisKwh.toFixed(1)),
+        lastMonthKwh: null,
+        kwhDelta: null,
+        kwhDeltaPercent: null,
+        thisMonthBillBDT: thisCalc.grossTotalBDT,
+        lastMonthBillBDT: null,
+        billDeltaBDT: null,
+        tariffChanged: false,
+        thisTariffVersionId: thisVer,
+        lastTariffVersionId: null,
+        thisSlabName: thisSlab.currentSlabName,
+        lastSlabName: null,
+        drivers: [],
+        summaryEn: 'Not enough readings from the previous billing cycle yet to compare month-over-month changes.',
+        summaryBn: 'গত বিলিং চক্রের সাথে তুলনা করার জন্য এখনো পর্যাপ্ত আগের রিডিং সংরক্ষিত নেই।',
+      };
+    }
+
+    const lastKwh = Math.max(0, Number(params.lastMonthKwh));
+    const lastCalc = this.calculateCost(lastKwh, loadKw, 'SLAB', params.tariffConfig, {
+      billingPeriod: params.lastBillingPeriod,
+    });
+    const lastSlab = this.analyzeSlabThreshold(
+      lastKwh,
+      30,
+      30,
+      loadKw,
+      params.tariffConfig,
+      params.lastBillingPeriod
+    );
+    const lastVer = lastCalc.tariffVersionId || 'BERC-LTA';
+
+    const kwhDelta = Number((thisKwh - lastKwh).toFixed(1));
+    const kwhDeltaPercent =
+      lastKwh > 0 ? Number(((kwhDelta / lastKwh) * 100).toFixed(1)) : null;
+    const billDeltaBDT = Number((thisCalc.grossTotalBDT - lastCalc.grossTotalBDT).toFixed(2));
+    const tariffChanged = thisVer !== lastVer;
+    const slabChanged = thisSlab.currentSlabName !== lastSlab.currentSlabName;
+
+    // Decompose bill change deterministically: usage impact at old tariff vs rate impact
+    const thisKwhAtLastTariff = this.calculateCost(thisKwh, loadKw, 'SLAB', params.tariffConfig, {
+      billingPeriod: params.lastBillingPeriod,
+    }).grossTotalBDT;
+    const usageImpactBDT = Number((thisKwhAtLastTariff - lastCalc.grossTotalBDT).toFixed(2));
+    const tariffImpactBDT = Number((thisCalc.grossTotalBDT - thisKwhAtLastTariff).toFixed(2));
+
+    const drivers: MonthlyComparisonSummary['drivers'] = [];
+    if (Math.abs(kwhDelta) >= 0.5) {
+      const dirEn = kwhDelta > 0 ? 'up' : 'down';
+      const dirBn = kwhDelta > 0 ? 'বেড়েছে' : 'কমেছে';
+      drivers.push({
+        key: 'USAGE_CHANGE',
+        labelEn: `Usage ${dirEn} by ${Math.abs(kwhDelta).toFixed(1)} kWh${kwhDeltaPercent !== null ? ` (${kwhDelta > 0 ? '+' : ''}${kwhDeltaPercent}%)` : ''}`,
+        labelBn: `বিদ্যুৎ ব্যবহার ${Math.abs(kwhDelta).toFixed(1)} kWh ${dirBn}`,
+        impactBDT: usageImpactBDT,
+      });
+    } else {
+      drivers.push({
+        key: 'USAGE_STEADY',
+        labelEn: 'Usage stayed nearly unchanged vs last cycle',
+        labelBn: 'ব্যবহার প্রায় গত মাসের মতোই ছিল',
+        impactBDT: 0,
+      });
+    }
+
+    if (slabChanged) {
+      drivers.push({
+        key: 'SLAB_SHIFT',
+        labelEn: `Moved from ${lastSlab.currentSlabName} to ${thisSlab.currentSlabName}`,
+        labelBn: `${lastSlab.currentSlabName} থেকে ${thisSlab.currentSlabName} ধাপে পরিবর্তন হয়েছে`,
+      });
+    }
+
+    if (tariffChanged && Math.abs(tariffImpactBDT) >= 1) {
+      drivers.push({
+        key: 'TARIFF_VERSION',
+        labelEn: `Tariff update (${lastVer} → ${thisVer}) added ৳${Math.abs(tariffImpactBDT).toFixed(0)}`,
+        labelBn: `ট্যারিফ হালনাগাদ (${lastVer} → ${thisVer}) বাবদ ৳${Math.abs(tariffImpactBDT).toFixed(0)} পরিবর্তন`,
+        impactBDT: tariffImpactBDT,
+      });
+    }
+
+    const billDirEn =
+      billDeltaBDT > 1
+        ? `up ৳${Math.abs(billDeltaBDT).toFixed(0)}`
+        : billDeltaBDT < -1
+          ? `down ৳${Math.abs(billDeltaBDT).toFixed(0)}`
+          : 'nearly unchanged';
+    const billDirBn =
+      billDeltaBDT > 1
+        ? `৳${Math.abs(billDeltaBDT).toFixed(0)} বেড়েছে`
+        : billDeltaBDT < -1
+          ? `৳${Math.abs(billDeltaBDT).toFixed(0)} কমেছে`
+          : 'প্রায় অপরিবর্তিত রয়েছে';
+
+    const usagePhraseEn =
+      kwhDelta > 0.5
+        ? `you used ${kwhDelta.toFixed(1)} kWh more (${thisKwh.toFixed(1)} vs ${lastKwh.toFixed(1)} kWh)`
+        : kwhDelta < -0.5
+          ? `you used ${Math.abs(kwhDelta).toFixed(1)} kWh less (${thisKwh.toFixed(1)} vs ${lastKwh.toFixed(1)} kWh)`
+          : `your usage held steady around ${thisKwh.toFixed(1)} kWh`;
+    const usagePhraseBn =
+      kwhDelta > 0.5
+        ? `ব্যবহার ${kwhDelta.toFixed(1)} kWh বেড়েছে (${lastKwh.toFixed(1)} থেকে ${thisKwh.toFixed(1)} kWh)`
+        : kwhDelta < -0.5
+          ? `ব্যবহার ${Math.abs(kwhDelta).toFixed(1)} kWh কমেছে (${lastKwh.toFixed(1)} থেকে ${thisKwh.toFixed(1)} kWh)`
+          : `ব্যবহার প্রায় একই (${thisKwh.toFixed(1)} kWh) রয়েছে`;
+
+    const slabPhraseEn = slabChanged
+      ? `, shifting from ${lastSlab.currentSlabName} to ${thisSlab.currentSlabName}`
+      : `, remaining in ${thisSlab.currentSlabName}`;
+    const slabPhraseBn = slabChanged
+      ? ` এবং স্ল্যাব ${lastSlab.currentSlabName} থেকে ${thisSlab.currentSlabName}-এ গেছে`
+      : ` এবং আপনি ${thisSlab.currentSlabName} ধাপেই আছেন`;
+
+    const tariffPhraseEn = tariffChanged ? ` Tariff schedule changed from ${lastVer} to ${thisVer}.` : '';
+    const tariffPhraseBn = tariffChanged ? ` ট্যারিফ ${lastVer} থেকে ${thisVer}-এ পরিবর্তিত হয়েছে।` : '';
+
+    return {
+      hasComparison: true,
+      thisMonthKwh: Number(thisKwh.toFixed(1)),
+      lastMonthKwh: Number(lastKwh.toFixed(1)),
+      kwhDelta,
+      kwhDeltaPercent,
+      thisMonthBillBDT: thisCalc.grossTotalBDT,
+      lastMonthBillBDT: lastCalc.grossTotalBDT,
+      billDeltaBDT,
+      tariffChanged,
+      thisTariffVersionId: thisVer,
+      lastTariffVersionId: lastVer,
+      thisSlabName: thisSlab.currentSlabName,
+      lastSlabName: lastSlab.currentSlabName,
+      drivers,
+      summaryEn: `Estimated bill is ${billDirEn} (৳${thisCalc.grossTotalBDT.toFixed(0)} vs ৳${lastCalc.grossTotalBDT.toFixed(0)} last month): ${usagePhraseEn}${slabPhraseEn}.${tariffPhraseEn}`,
+      summaryBn: `গত মাসের তুলনায় আনুমানিক বিল ${billDirBn} (৳${thisCalc.grossTotalBDT.toFixed(0)} বনাম ৳${lastCalc.grossTotalBDT.toFixed(0)}): ${usagePhraseBn}${slabPhraseBn}।${tariffPhraseBn}`,
     };
   }
 }
+
+function kwhRemainingToStayAtZero(remaining: number): number {
+  return Number(Math.max(0, remaining).toFixed(1));
+}
+
 
