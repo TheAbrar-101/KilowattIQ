@@ -101,19 +101,34 @@ export async function runMetersTestSuite(): Promise<void> {
   }
   console.log('  ✓ Test 4b: DPDC bill SMS parsed (amount, date, kWh)');
 
-  // 4c. SMS Parsing: Bengali numerals
+  // 4c. SMS Parsing: Itemized DESCO SMS ("Recharge amt Tk.500, Energy Cost Tk.380, Curr Bal Tk.410.25 Dt:16/11/26")
+  const itemizedDesco = parseUtilitySms(
+    'DESCO Prepaid: Recharge amt Tk.500, Energy Cost Tk.380, Demand Chrg Tk.42, VAT Tk.23.81, Curr Bal Tk.410.25 Dt:16/11/26'
+  );
+  if (
+    !itemizedDesco.parsed ||
+    itemizedDesco.utility !== 'DESCO' ||
+    itemizedDesco.amountBdt !== 500 ||
+    itemizedDesco.balanceBdt !== 410.25 ||
+    itemizedDesco.date !== '2026-11-16'
+  ) {
+    throw new Error(`Itemized DESCO SMS parse mismatch: ${JSON.stringify(itemizedDesco)}`);
+  }
+  console.log('  ✓ Test 4c: Itemized DESCO SMS parsed accurately (amount=500, balance=410.25, date=2026-11-16)');
+
+  // 4d. SMS Parsing: Bengali numerals
   const bnSms = parseUtilitySms('ডেসকো: রিচার্জ ১০০০ টাকা সফল হয়েছে ১৬/১১/২০২৬। বর্তমান ব্যালেন্স ৪৫০.৫০ টাকা।');
   if (!bnSms.parsed || bnSms.utility !== 'DESCO' || bnSms.amountBdt !== 1000 || bnSms.balanceBdt !== 450.5 || bnSms.date !== '2026-11-16') {
     throw new Error(`Bengali SMS parse mismatch: ${JSON.stringify(bnSms)}`);
   }
-  console.log('  ✓ Test 4c: Bengali numeral SMS parsed cleanly');
+  console.log('  ✓ Test 4d: Bengali numeral SMS parsed cleanly');
 
-  // 4d. SMS Parsing failure case
+  // 4e. SMS Parsing failure case
   const garbageSms = parseUtilitySms('Hey are we still meeting at Dhanmondi 27 at 5?');
   if (garbageSms.parsed || !garbageSms.failureReason) {
     throw new Error(`Expected unrecognized SMS to fail cleanly, got: ${JSON.stringify(garbageSms)}`);
   }
-  console.log('  ✓ Test 4d: Unrecognized SMS returns parsed=false with plain failure message');
+  console.log('  ✓ Test 4e: Unrecognized SMS returns parsed=false with plain failure message');
 
   // 5. Gemini Vision server boundary & never-auto-save check
   const prevKey = process.env.GEMINI_API_KEY;

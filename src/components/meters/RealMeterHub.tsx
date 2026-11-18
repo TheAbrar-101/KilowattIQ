@@ -77,6 +77,32 @@ async function compressImageForUpload(file: File): Promise<{ base64: string; mim
   });
 }
 
+const getReadingsStorageKey = (householdId: string) =>
+  `kilowattiq_real_readings_${householdId}`;
+const getSmsStorageKey = (householdId: string) =>
+  `kilowattiq_real_sms_${householdId}`;
+
+function readStoredArray<T>(key: string): T[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredArray<T>(key: string, items: T[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(items));
+  } catch {
+    // Ignore storage quota errors cleanly
+  }
+}
+
 export const RealMeterHub: React.FC<RealMeterHubProps> = ({
   household,
   token,
@@ -127,11 +153,20 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
   const fetchAllMeterData = useCallback(async () => {
     setLoadStatus('loading');
     setLoadError(null);
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const baseHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const postHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...baseHeaders,
+    };
+
     try {
       const [readingsRes, smsRes] = await Promise.all([
-        fetch(`/api/v1/meters/readings?householdId=${encodeURIComponent(household.id)}`, { headers }),
-        fetch(`/api/v1/meters/sms?householdId=${encodeURIComponent(household.id)}`, { headers }),
+        fetch(`/api/v1/meters/readings?householdId=${encodeURIComponent(household.id)}`, {
+          headers: baseHeaders,
+        }),
+        fetch(`/api/v1/meters/sms?householdId=${encodeURIComponent(household.id)}`, {
+          headers: baseHeaders,
+        }),
       ]);
       const readingsJson = await readingsRes.json();
       const smsJson = await smsRes.json();
@@ -140,16 +175,87 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
         throw new Error(readingsJson.message || 'Unable to load meter readings.');
       }
 
-      setReadings(readingsJson.data.readings || []);
-      setMetrics(readingsJson.data.metrics || null);
-      if (onMetricsUpdated && readingsJson.data.metrics) {
-        onMetricsUpdated(readingsJson.data.metrics);
+      let resolvedReadings: ManualMeterReading[] = readingsJson.data.readings || [];
+      let resolvedMetrics: MeterUsageMetrics | null = readingsJson.data.metrics || null;
+
+      // Rehydrate from browser localStorage if server in-memory store restarted/cold-started empty
+      const readingsKey = getReadingsStorageKey(household.id);
+      if (resolvedReadings.length === 0) {
+        const storedReadings = readStoredArray<ManualMeterReading>(readingsKey);
+        if (storedReadings.length > 0) {
+          const sortedChron = [...storedReadings].sort((a, b) =>
+            a.readingDate.localeCompare(b.readingDate) || a.createdAt.localeCompare(b.createdAt)
+          );
+          for (const item of sortedChron) {
+            const replayRes = await fetch('/api/v1/meters/readings', {
+              method: 'POST',
+              headers: postHeaders,
+              body: JSON.stringify({
+                householdId: household.id,
+                readingKwh: item.readingKwh,
+                readingDate: item.readingDate,
+                source: item.source,
+                confidence: item.confidence,
+                notes: item.notes,
+              }),
+            });
+            if (replayRes.ok) {
+              const replayJson = await replayRes.json();
+              if (replayJson.status === 'success') {
+                resolvedReadings = replayJson.data.readings || resolvedReadings;
+                resolvedMetrics = replayJson.data.metrics || resolvedMetrics;
+              }
+            }
+          }
+          writeStoredArray(readingsKey, resolvedReadings);
+        }
+      } else {
+        writeStoredArray(readingsKey, resolvedReadings);
       }
 
-      if (smsRes.ok && smsJson.status === 'success') {
-        setSmsRecords(smsJson.data || []);
+      setReadings(resolvedReadings);
+      setMetrics(resolvedMetrics);
+      if (onMetricsUpdated && resolvedMetrics) {
+        onMetricsUpdated(resolvedMetrics);
       }
 
+      let resolvedSms: SavedSmsRecord[] =
+        smsRes.ok && smsJson.status === 'success' ? smsJson.data || [] : [];
+      const smsKey = getSmsStorageKey(household.id);
+      if (resolvedSms.length === 0) {
+        const storedSms = readStoredArray<SavedSmsRecord>(smsKey);
+        if (storedSms.length > 0) {
+          const oldestFirst = [...storedSms].reverse();
+          for (const item of oldestFirst) {
+            const replaySmsRes = await fetch('/api/v1/meters/sms', {
+              method: 'POST',
+              headers: postHeaders,
+              body: JSON.stringify({
+                householdId: household.id,
+                smsType: item.smsType,
+                utility: item.utility,
+                amountBdt: item.amountBdt,
+                date: item.date,
+                balanceBdt: item.balanceBdt,
+                unitsKwh: item.unitsKwh,
+                token: item.token,
+                rawText: item.rawText,
+              }),
+            });
+            if (replaySmsRes.ok) {
+              const replaySmsJson = await replaySmsRes.json();
+              if (replaySmsJson.status === 'success') {
+                resolvedSms = replaySmsJson.data.records || resolvedSms;
+              }
+            }
+          }
+          writeStoredArray(smsKey, resolvedSms);
+        }
+      } else {
+        writeStoredArray(smsKey, resolvedSms);
+      }
+
+      setSmsRecords(resolvedSms);
       setLoadStatus('success');
     } catch (err: any) {
       setLoadStatus('error');
@@ -233,6 +339,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       }
 
       setReadings(json.data.readings);
+      writeStoredArray(getReadingsStorageKey(household.id), json.data.readings || []);
       setMetrics(json.data.metrics);
       if (onMetricsUpdated && json.data.metrics) {
         onMetricsUpdated(json.data.metrics);
@@ -340,6 +447,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       }
 
       setReadings(json.data.readings);
+      writeStoredArray(getReadingsStorageKey(household.id), json.data.readings || []);
       setMetrics(json.data.metrics);
       if (onMetricsUpdated && json.data.metrics) {
         onMetricsUpdated(json.data.metrics);
@@ -460,6 +568,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       }
 
       setSmsRecords(json.data.records || []);
+      writeStoredArray(getSmsStorageKey(household.id), json.data.records || []);
       setConfirmSmsSaveStatus('success');
       setConfirmSmsMessage(
         language === 'bn'
@@ -483,7 +592,9 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       );
       const json = await res.json();
       if (res.ok && json.status === 'success') {
-        setReadings(json.data.readings || []);
+        const nextReadings = json.data.readings || [];
+        setReadings(nextReadings);
+        writeStoredArray(getReadingsStorageKey(household.id), nextReadings);
         setMetrics(json.data.metrics || null);
         if (onMetricsUpdated && json.data.metrics) {
           onMetricsUpdated(json.data.metrics);
@@ -505,7 +616,9 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       );
       const json = await res.json();
       if (res.ok && json.status === 'success') {
-        setSmsRecords(json.data || []);
+        const nextSms = json.data || [];
+        setSmsRecords(nextSms);
+        writeStoredArray(getSmsStorageKey(household.id), nextSms);
       }
     } catch {
       // Non-blocking error
@@ -787,7 +900,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
                       setManualStatus('idle');
                       setManualMessage(null);
                     }}
-                    className="min-h-[36px] px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs cursor-pointer self-start sm:self-auto"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs cursor-pointer self-start sm:self-auto"
                   >
                     {language === 'bn' ? 'আবার চেষ্টা করুন' : 'Try again'}
                   </button>
@@ -1119,7 +1232,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
                 <button
                   type="button"
                   onClick={handleParseSms}
-                  className="min-h-[36px] px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs cursor-pointer self-start sm:self-auto shrink-0"
+                  className="min-h-[44px] px-3.5 py-2 rounded-xl bg-amber-400 text-slate-950 font-['Outfit'] font-semibold text-xs cursor-pointer self-start sm:self-auto shrink-0"
                 >
                   {language === 'bn' ? 'আবার চেষ্টা করুন' : 'Try again'}
                 </button>
@@ -1320,7 +1433,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
                           type="button"
                           onClick={() => handleDeleteReading(r.id)}
                           aria-label={language === 'bn' ? `${r.readingDate} তারিখের রিডিং মুছুন` : `Delete reading from ${r.readingDate}`}
-                          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1374,7 +1487,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
                         type="button"
                         onClick={() => handleDeleteSms(s.id)}
                         aria-label={language === 'bn' ? 'এসএমএস রেকর্ড মুছুন' : 'Delete SMS record'}
-                        className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

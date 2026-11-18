@@ -195,11 +195,11 @@ export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
   // Extract primary recharge or bill amount (BDT)
   let amountBdt: number | null = null;
   const amountPatterns: RegExp[] = [
-    /(?:recharge(?:d)?|top[- ]?up|vend(?:ed)?|bill\s*(?:amount|due|total)?|payable|paid|payment|amount|total|রিচার্জ|বিল|পরিশোধ|মোট)\s*(?:of|is|amount)?\s*[:=\-]?\s*(?:tk\.?|bdt|৳)\s*([\d,]+(?:\.\d{1,2})?)/i,
-    /(?:recharge(?:d)?|top[- ]?up|vend(?:ed)?|bill\s*(?:amount|due|total)?|payable|paid|payment|amount|রিচার্জ|বিল|পরিশোধ)\s*(?:of|is)?\s*[:=\-]?\s*([\d,]+(?:\.\d{1,2})?)\s*(?:tk\.?|bdt|৳|টাকা)/i,
-    /(?:tk\.?|bdt|৳)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:has been|is|successfully|recharged|paid|due|credited|রিচার্জ|পরিশোধ)/i,
-    /(?:tk\.?|bdt|৳)\s*([\d,]+(?:\.\d{1,2})?)/i,
-    /([\d,]+(?:\.\d{1,2})?)\s*(?:টাকা|bdt|tk\.?)\b/i,
+    /(?:recharge(?:d)?|top[- ]?up|vend(?:ed)?|bill\s*(?:amount|amt|due|total)?|payable|paid|payment|amount|amt|total|রিচার্জ|বিল|পরিশোধ|মোট)\s*(?:of|is|amount|amt)?\s*[:=\-]?\s*(?:tk\.?|bdt|taka|৳)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /(?:recharge(?:d)?|top[- ]?up|vend(?:ed)?|bill\s*(?:amount|amt|due|total)?|payable|paid|payment|amount|amt|রিচার্জ|বিল|পরিশোধ)\s*(?:of|is)?\s*[:=\-]?\s*([\d,]+(?:\.\d{1,2})?)\s*(?:tk\.?|bdt|taka|৳|টাকা)/i,
+    /(?:tk\.?|bdt|taka|৳)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:has been|is|successfully|recharged|paid|due|credited|রিচার্জ|পরিশোধ)/i,
+    /(?:tk\.?|bdt|taka|৳)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /([\d,]+(?:\.\d{1,2})?)\s*(?:টাকা|taka|bdt|tk\.?)\b/i,
   ];
 
   for (const pat of amountPatterns) {

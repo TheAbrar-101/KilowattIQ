@@ -69,158 +69,175 @@ export const IoTDevicesTab: React.FC<IoTDevicesTabProps> = ({ household, devices
 
   return (
     <div className="space-y-5">
-      {!isDemoData && (
-        <div className="bg-slate-900 border border-amber-400/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-200">
-          <div>
-            <span className="font-bold font-['Outfit'] text-amber-300 block">
-              {language === 'bn'
-                ? 'আমার ডেটা মোডে সিমুলেটেড আইওটি অ্যাডাপ্টার নিষ্ক্রিয় রয়েছে'
-                : 'Simulated IoT adapters are paused in My data mode'}
-            </span>
-            <span className="text-slate-300">
-              {language === 'bn'
-                ? 'লাইভ মনিটর ট্যাব থেকে আপনার আসল মিটার রিডিং, ছবি স্ক্যান বা এসএমএস যোগ করুন।'
-                : 'Use manual meter readings, Scan meter, or Paste SMS in the Live Monitor tab, or switch back to Demo to test virtual hardware.'}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setDataMode('DEMO')}
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-['Outfit'] font-semibold text-xs shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
-          >
-            {language === 'bn' ? 'ডেমো চালু করুন' : 'Switch to Demo'}
-          </button>
-        </div>
-      )}
-
-      {/* Header & Add Button */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Cpu className="w-4.5 h-4.5 text-emerald-400" />
-            <span>IoT Device & Adapter Abstraction Layer</span>
-          </h3>
-          <p className="text-[11px] text-slate-400">
-            Pluggable IoT adapters supporting Tuya, MQTT ESP32, and DESCO AMI feeds
-          </p>
-        </div>
-
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="min-h-[44px] flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 text-xs font-['Outfit'] font-semibold px-4 py-2 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>{t('btn.add_device', 'Register IoT Device')}</span>
-        </button>
-      </div>
-
-      {/* Adapter Registry Overview */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
-        <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">Supported Adapter Abstractions</h4>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {adapters.map((a) => (
-            <div key={a.name} className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-400 font-mono tabular-nums text-[11px]">{a.name}</span>
-                <span className="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-900 font-bold uppercase">
-                  ACTIVE
+      {!isDemoData ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 font-['Outfit']">
+                <Cpu className="w-4.5 h-4.5 text-amber-400" />
+                <span>
+                  {language === 'bn'
+                    ? 'আমার ডেটা মোড: প্রকৃত মিটার এবং এসএমএস ভিত্তিক ট্র্যাকিং'
+                    : 'My Data Mode: Hardware-Free Household Tracking'}
                 </span>
-              </div>
-              <p className="text-slate-400 text-[10px] leading-snug">{a.desc}</p>
-              <div className="pt-2 border-t border-slate-900 flex justify-between text-[9px] text-slate-500 font-mono tabular-nums">
-                <span>{a.protocol}</span>
-                <span>{a.latency}</span>
-              </div>
+              </h3>
+              <p className="text-xs text-slate-300 mt-1">
+                {language === 'bn'
+                  ? 'সিমুলেটেড আইওটি ডিভাইস এবং ভার্চুয়াল এমকিউটিটি কনসোল বন্ধ রয়েছে যেন ডেমো ডেটা আপনার প্রকৃত রিডিংয়ের সাথে মিশে না যায়।'
+                  : 'Simulated IoT adapters and virtual MQTT logs are hidden so demo data never mixes with your real readings.'}
+              </p>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Connected Devices Grid & Live Inspector */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        
-        {/* Left 2 Cols: Registered Devices List */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Registered Hardware Adapters (<span className="font-mono tabular-nums">{formatNumber(devices.length)}</span>)
-            </h4>
-            <span className="text-[10px] text-emerald-400 font-bold font-mono">100% Signal Coverage</span>
+            <button
+              type="button"
+              onClick={() => setDataMode('DEMO')}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-['Outfit'] font-semibold text-xs shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              {language === 'bn' ? 'ডেমো চালু করুন' : 'Switch to Demo'}
+            </button>
           </div>
 
-          {devices.length === 0 ? (
-            <EmptyState
-              titleEn="No IoT Adapters Connected"
-              titleBn="কোনো আইওটি ডিভাইস সংযুক্ত নেই"
-              descriptionEn="Connect DESCO/DPDC smart meter, ESP32 PZEM, or Tuya smart plugs to stream 1 Hz live telemetry."
-              descriptionBn="স্মার্ট মিটার বা প্লাগ যুক্ত করে রিয়েল-টাইম বিদ্যুৎ ব্যবহার মনিটর করুন।"
-              actionLabelEn="Register IoT Device"
-              actionLabelBn="নতুন ডিভাইস যুক্ত করুন"
-              onAction={() => setShowAddModal(true)}
-            />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {devices.map((dev) => (
-                <div
-                  key={dev.id}
-                  onClick={() => setSelectedDevice(dev)}
-                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 ${
-                    selectedDevice?.id === dev.id
-                      ? 'bg-slate-950 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                      : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
+          <EmptyState
+            titleEn="No Physical IoT Hardware Connected"
+            titleBn="কোনো বাস্তব আইওটি হার্ডওয়্যার সংযুক্ত নেই"
+            descriptionEn="Use Manual Meter Reading, Scan Meter Photo, or Paste Utility SMS on the Live Monitor tab to track your home without IoT hardware."
+            descriptionBn="লাইভ মনিটর ট্যাবে ম্যানুয়াল মিটার রিডিং, মিটার ছবি স্ক্যান অথবা ইউটিলিটি এসএমএস পেস্ট করে হার্ডওয়্যার ছাড়াই ব্যবহার হিসাব করুন।"
+            actionLabelEn="Switch to Demo Simulation"
+            actionLabelBn="ডেমো সিমুলেশন দেখুন"
+            onAction={() => setDataMode('DEMO')}
+          />
+        </div>
+      ) : (
+        <>
+          {/* Header & Add Button */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Cpu className="w-4.5 h-4.5 text-emerald-400" />
+                <span>IoT Device & Adapter Abstraction Layer</span>
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Pluggable IoT adapters supporting Tuya, MQTT ESP32, and DESCO AMI feeds
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="min-h-[44px] flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 text-xs font-['Outfit'] font-semibold px-4 py-2 rounded-xl transition-all shadow-emerald-500/20 shadow-md cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>{t('btn.add_device', 'Register IoT Device')}</span>
+            </button>
+          </div>
+
+          {/* Adapter Registry Overview */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">Supported Adapter Abstractions</h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {adapters.map((a) => (
+                <div key={a.name} className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-xs">{dev.name}</span>
-                    <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono font-bold">
-                      <Wifi className="w-3 h-3" />
-                      Online
+                    <span className="font-bold text-emerald-400 font-mono tabular-nums text-[11px]">{a.name}</span>
+                    <span className="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-900 font-bold uppercase">
+                      ACTIVE
                     </span>
                   </div>
-
-                  <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-slate-400">
-                    <span>Adapter: {dev.adapterType}</span>
-                    <span>{dev.macOrSerial}</span>
+                  <p className="text-slate-400 text-[10px] leading-snug">{a.desc}</p>
+                  <div className="pt-2 border-t border-slate-900 flex justify-between text-[9px] text-slate-500 font-mono tabular-nums">
+                    <span>{a.protocol}</span>
+                    <span>{a.latency}</span>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        {/* Right Col: Live Terminal Log Inspector */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-emerald-400" />
-                <span>Live Adapter Console</span>
-              </h4>
-              <button
-                onClick={handleSimulatePing}
-                disabled={isPinging}
-                className="min-h-[44px] text-xs font-['Outfit'] font-semibold bg-slate-950 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isPinging ? 'animate-spin' : ''}`} />
-                <span>Test Ping</span>
-              </button>
-            </div>
-
-            {/* Terminal View */}
-            <div className="mt-3 bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[10px] text-emerald-400 space-y-1.5 h-48 overflow-y-auto">
-              {logs.map((log, i) => (
-                <p key={i} className="leading-snug text-slate-300">{log}</p>
-              ))}
-            </div>
           </div>
 
-          <div className="pt-2 text-[10px] text-slate-500 text-center font-mono">
-            MQTT Broker • Port 1883 • QoS Level 1
-          </div>
-        </div>
+          {/* Connected Devices Grid & Live Inspector */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            
+            {/* Left 2 Cols: Registered Devices List */}
+            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Registered Hardware Adapters (<span className="font-mono tabular-nums">{formatNumber(devices.length)}</span>)
+                </h4>
+                <span className="text-[10px] text-emerald-400 font-bold font-mono">100% Signal Coverage</span>
+              </div>
 
-      </div>
+              {devices.length === 0 ? (
+                <EmptyState
+                  titleEn="No IoT Adapters Connected"
+                  titleBn="কোনো আইওটি ডিভাইস সংযুক্ত নেই"
+                  descriptionEn="Connect DESCO/DPDC smart meter, ESP32 PZEM, or Tuya smart plugs to stream 1 Hz live telemetry."
+                  descriptionBn="স্মার্ট মিটার বা প্লাগ যুক্ত করে রিয়েল-টাইম বিদ্যুৎ ব্যবহার মনিটর করুন।"
+                  actionLabelEn="Register IoT Device"
+                  actionLabelBn="নতুন ডিভাইস যুক্ত করুন"
+                  onAction={() => setShowAddModal(true)}
+                />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {devices.map((dev) => (
+                    <div
+                      key={dev.id}
+                      onClick={() => setSelectedDevice(dev)}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 ${
+                        selectedDevice?.id === dev.id
+                          ? 'bg-slate-950 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs">{dev.name}</span>
+                        <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono font-bold">
+                          <Wifi className="w-3 h-3" />
+                          Online
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-slate-400">
+                        <span>Adapter: {dev.adapterType}</span>
+                        <span>{dev.macOrSerial}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right Col: Live Terminal Log Inspector */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <span>Live Adapter Console</span>
+                  </h4>
+                  <button
+                    onClick={handleSimulatePing}
+                    disabled={isPinging}
+                    className="min-h-[44px] text-xs font-['Outfit'] font-semibold bg-slate-950 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isPinging ? 'animate-spin' : ''}`} />
+                    <span>Test Ping</span>
+                  </button>
+                </div>
+
+                {/* Terminal View */}
+                <div className="mt-3 bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[10px] text-emerald-400 space-y-1.5 h-48 overflow-y-auto">
+                  {logs.map((log, i) => (
+                    <p key={i} className="leading-snug text-slate-300">{log}</p>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 text-[10px] text-slate-500 text-center font-mono">
+                MQTT Broker • Port 1883 • QoS Level 1
+              </div>
+            </div>
+
+          </div>
+        </>
+      )}
 
       {/* Add Device Modal */}
       <AnimatePresence>
