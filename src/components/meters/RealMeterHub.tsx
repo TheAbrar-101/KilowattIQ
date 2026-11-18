@@ -25,6 +25,7 @@ import {
   SavedSmsRecord,
 } from '../../server/meters/types';
 import { useLanguage } from '../../context/LanguageContext';
+import { getDhakaDateString } from '../../../shared/utils/dhakaTime';
 
 export type MeterWorkflowTab = 'ADD_READING' | 'SCAN_METER' | 'PASTE_SMS';
 
@@ -159,8 +160,8 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
   const [billingDayStatus, setBillingDayStatus] = useState<AsyncStatus>('idle');
   const [billingDayMessage, setBillingDayMessage] = useState<string | null>(null);
 
-  // Flow 1: Add Manual Reading
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Flow 1: Add Manual Reading (Asia/Dhaka today)
+  const todayStr = getDhakaDateString();
   const [manualKwh, setManualKwh] = useState<string>('');
   const [manualDate, setManualDate] = useState<string>(todayStr);
   const [manualNotes, setManualNotes] = useState<string>('');

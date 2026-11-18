@@ -220,10 +220,28 @@ export interface SlabLimitAlert {
   thresholdKwh: number;
   utilizationPercent: number;
   crossedSlabName?: string;
+  isLifelineCliff?: boolean;
+  lifeline50BillBDT?: number;
+  lifeline51BillBDT?: number;
+  lifelineCliffJumpBDT?: number;
   titleEn: string;
   titleBn: string;
   messageEn: string;
   messageBn: string;
+}
+
+export interface ProjectionConfidence {
+  hasEnoughData: boolean;
+  readingDaysInCycle: number;
+  minimumReadingDaysRequired: number;
+  lowKwh: number;
+  expectedKwh: number;
+  highKwh: number;
+  lowBillBDT: number;
+  expectedBillBDT: number;
+  highBillBDT: number;
+  rangeLabelEn: string;
+  rangeLabelBn: string;
 }
 
 export interface MonthlyComparisonSummary {
@@ -267,6 +285,7 @@ export interface SlabThresholdAnalysis {
   projectedMonthEndKwh: number;
   currentBillBDT: number;
   projectedBillBDT: number;
+  projectionConfidence?: ProjectionConfidence;
   daysPassed: number;
   totalDaysInCycle: number;
   daysLeftInCycle: number;

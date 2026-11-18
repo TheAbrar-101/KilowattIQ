@@ -13,6 +13,20 @@ import { TariffCalculator, DEFAULT_BILL_ROUNDING_MODE } from '../../../backend/e
 import { BillVerifier } from '../bills/billVerifier';
 import { BillRoundingMode } from '../../../shared/types/energy';
 
+export interface GoldenBillItemizedBreakdown {
+  slabs: Array<{
+    stepName: string;
+    units: number;
+    rate: number;
+    amountBDT: number;
+  }>;
+  energyChargeBDT: number;
+  demandChargeBDT: number;
+  meterRentBDT: number;
+  vatBDT: number;
+  totalBDT: number;
+}
+
 export interface GoldenBillFixture {
   utility: 'DESCO' | 'DPDC' | 'BPDB' | 'BREB' | 'WZPDCL' | 'NESCO';
   month: string; // e.g. '2026-06' or '2026-05'
@@ -20,6 +34,7 @@ export interface GoldenBillFixture {
   expected_total: number;
   sanctionedLoadKw?: number;
   roundingMode?: BillRoundingMode;
+  itemizedBreakdown?: GoldenBillItemizedBreakdown;
   /** Clearly marks starter examples to be replaced with verified real utility bills */
   isExample: boolean;
   note?: string;
@@ -63,6 +78,28 @@ export const GOLDEN_BILLS: GoldenBillFixture[] = [
     isExample: true,
     note: 'EXAMPLE 3 — Replace with real Lifeline (<= 50 kWh) utility bill',
   },
+  {
+    utility: 'DESCO',
+    month: '2026-07',
+    units: 245,
+    expected_total: 2134.76,
+    sanctionedLoadKw: 3.0,
+    isExample: true,
+    note: 'EXAMPLE 4 (>200 kWh itemized) — Replace every line item with values from a real >200 kWh paper bill to verify avoidable-cost math',
+    itemizedBreakdown: {
+      // TODO(user): replace these EXAMPLE slab lines with the printed breakdown from your real >200 kWh bill
+      slabs: [
+        { stepName: 'Step 1 (0 - 75 kWh)', units: 75, rate: 5.26, amountBDT: 394.50 },
+        { stepName: 'Step 2 (76 - 200 kWh)', units: 124, rate: 8.50, amountBDT: 1054.00 },
+        { stepName: 'Step 3 (201 - 300 kWh)', units: 46, rate: 9.10, amountBDT: 418.60 },
+      ],
+      energyChargeBDT: 1867.10,
+      demandChargeBDT: 126.00,
+      meterRentBDT: 40.00,
+      vatBDT: 101.66,
+      totalBDT: 2134.76,
+    },
+  },
 ];
 
 export interface GoldenBillAuditRow {
@@ -104,7 +141,45 @@ export function verifyGoldenBills(
 
     const diffBdt = Number((calc.grossTotalBDT - bill.expected_total).toFixed(2));
     const diffPercent = Number(((Math.abs(diffBdt) / bill.expected_total) * 100).toFixed(4));
-    const passed = diffPercent <= maxTolerancePct;
+    let itemizedMismatch = '';
+
+    if (bill.itemizedBreakdown) {
+      const ib = bill.itemizedBreakdown;
+      const calcSlabs = calc.slabBreakdown || [];
+      if (ib.slabs.length !== calcSlabs.length) {
+        itemizedMismatch = `slab count ${ib.slabs.length} vs calculated ${calcSlabs.length}`;
+      } else {
+        for (let s = 0; s < ib.slabs.length; s++) {
+          const expSlab = ib.slabs[s];
+          const gotSlab = calcSlabs[s];
+          if (
+            Math.abs(expSlab.units - gotSlab.kwhInSlab) > 0.05 ||
+            Math.abs(expSlab.rate - gotSlab.rate) > 0.01 ||
+            Math.abs(expSlab.amountBDT - gotSlab.costBDT) > Math.max(0.5, expSlab.amountBDT * (maxTolerancePct / 100))
+          ) {
+            itemizedMismatch = `slab[${s}] ${expSlab.stepName} mismatch (${expSlab.units}x${expSlab.rate}=৳${expSlab.amountBDT} vs ${gotSlab.kwhInSlab}x${gotSlab.rate}=৳${gotSlab.costBDT})`;
+            break;
+          }
+        }
+      }
+      if (!itemizedMismatch && Math.abs(ib.energyChargeBDT - calc.energyCostBDT) > ib.energyChargeBDT * (maxTolerancePct / 100)) {
+        itemizedMismatch = `energy charge ৳${ib.energyChargeBDT} vs ৳${calc.energyCostBDT}`;
+      }
+      if (!itemizedMismatch && Math.abs(ib.demandChargeBDT - calc.demandChargeBDT) > Math.max(0.5, ib.demandChargeBDT * (maxTolerancePct / 100))) {
+        itemizedMismatch = `demand charge ৳${ib.demandChargeBDT} vs ৳${calc.demandChargeBDT}`;
+      }
+      if (!itemizedMismatch && Math.abs(ib.meterRentBDT - calc.meterRentBDT) > Math.max(0.5, ib.meterRentBDT * (maxTolerancePct / 100))) {
+        itemizedMismatch = `meter rent ৳${ib.meterRentBDT} vs ৳${calc.meterRentBDT}`;
+      }
+      if (!itemizedMismatch && Math.abs(ib.vatBDT - calc.vatBDT) > Math.max(0.5, ib.vatBDT * (maxTolerancePct / 100))) {
+        itemizedMismatch = `VAT ৳${ib.vatBDT} vs ৳${calc.vatBDT}`;
+      }
+      if (!itemizedMismatch && Math.abs(ib.totalBDT - bill.expected_total) > 0.05) {
+        itemizedMismatch = `itemized totalBDT ৳${ib.totalBDT} != expected_total ৳${bill.expected_total}`;
+      }
+    }
+
+    const passed = diffPercent <= maxTolerancePct && !itemizedMismatch;
 
     auditRows.push({
       fixture: bill,
@@ -118,8 +193,10 @@ export function verifyGoldenBills(
     if (!passed) {
       failures.push(
         `FAIL [${bill.isExample ? 'EXAMPLE' : 'REAL'}] #${i + 1} ${bill.utility} ${bill.month} (${bill.units} kWh): ` +
-        `expected ৳${bill.expected_total.toFixed(2)}, calculated ৳${calc.grossTotalBDT.toFixed(2)} ` +
-        `(diff ${diffBdt >= 0 ? '+' : ''}৳${diffBdt.toFixed(2)} / ${diffPercent}% > ${maxTolerancePct}% limit)`
+        (itemizedMismatch
+          ? `itemized breakdown mismatch (${itemizedMismatch})`
+          : `expected ৳${bill.expected_total.toFixed(2)}, calculated ৳${calc.grossTotalBDT.toFixed(2)} ` +
+            `(diff ${diffBdt >= 0 ? '+' : ''}৳${diffBdt.toFixed(2)} / ${diffPercent}% > ${maxTolerancePct}% limit)`)
       );
     }
   }

@@ -4,6 +4,7 @@ import {
   TariffType,
   SlabThresholdAnalysis,
   SlabLimitAlert,
+  ProjectionConfidence,
   MonthlyComparisonSummary,
   BillRoundingMode,
 } from '../../shared/types/energy';
@@ -197,7 +198,9 @@ export class TariffCalculator {
   }
 
   /**
-   * Predictive analysis for BERC slab step-jump risks, daily cap, avoidable cost, and 80%/100% in-app alerts.
+   * Predictive analysis for BERC slab step-jump risks, daily cap, avoidable cost,
+   * projection confidence range (low/expected/high from cycle history, requiring >= 5 reading days),
+   * and 80%/100% in-app alerts with Lifeline 50 -> 51 kWh cliff awareness.
    */
   static analyzeSlabThreshold(
     currentKwh: number,
@@ -205,7 +208,11 @@ export class TariffCalculator {
     totalDaysInMonth: number = 30,
     sanctionedLoadKw: number = 3.0,
     tariffConfig?: TariffStructure,
-    billingPeriod?: string | Date
+    billingPeriod?: string | Date,
+    confidenceContext?: {
+      dailyUsageHistory?: number[];
+      readingDaysInCycle?: number;
+    }
   ): SlabThresholdAnalysis {
     const resolvedConfig = this.resolveTariffConfig(tariffConfig, billingPeriod);
     const safeUnits = Math.max(0, Number(currentKwh || 0));
@@ -272,17 +279,89 @@ export class TariffCalculator {
           ? Number(kwhRemainingToStayAtZero(kwhRemainingToBreach))
           : 0;
 
+    const MIN_PROJECTION_READING_DAYS = 5;
+    const validDailyHistory = Array.isArray(confidenceContext?.dailyUsageHistory)
+      ? confidenceContext.dailyUsageHistory.filter((n) => Number.isFinite(n) && n >= 0)
+      : [];
+    const readingDaysInCycle =
+      confidenceContext?.readingDaysInCycle !== undefined
+        ? Math.max(0, Math.floor(confidenceContext.readingDaysInCycle))
+        : safeDaysPassed;
+    const hasEnoughData = readingDaysInCycle >= MIN_PROJECTION_READING_DAYS && safeDaysPassed >= 1;
+
+    let lowDailyRate: number;
+    let expectedDailyRate: number;
+    let highDailyRate: number;
+
+    if (validDailyHistory.length >= 2) {
+      const meanDaily = validDailyHistory.reduce((acc, v) => acc + v, 0) / validDailyHistory.length;
+      const variance =
+        validDailyHistory.reduce((acc, v) => acc + Math.pow(v - meanDaily, 2), 0) /
+        validDailyHistory.length;
+      const stdDev = Math.sqrt(variance);
+      expectedDailyRate = meanDaily;
+      lowDailyRate = Math.max(0, meanDaily - stdDev);
+      highDailyRate = meanDaily + stdDev;
+    } else if (validDailyHistory.length === 1) {
+      expectedDailyRate = validDailyHistory[0];
+      lowDailyRate = validDailyHistory[0] * 0.85;
+      highDailyRate = validDailyHistory[0] * 1.15;
+    } else {
+      expectedDailyRate = burnRateKwhPerDay;
+      lowDailyRate = burnRateKwhPerDay * 0.85;
+      highDailyRate = burnRateKwhPerDay * 1.15;
+    }
+
+    const lowKwh = Number((safeUnits + lowDailyRate * remainingDays).toFixed(1));
+    const expectedKwh =
+      validDailyHistory.length > 0
+        ? Number((safeUnits + expectedDailyRate * remainingDays).toFixed(1))
+        : Number(projectedMonthEndKwh.toFixed(1));
+    const highKwh = Number((safeUnits + highDailyRate * remainingDays).toFixed(1));
+
     const currentCalc = this.calculateCost(safeUnits, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod });
-    const projectedCalc = this.calculateCost(projectedMonthEndKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod });
+    const lowCalc = this.calculateCost(lowKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod });
+    const expectedCalc = this.calculateCost(expectedKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod });
+    const highCalc = this.calculateCost(highKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod });
+
+    const projectionConfidence: ProjectionConfidence = {
+      hasEnoughData,
+      readingDaysInCycle,
+      minimumReadingDaysRequired: MIN_PROJECTION_READING_DAYS,
+      lowKwh,
+      expectedKwh,
+      highKwh,
+      lowBillBDT: lowCalc.grossTotalBDT,
+      expectedBillBDT: expectedCalc.grossTotalBDT,
+      highBillBDT: highCalc.grossTotalBDT,
+      rangeLabelEn: hasEnoughData
+        ? `Projected: ৳${Math.round(lowCalc.grossTotalBDT)} to ৳${Math.round(highCalc.grossTotalBDT)}, likely ৳${Math.round(expectedCalc.grossTotalBDT)}`
+        : `Not enough data yet (${readingDaysInCycle}/${MIN_PROJECTION_READING_DAYS} days of readings in this cycle)`,
+      rangeLabelBn: hasEnoughData
+        ? `সম্ভাব্য: ৳${Math.round(lowCalc.grossTotalBDT)} থেকে ৳${Math.round(highCalc.grossTotalBDT)}, মূলত ৳${Math.round(expectedCalc.grossTotalBDT)}`
+        : `এখনো পর্যাপ্ত ডেটা নেই (${readingDaysInCycle}/${MIN_PROJECTION_READING_DAYS} দিনের রিডিং হয়েছে)`,
+    };
+
+    const effectiveProjectedKwh = expectedKwh;
+    const effectiveProjectedBreach =
+      thresholdKwh !== null && effectiveProjectedKwh > thresholdKwh;
+
     const costAtCap = thresholdKwh !== null
       ? this.calculateCost(thresholdKwh, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod }).grossTotalBDT
       : 0;
     const avoidableMonthlySurchargeBDT =
       thresholdKwh !== null
-        ? Math.max(0, Number((projectedCalc.grossTotalBDT - costAtCap).toFixed(2)))
+        ? Math.max(0, Number((expectedCalc.grossTotalBDT - costAtCap).toFixed(2)))
         : 0;
 
-    // Build deterministic 80% and 100% slab limit alerts (calm amber protocol, never red)
+    // Precompute Lifeline 50 -> 51 kWh cliff impact deterministically
+    const lifelineCutoff = lifelineSlab?.maxKwh ?? 50;
+    const billAt50 = this.calculateCost(lifelineCutoff, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod }).grossTotalBDT;
+    const billAt51 = this.calculateCost(lifelineCutoff + 1, sanctionedLoadKw, 'SLAB', resolvedConfig, { billingPeriod }).grossTotalBDT;
+    const lifelineCliffJumpBDT = Number((billAt51 - billAt50).toFixed(2));
+    const step1Rate = regularSlabs[0]?.ratePerKwh ?? nextRateBDT ?? currentRateBDT;
+
+    // Build deterministic 80% and 100% slab limit alerts (calm amber protocol + Lifeline cliff details)
     const slabAlerts: SlabLimitAlert[] = [];
 
     if (thresholdKwh !== null && safeUnits >= thresholdKwh) {
@@ -291,13 +370,25 @@ export class TariffCalculator {
         thresholdKwh,
         utilizationPercent: slabUtilizationPercent,
         crossedSlabName: currentSlab.stepName,
-        titleEn: `100% of ${currentSlab.stepName} Limit Reached (${safeUnits.toFixed(1)} / ${thresholdKwh} kWh)`,
-        titleBn: `${currentSlab.stepName} সীমার ১০০% পূর্ণ হয়েছে (${safeUnits.toFixed(1)} / ${thresholdKwh} kWh)`,
+        isLifelineCliff: isInLifeline,
+        ...(isInLifeline
+          ? {
+              lifeline50BillBDT: billAt50,
+              lifeline51BillBDT: billAt51,
+              lifelineCliffJumpBDT,
+            }
+          : {}),
+        titleEn: isInLifeline
+          ? `Lifeline Cliff: 100% of ${lifelineCutoff} kWh Limit Reached`
+          : `100% of ${currentSlab.stepName} Limit Reached (${safeUnits.toFixed(1)} / ${thresholdKwh} kWh)`,
+        titleBn: isInLifeline
+          ? `লাইফলাইন সীমা: ${lifelineCutoff} kWh-এর ১০০% পূর্ণ হয়েছে`
+          : `${currentSlab.stepName} সীমার ১০০% পূর্ণ হয়েছে (${safeUnits.toFixed(1)} / ${thresholdKwh} kWh)`,
         messageEn: isInLifeline
-          ? `Any additional unit moves your bill out of Lifeline (৳${currentRateBDT.toFixed(2)}/kWh) to Step 1 (৳${(nextRateBDT ?? currentRateBDT).toFixed(2)}/kWh across all units).`
+          ? `Crossing ${lifelineCutoff} kWh moves ALL units (from unit 1) to normal Step 1 slab rates (৳${step1Rate.toFixed(2)}/kWh). Bill jumps from ৳${billAt50.toFixed(2)} (${lifelineCutoff} kWh) to ৳${billAt51.toFixed(2)} (${lifelineCutoff + 1} kWh) — +৳${lifelineCliffJumpBDT.toFixed(2)} for 1 kWh.`
           : `You are right at the ${thresholdKwh} kWh ceiling. Next units enter ${nextSlab?.stepName || 'the next tier'} at ৳${(nextRateBDT ?? currentRateBDT).toFixed(2)}/kWh.`,
         messageBn: isInLifeline
-          ? `আর ১ ইউনিট বাড়লেই লাইফলাইন সুবিধা (৳${currentRateBDT.toFixed(2)}) বাদ হয়ে ধাপ ১ হারে বিল গণনা হবে।`
+          ? `${lifelineCutoff} kWh অতিক্রম করলে ১ম ইউনিট থেকেই সব ইউনিট সাধারণ ধাপ ১ হারে (৳${step1Rate.toFixed(2)}/ইউনিট) হিসাব হবে। বিল ${lifelineCutoff} kWh-এ ৳${billAt50.toFixed(2)} থেকে ${lifelineCutoff + 1} kWh-এ ৳${billAt51.toFixed(2)} হবে (+৳${lifelineCliffJumpBDT.toFixed(2)} বৃদ্ধি)।`
           : `আপনি ${thresholdKwh} kWh সীমায় পৌঁছেছেন। এর পরের ইউনিটগুলোতে ৳${(nextRateBDT ?? currentRateBDT).toFixed(2)}/kWh হার প্রযোজ্য হবে।`,
       });
     } else if (thresholdKwh !== null && safeUnits >= thresholdKwh * 0.8) {
@@ -305,10 +396,26 @@ export class TariffCalculator {
         level: '80_PERCENT',
         thresholdKwh,
         utilizationPercent: slabUtilizationPercent,
-        titleEn: `80%+ of ${currentSlab.stepName} Limit Used (${slabUtilizationPercent}%)`,
-        titleBn: `${currentSlab.stepName} সীমার ৮০%+ ব্যবহৃত হয়েছে (${slabUtilizationPercent}%)`,
-        messageEn: `${kwhRemainingToBreach.toFixed(1)} kWh remaining before ${nextSlab?.stepName || 'next slab'}${nextRateBDT ? ` (৳${nextRateBDT.toFixed(2)}/kWh)` : ''}. Keep daily use at or below ${maxDailyKwhToStayInSlab.toFixed(1)} kWh/day.`,
-        messageBn: `পরবর্তী স্ল্যাবে যাওয়ার আগে আর ${kwhRemainingToBreach.toFixed(1)} kWh বাকি আছে। বর্তমান ধাপে থাকতে দৈনিক সর্বোচ্চ ${maxDailyKwhToStayInSlab.toFixed(1)} kWh ব্যবহার করুন।`,
+        isLifelineCliff: isInLifeline,
+        ...(isInLifeline
+          ? {
+              lifeline50BillBDT: billAt50,
+              lifeline51BillBDT: billAt51,
+              lifelineCliffJumpBDT,
+            }
+          : {}),
+        titleEn: isInLifeline
+          ? `Lifeline Cliff Warning: ${slabUtilizationPercent}% of ${lifelineCutoff} kWh Used`
+          : `80%+ of ${currentSlab.stepName} Limit Used (${slabUtilizationPercent}%)`,
+        titleBn: isInLifeline
+          ? `লাইফলাইন সীমা সতর্কতা: ${lifelineCutoff} kWh-এর ${slabUtilizationPercent}% ব্যবহৃত`
+          : `${currentSlab.stepName} সীমার ৮০%+ ব্যবহৃত হয়েছে (${slabUtilizationPercent}%)`,
+        messageEn: isInLifeline
+          ? `${kwhRemainingToBreach.toFixed(1)} kWh left before ${lifelineCutoff} kWh. Crossing ${lifelineCutoff} kWh moves ALL units to normal slab rates (৳${billAt50.toFixed(2)} at 50 kWh vs ৳${billAt51.toFixed(2)} at 51 kWh, +৳${lifelineCliffJumpBDT.toFixed(2)} jump). Cap daily use at ${maxDailyKwhToStayInSlab.toFixed(1)} kWh/day.`
+          : `${kwhRemainingToBreach.toFixed(1)} kWh remaining before ${nextSlab?.stepName || 'next slab'}${nextRateBDT ? ` (৳${nextRateBDT.toFixed(2)}/kWh)` : ''}. Keep daily use at or below ${maxDailyKwhToStayInSlab.toFixed(1)} kWh/day.`,
+        messageBn: isInLifeline
+          ? `${lifelineCutoff} kWh সীমার আগে আর ${kwhRemainingToBreach.toFixed(1)} kWh বাকি। ${lifelineCutoff} kWh পেরোলে সব ইউনিট সাধারণ স্ল্যাবে যাবে (${lifelineCutoff} kWh-এ ৳${billAt50.toFixed(2)} বনাম ${lifelineCutoff + 1} kWh-এ ৳${billAt51.toFixed(2)}, +৳${lifelineCliffJumpBDT.toFixed(2)})। দৈনিক ${maxDailyKwhToStayInSlab.toFixed(1)} kWh-এর নিচে রাখুন।`
+          : `পরবর্তী স্ল্যাবে যাওয়ার আগে আর ${kwhRemainingToBreach.toFixed(1)} kWh বাকি আছে। বর্তমান ধাপে থাকতে দৈনিক সর্বোচ্চ ${maxDailyKwhToStayInSlab.toFixed(1)} kWh ব্যবহার করুন।`,
       });
     }
 
@@ -317,20 +424,39 @@ export class TariffCalculator {
       const crossedSlab =
         currentRegularIdx > 0
           ? regularSlabs[currentRegularIdx - 1]
-          : lifelineSlab && safeUnits > (lifelineSlab.maxKwh ?? 50)
+          : lifelineSlab && safeUnits > lifelineCutoff
             ? lifelineSlab
             : null;
 
       if (crossedSlab && crossedSlab.maxKwh !== null && safeUnits > crossedSlab.maxKwh) {
+        const crossedLifeline = Boolean(
+          crossedSlab.isLifeline || crossedSlab.stepName.toLowerCase().includes('lifeline')
+        );
         slabAlerts.push({
           level: '100_PERCENT',
           thresholdKwh: crossedSlab.maxKwh,
           utilizationPercent: Number(((safeUnits / crossedSlab.maxKwh) * 100).toFixed(1)),
           crossedSlabName: crossedSlab.stepName,
-          titleEn: `Crossed 100% of ${crossedSlab.stepName} (${crossedSlab.maxKwh} kWh Limit)`,
-          titleBn: `${crossedSlab.stepName} (${crossedSlab.maxKwh} kWh) সীমার ১০০% অতিক্রান্ত হয়েছে`,
-          messageEn: `Usage this cycle passed ${crossedSlab.maxKwh} kWh and is now billed under ${currentSlab.stepName} at ৳${currentRateBDT.toFixed(2)}/kWh.`,
-          messageBn: `এই চক্রে ব্যবহার ${crossedSlab.maxKwh} kWh ছাড়িয়েছে; এখন ${currentSlab.stepName} (৳${currentRateBDT.toFixed(2)}/kWh) ধাপ সক্রিয় রয়েছে।`,
+          isLifelineCliff: crossedLifeline,
+          ...(crossedLifeline
+            ? {
+                lifeline50BillBDT: billAt50,
+                lifeline51BillBDT: billAt51,
+                lifelineCliffJumpBDT,
+              }
+            : {}),
+          titleEn: crossedLifeline
+            ? `Crossed Lifeline Cliff (${crossedSlab.maxKwh} kWh Limit)`
+            : `Crossed 100% of ${crossedSlab.stepName} (${crossedSlab.maxKwh} kWh Limit)`,
+          titleBn: crossedLifeline
+            ? `লাইফলাইন সীমা (${crossedSlab.maxKwh} kWh) অতিক্রান্ত হয়েছে`
+            : `${crossedSlab.stepName} (${crossedSlab.maxKwh} kWh) সীমার ১০০% অতিক্রান্ত হয়েছে`,
+          messageEn: crossedLifeline
+            ? `Crossing ${crossedSlab.maxKwh} kWh moved ALL ${safeUnits.toFixed(1)} units out of Lifeline to normal Step 1+ slab rates (৳${billAt50.toFixed(2)} at 50 kWh vs ৳${billAt51.toFixed(2)} at 51 kWh, +৳${lifelineCliffJumpBDT.toFixed(2)} cliff jump).`
+            : `Usage this cycle passed ${crossedSlab.maxKwh} kWh and is now billed under ${currentSlab.stepName} at ৳${currentRateBDT.toFixed(2)}/kWh.`,
+          messageBn: crossedLifeline
+            ? `${crossedSlab.maxKwh} kWh ছাড়ানোয় সবগুলো ${safeUnits.toFixed(1)} ইউনিট লাইফলাইন থেকে সাধারণ ধাপ ১+ হারে চলে গেছে (${lifelineCutoff} kWh-এ ৳${billAt50.toFixed(2)} বনাম ${lifelineCutoff + 1} kWh-এ ৳${billAt51.toFixed(2)}, +৳${lifelineCliffJumpBDT.toFixed(2)} পার্থক্য)।`
+            : `এই চক্রে ব্যবহার ${crossedSlab.maxKwh} kWh ছাড়িয়েছে; এখন ${currentSlab.stepName} (৳${currentRateBDT.toFixed(2)}/kWh) ধাপ সক্রিয় রয়েছে।`,
         });
       }
     }
@@ -349,14 +475,15 @@ export class TariffCalculator {
       kwhRemainingToBreach: Number(kwhRemainingToBreach.toFixed(1)),
       slabUtilizationPercent,
       burnRateKwhPerDay: Number(burnRateKwhPerDay.toFixed(2)),
-      projectedMonthEndKwh: Number(projectedMonthEndKwh.toFixed(1)),
+      projectedMonthEndKwh: effectiveProjectedKwh,
       currentBillBDT: currentCalc.grossTotalBDT,
-      projectedBillBDT: projectedCalc.grossTotalBDT,
+      projectedBillBDT: expectedCalc.grossTotalBDT,
+      projectionConfidence,
       daysPassed: safeDaysPassed,
       totalDaysInCycle: safeTotalDays,
       daysLeftInCycle: remainingDays,
       daysUntilBreach,
-      projectedBreachOccurs,
+      projectedBreachOccurs: effectiveProjectedBreach,
       maxDailyKwhToStayInSlab,
       avoidableMonthlySurchargeBDT,
       slabAlerts,

@@ -34,10 +34,11 @@ import { useDataMode } from '../../context/DataModeContext';
 import { getTariffVersionForBillingPeriod } from '../../../shared/constants/bdTariffs';
 import { UserRole, normalizeRole, canToggleLoads } from '../../server/auth/roles';
 import { AnomalyFeedPanel } from '../dashboard/AnomalyFeedPanel';
-import { SlabPredictionHero } from '../dashboard/SlabPredictionHero';
+import { SlabPredictionHero, DEMO_DAILY_USAGE_HISTORY } from '../dashboard/SlabPredictionHero';
 import { RealMeterHub, MeterWorkflowTab } from '../meters/RealMeterHub';
 import { MeterUsageMetrics } from '../../server/meters/types';
 import { TariffCalculator } from '../../../backend/engine/TariffCalculator';
+import { getDhakaBillingCycleTiming } from '../../../shared/utils/dhakaTime';
 
 interface LiveDashboardTabProps {
   household: Household;
@@ -88,16 +89,23 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
 
   const statusStyle = getStatusColor();
 
-  // Deterministic BERC LT-A baseline (active tariff version)
+  // Deterministic BERC LT-A baseline (active tariff version, Asia/Dhaka cycle)
   const demoUnitsThisMonth = 245;
   const demoUnitsLastMonth = 210;
   const demoDaysPassed = 18;
   const demoTotalDays = 30;
+  const demoCycleStart = getDhakaBillingCycleTiming(new Date(), household.billingDay || 1).cycleStartDate;
   const demoSlabAnalysis = TariffCalculator.analyzeSlabThreshold(
     demoUnitsThisMonth,
     demoDaysPassed,
     demoTotalDays,
-    household.sanctionedLoadKw || 3.0
+    household.sanctionedLoadKw || 3.0,
+    undefined,
+    demoCycleStart,
+    {
+      dailyUsageHistory: DEMO_DAILY_USAGE_HISTORY,
+      readingDaysInCycle: demoDaysPassed,
+    }
   );
   const currentHourlyCostBDT = currentKw * demoSlabAnalysis.currentRateBDT;
   const estimatedDailyCostBDT = currentHourlyCostBDT * 14;
@@ -226,6 +234,7 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
           household={household}
           isDemoData={false}
           realMetrics={realMetrics}
+          token={token}
           onQuickAddReading={() => setMeterWorkflow('ADD_READING')}
           onQuickScanMeter={() => setMeterWorkflow('SCAN_METER')}
         />
@@ -342,32 +351,35 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
         household={household}
         isDemoData={true}
         realMetrics={realMetrics}
+        token={token}
         demoUnitsThisMonth={demoUnitsThisMonth}
         demoUnitsLastMonth={demoUnitsLastMonth}
         demoDaysPassed={demoDaysPassed}
         demoTotalDays={demoTotalDays}
+        demoDailyUsageHistory={DEMO_DAILY_USAGE_HISTORY}
         onQuickAddReading={() => jumpToRealWorkflow('ADD_READING')}
         onQuickScanMeter={() => jumpToRealWorkflow('SCAN_METER')}
       />
 
-      {/* Top Banner Alert if load > 80% (Calm Amber Protocol) */}
+      {/* Top Banner Alert if load > 80% (Calm Amber Protocol + WCAG AA + Icon & Text Label) */}
       <AnimatePresence>
         {loadPercentage > 80 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-amber-50 dark:bg-amber-950/60 border border-amber-400/60 dark:border-amber-700 rounded-2xl p-3.5 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 shadow-sm"
+            role="status"
+            className="bg-amber-50 dark:bg-amber-950/60 border border-amber-500/60 dark:border-amber-400/60 rounded-2xl p-3.5 flex items-center justify-between text-xs text-amber-900 dark:text-amber-100 shadow-sm"
           >
             <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-amber-100 dark:bg-amber-900/80 rounded-xl text-amber-600 dark:text-amber-300">
-                <AlertTriangle className="w-5 h-5" />
+              <div className="p-2 bg-amber-200/70 dark:bg-amber-900 rounded-xl text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
-                <span className="font-bold text-amber-900 dark:text-amber-100 uppercase tracking-wide block">
-                  High Load Advisory ({loadPercentage.toFixed(0)}% of Sanctioned Capacity)
+                <span className="font-bold text-amber-950 dark:text-amber-100 uppercase tracking-wide flex items-center gap-1.5">
+                  <span>WARNING: High Load Advisory ({loadPercentage.toFixed(0)}% of Sanctioned Capacity)</span>
                 </span>
-                <span className="text-amber-800 dark:text-amber-300 text-[11px]">
+                <span className="text-amber-900 dark:text-amber-200 text-[11px]">
                   Current power draw ({currentKw.toFixed(2)} kW) is approaching sanctioned limit of {maxKw} kW.
                 </span>
               </div>
@@ -559,12 +571,12 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
 
             {/* Projected Monthly */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-xs">
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block font-display">Projected Bill</span>
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block font-display">Projected Bill</span>
               <div className="my-1">
-                <span className="text-xl font-black text-amber-600 dark:text-amber-400 tracking-tight font-mono tabular-nums">
+                <span className="text-xl font-black text-amber-800 dark:text-amber-300 tracking-tight font-mono tabular-nums">
                   {formatCurrency(estimatedMonthlyCostBDT)}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 ml-1 font-sans">EST</span>
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 ml-1 font-sans">EST</span>
               </div>
               <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium font-sans">
                 Target: {formatCurrency(household.monthlyBudgetBDT)}
@@ -678,10 +690,12 @@ export const LiveDashboardTab: React.FC<LiveDashboardTabProps> = ({
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              className="p-3 bg-amber-500/10 border border-amber-400/40 rounded-xl text-xs text-amber-500 dark:text-amber-400 flex items-center justify-between gap-2"
+              role="status"
+              className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-500/50 dark:border-amber-400/50 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2"
             >
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800 dark:text-amber-300" aria-hidden="true" />
+                <span className="font-bold uppercase tracking-wider text-[10px]">WARNING:</span>
                 <span>{auditorNotice}</span>
               </div>
               <button

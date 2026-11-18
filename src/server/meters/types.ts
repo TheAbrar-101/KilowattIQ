@@ -37,10 +37,14 @@ export interface MeterUsageMetrics {
   monthToDateEstimatedCostBdt: number | null;
   monthLabel: string; // Billing cycle period label (e.g. YYYY-MM-DD..YYYY-MM-DD)
   billingDay: number;
-  cycleStartDate: string; // YYYY-MM-DD
-  cycleEndDate: string; // YYYY-MM-DD
+  cycleStartDate: string; // YYYY-MM-DD (Asia/Dhaka)
+  cycleEndDate: string; // YYYY-MM-DD (Asia/Dhaka)
   cycleDaysElapsed: number;
   cycleTotalDays: number;
+  cycleDaysRemaining: number;
+  readingDaysInCycle: number;
+  dailyUsageHistory: number[];
+  timezone: string;
   previousCycle?: MeterCycleSummary;
   activeSegment: number;
   tariffVersionId: string;

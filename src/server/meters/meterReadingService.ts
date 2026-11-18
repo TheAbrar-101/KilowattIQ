@@ -49,91 +49,51 @@ export class MeterReadingValidationError extends Error {
   }
 }
 
+import {
+  DHAKA_TIMEZONE,
+  addDaysYyyyMmDd,
+  daysBetweenYyyyMmDd,
+  getDhakaBillingCycleTiming,
+  getDhakaDateString,
+  isValidYyyyMmDd,
+  normalizeBillingDayValue,
+} from '../../../shared/utils/dhakaTime';
+
 export function isValidDateString(dateStr: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
-  const [y, m, d] = dateStr.split('-').map(Number);
-  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-}
-
-function daysBetweenDates(startDate: string, endDate: string): number {
-  const [y1, m1, d1] = startDate.split('-').map(Number);
-  const [y2, m2, d2] = endDate.split('-').map(Number);
-  const ms1 = Date.UTC(y1, m1 - 1, d1);
-  const ms2 = Date.UTC(y2, m2 - 1, d2);
-  return Math.round((ms2 - ms1) / (1000 * 60 * 60 * 24));
-}
-
-function daysInUtcMonth(year: number, month1to12: number): number {
-  return new Date(Date.UTC(year, month1to12, 0)).getUTCDate();
-}
-
-function formatUtcDate(year: number, month1to12: number, day: number): string {
-  return `${year}-${String(month1to12).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-function addDaysUtc(yyyyMmDd: string, deltaDays: number): string {
-  const [y, m, d] = yyyyMmDd.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
-  return dt.toISOString().slice(0, 10);
+  return isValidYyyyMmDd(dateStr);
 }
 
 export function normalizeBillingDay(day?: number | null): number {
-  const n = Number(day);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.min(31, Math.floor(n));
+  return normalizeBillingDayValue(day);
 }
 
 /**
- * Computes the active billing cycle window [cycleStartDate, cycleEndDate]
- * for a given reference date and household billingDay (1..31, default 1).
+ * Computes the active billing cycle window [cycleStartDate, cycleEndDate] in Asia/Dhaka
+ * for a given reference instant/date and household billingDay (1..31, default 1).
  */
 export function getBillingCycleWindow(
-  referenceDateStr?: string,
+  referenceDateOrInstant?: string | Date,
   billingDay: number = 1
 ): {
   billingDay: number;
   cycleStartDate: string;
   cycleEndDate: string;
   cycleLabel: string;
+  todayDhaka: string;
+  cycleDaysElapsed: number;
+  cycleTotalDays: number;
+  cycleDaysRemaining: number;
 } {
-  const refDate =
-    referenceDateStr && isValidDateString(referenceDateStr)
-      ? referenceDateStr
-      : new Date().toISOString().slice(0, 10);
-  const bDay = normalizeBillingDay(billingDay);
-  const [refYear, refMonth, refDay] = refDate.split('-').map(Number);
-
-  const clampedThisMonth = Math.min(bDay, daysInUtcMonth(refYear, refMonth));
-  let startYear: number;
-  let startMonth: number;
-  let endYear: number;
-  let endMonth: number;
-
-  if (refDay >= clampedThisMonth) {
-    startYear = refYear;
-    startMonth = refMonth;
-    endYear = refMonth === 12 ? refYear + 1 : refYear;
-    endMonth = refMonth === 12 ? 1 : refMonth + 1;
-  } else {
-    startYear = refMonth === 1 ? refYear - 1 : refYear;
-    startMonth = refMonth === 1 ? 12 : refMonth - 1;
-    endYear = refYear;
-    endMonth = refMonth;
-  }
-
-  const startDay = Math.min(bDay, daysInUtcMonth(startYear, startMonth));
-  const nextCycleStartDay = Math.min(bDay, daysInUtcMonth(endYear, endMonth));
-  const cycleStartDate = formatUtcDate(startYear, startMonth, startDay);
-  const nextCycleStartDate = formatUtcDate(endYear, endMonth, nextCycleStartDay);
-  const cycleEndDate = addDaysUtc(nextCycleStartDate, -1);
-
+  const timing = getDhakaBillingCycleTiming(referenceDateOrInstant ?? new Date(), billingDay);
   return {
-    billingDay: bDay,
-    cycleStartDate,
-    cycleEndDate,
-    cycleLabel: `${cycleStartDate} → ${cycleEndDate}`,
+    billingDay: timing.billingDay,
+    cycleStartDate: timing.cycleStartDate,
+    cycleEndDate: timing.cycleEndDate,
+    cycleLabel: timing.cycleLabel,
+    todayDhaka: timing.todayDhaka,
+    cycleDaysElapsed: timing.cycleDaysElapsed,
+    cycleTotalDays: timing.cycleTotalDays,
+    cycleDaysRemaining: timing.cycleDaysRemaining,
   };
 }
 
@@ -183,28 +143,36 @@ function sumSegmentUsageInWindow(
 }
 
 /**
- * Pure computation of Daily Usage (kWh/day), Month-to-Date usage & cost, and previous billing cycle
- * summary from real readings, honoring meter replacement segments and household billingDay.
+ * Pure computation of Daily Usage (kWh/day), Month-to-Date usage & cost, cycle daily history,
+ * and previous billing cycle summary from real readings in Asia/Dhaka, honoring meter replacement
+ * segments and household billingDay.
  */
 export function computeMeterUsageMetrics(
   readings: ManualMeterReading[],
   sanctionedLoadKw: number = 3.0,
-  referenceDateStr?: string,
+  referenceDateOrInstant?: string | Date,
   billingDay: number = 1
 ): MeterUsageMetrics {
   const refDate =
-    referenceDateStr && isValidDateString(referenceDateStr)
-      ? referenceDateStr
-      : new Date().toISOString().slice(0, 10);
+    typeof referenceDateOrInstant === 'string' && isValidDateString(referenceDateOrInstant)
+      ? referenceDateOrInstant
+      : getDhakaDateString(referenceDateOrInstant ?? new Date());
 
   const cycle = getBillingCycleWindow(refDate, billingDay);
-  const prevCycleWindow = getBillingCycleWindow(addDaysUtc(cycle.cycleStartDate, -1), billingDay);
-  const cycleDaysElapsed = Math.max(1, daysBetweenDates(cycle.cycleStartDate, refDate) + 1);
-  const cycleTotalDays = Math.max(cycleDaysElapsed, daysBetweenDates(cycle.cycleStartDate, cycle.cycleEndDate) + 1);
+  const prevCycleWindow = getBillingCycleWindow(addDaysYyyyMmDd(cycle.cycleStartDate, -1), billingDay);
+  const cycleDaysElapsed = cycle.cycleDaysElapsed;
+  const cycleTotalDays = cycle.cycleTotalDays;
+  const cycleDaysRemaining = cycle.cycleDaysRemaining;
 
   const sorted = sortReadingsChronologically(readings);
   const latestReading = sorted.length > 0 ? sorted[sorted.length - 1] : null;
   const activeSegment = latestReading?.meterSegment || 1;
+
+  const distinctReadingDaysInCycle = new Set(
+    sorted
+      .filter((r) => r.readingDate >= cycle.cycleStartDate && r.readingDate <= refDate)
+      .map((r) => r.readingDate)
+  ).size;
 
   if (sorted.length < 2 || !latestReading) {
     const emptyCalc = TariffCalculator.calculateCost(0, sanctionedLoadKw, 'SLAB', undefined, {
@@ -227,6 +195,10 @@ export function computeMeterUsageMetrics(
       cycleEndDate: cycle.cycleEndDate,
       cycleDaysElapsed,
       cycleTotalDays,
+      cycleDaysRemaining,
+      readingDaysInCycle: distinctReadingDaysInCycle,
+      dailyUsageHistory: [],
+      timezone: DHAKA_TIMEZONE,
       previousCycle: {
         cycleStartDate: prevCycleWindow.cycleStartDate,
         cycleEndDate: prevCycleWindow.cycleEndDate,
@@ -247,6 +219,20 @@ export function computeMeterUsageMetrics(
     const list = bySegment.get(seg) || [];
     list.push(r);
     bySegment.set(seg, list);
+  }
+
+  // Collect daily usage history rates inside the active cycle per segment
+  const dailyUsageHistory: number[] = [];
+  for (const segReadings of bySegment.values()) {
+    for (let i = 1; i < segReadings.length; i++) {
+      const prev = segReadings[i - 1];
+      const curr = segReadings[i];
+      if (curr.readingDate < cycle.cycleStartDate || curr.readingDate > refDate) continue;
+      if (curr.readingDate <= prev.readingDate) continue;
+      const span = Math.max(1, daysBetweenYyyyMmDd(prev.readingDate, curr.readingDate));
+      const delta = Math.max(0, curr.readingKwh - prev.readingKwh);
+      dailyUsageHistory.push(Number((delta / span).toFixed(3)));
+    }
   }
 
   // Month-to-Date (Billing-Cycle-to-Date): sum usage per segment inside [cycleStartDate, refDate]
@@ -289,7 +275,7 @@ export function computeMeterUsageMetrics(
         }
       }
       anchorForDaily = candidateAnchor;
-      const span = Math.max(1, daysBetweenDates(candidateAnchor.readingDate, targetLatest.readingDate));
+      const span = Math.max(1, daysBetweenYyyyMmDd(candidateAnchor.readingDate, targetLatest.readingDate));
       const delta = Math.max(0, targetLatest.readingKwh - candidateAnchor.readingKwh);
       dailySpanDays = span;
       dailyUsageKwh = Number((delta / span).toFixed(2));
@@ -314,6 +300,10 @@ export function computeMeterUsageMetrics(
     cycleEndDate: cycle.cycleEndDate,
     cycleDaysElapsed,
     cycleTotalDays,
+    cycleDaysRemaining,
+    readingDaysInCycle: distinctReadingDaysInCycle,
+    dailyUsageHistory,
+    timezone: DHAKA_TIMEZONE,
     previousCycle: {
       cycleStartDate: prevCycleWindow.cycleStartDate,
       cycleEndDate: prevCycleWindow.cycleEndDate,
@@ -327,10 +317,20 @@ export function computeMeterUsageMetrics(
   };
 }
 
+interface PersistedSlabAlertDismissal {
+  id: string;
+  householdId: string;
+  userId: string;
+  cycleStartDate: string;
+  alertKey: string;
+  dismissedAt: string;
+}
+
 interface DiskStoreSchema {
   meterReadings: ManualMeterReading[];
   smsRecords: SavedSmsRecord[];
   billingDays: Record<string, number>;
+  dismissedAlerts: PersistedSlabAlertDismissal[];
 }
 
 export interface MeterReadingServiceOptions {
@@ -406,7 +406,7 @@ export class MeterReadingService {
   private readDiskStore(): DiskStoreSchema {
     try {
       if (!fs.existsSync(this.storePath)) {
-        return { meterReadings: [], smsRecords: [], billingDays: {} };
+        return { meterReadings: [], smsRecords: [], billingDays: {}, dismissedAlerts: [] };
       }
       const raw = fs.readFileSync(this.storePath, 'utf8');
       const parsed = JSON.parse(raw);
@@ -415,9 +415,10 @@ export class MeterReadingService {
         smsRecords: Array.isArray(parsed?.smsRecords) ? parsed.smsRecords : [],
         billingDays:
           parsed?.billingDays && typeof parsed.billingDays === 'object' ? parsed.billingDays : {},
+        dismissedAlerts: Array.isArray(parsed?.dismissedAlerts) ? parsed.dismissedAlerts : [],
       };
     } catch {
-      return { meterReadings: [], smsRecords: [], billingDays: {} };
+      return { meterReadings: [], smsRecords: [], billingDays: {}, dismissedAlerts: [] };
     }
   }
 
@@ -919,5 +920,109 @@ export class MeterReadingService {
       (s) => !(s.householdId === householdId && s.userId === userId)
     );
     this.writeDiskStore(disk);
+  }
+
+  /**
+   * Lists dismissed slab alert keys strictly for (householdId, cycleStartDate).
+   * When the household advances into a new billing cycle in Asia/Dhaka,
+   * prior-cycle rows no longer match so slab alerts automatically reappear.
+   */
+  public async getDismissedSlabAlerts(
+    householdId: string,
+    cycleStartDate: string,
+    authToken?: string
+  ): Promise<string[]> {
+    if (!isValidDateString(cycleStartDate)) {
+      return [];
+    }
+
+    const pg = this.resolvePostgresClient(authToken);
+    if (pg) {
+      const { data, error } = await pg
+        .from('slab_alert_dismissals')
+        .select('alert_key')
+        .eq('household_id', householdId)
+        .eq('cycle_start_date', cycleStartDate);
+
+      if (error) {
+        throw new Error(`Failed to query slab_alert_dismissals: ${error.message}`);
+      }
+      return Array.from(new Set((data || []).map((row: any) => String(row.alert_key))));
+    }
+
+    const disk = this.readDiskStore();
+    return Array.from(
+      new Set(
+        disk.dismissedAlerts
+          .filter((d) => d.householdId === householdId && d.cycleStartDate === cycleStartDate)
+          .map((d) => d.alertKey)
+      )
+    );
+  }
+
+  /**
+   * Persists a dismissed slab alert for (householdId, cycleStartDate, alertKey).
+   */
+  public async dismissSlabAlert(
+    householdId: string,
+    userId: string,
+    cycleStartDate: string,
+    alertKey: string,
+    authToken?: string
+  ): Promise<string[]> {
+    if (!isValidDateString(cycleStartDate)) {
+      throw new MeterReadingValidationError(
+        'Invalid billing cycle start date (YYYY-MM-DD expected).',
+        'INVALID_CYCLE_DATE'
+      );
+    }
+
+    const cleanKey = String(alertKey || '').trim();
+    if (!cleanKey) {
+      throw new MeterReadingValidationError('Alert key is required.', 'INVALID_ALERT_KEY');
+    }
+
+    const pg = this.resolvePostgresClient(authToken);
+    if (pg) {
+      const { error } = await pg
+        .from('slab_alert_dismissals')
+        .upsert(
+          {
+            id: crypto.randomUUID(),
+            household_id: householdId,
+            user_id: userId,
+            cycle_start_date: cycleStartDate,
+            alert_key: cleanKey,
+            dismissed_at: new Date().toISOString(),
+          },
+          { onConflict: 'household_id,cycle_start_date,alert_key' }
+        );
+
+      if (error) {
+        throw new Error(`Failed to persist slab alert dismissal: ${error.message}`);
+      }
+      return this.getDismissedSlabAlerts(householdId, cycleStartDate, authToken);
+    }
+
+    const disk = this.readDiskStore();
+    const exists = disk.dismissedAlerts.some(
+      (d) =>
+        d.householdId === householdId &&
+        d.cycleStartDate === cycleStartDate &&
+        d.alertKey === cleanKey
+    );
+    if (!exists) {
+      disk.dismissedAlerts.push({
+        id: crypto.randomUUID(),
+        householdId,
+        userId,
+        cycleStartDate,
+        alertKey: cleanKey,
+        dismissedAt: new Date().toISOString(),
+      });
+      this.writeDiskStore(disk);
+    }
+
+    return this.getDismissedSlabAlerts(householdId, cycleStartDate, authToken);
   }
 }

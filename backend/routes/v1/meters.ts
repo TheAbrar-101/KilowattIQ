@@ -28,6 +28,10 @@ import {
   ScanRateLimiter,
 } from '../../../src/server/meters/meterVisionService';
 import { parseUtilitySms } from '../../../src/server/meters/smsParser';
+import {
+  getDhakaBillingCycleTiming,
+  getDhakaDateString,
+} from '../../../shared/utils/dhakaTime';
 
 const router = Router();
 const db = SupabaseService.getInstance();
@@ -148,7 +152,7 @@ router.post('/readings', async (req: AuthenticatedRequest, res: Response) => {
       userId,
       {
         readingKwh: Number(readingKwh),
-        readingDate: String(readingDate || new Date().toISOString().slice(0, 10)),
+        readingDate: String(readingDate || getDhakaDateString()),
         source: source === 'METER_SCAN' ? 'METER_SCAN' : 'MANUAL',
         notes,
         confidence,
@@ -455,6 +459,80 @@ router.delete('/sms/:id', async (req: AuthenticatedRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: err?.message || 'Failed to delete SMS record.',
+    });
+  }
+});
+
+// GET /api/v1/meters/alerts/dismissed?householdId=...&cycleStartDate=...
+router.get('/alerts/dismissed', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const householdId = resolveHouseholdId(req);
+    const userId = resolveUserId(req);
+    const authToken = resolveAuthToken(req);
+    const { billingDay } = await resolveHouseholdBillingConfig(householdId, userId, authToken);
+    const activeCycleStart = getDhakaBillingCycleTiming(new Date(), billingDay).cycleStartDate;
+    const cycleStartDate = String(req.query.cycleStartDate || activeCycleStart);
+
+    const dismissedAlertKeys = await readingService.getDismissedSlabAlerts(
+      householdId,
+      cycleStartDate,
+      authToken
+    );
+
+    return res.json({
+      status: 'success',
+      data: {
+        householdId,
+        cycleStartDate,
+        dismissedAlertKeys,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      status: 'error',
+      message: err?.message || 'Failed to load dismissed slab alerts.',
+    });
+  }
+});
+
+// POST /api/v1/meters/alerts/dismiss
+router.post('/alerts/dismiss', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const householdId = resolveHouseholdId(req);
+    const userId = resolveUserId(req);
+    const authToken = resolveAuthToken(req);
+    const { billingDay } = await resolveHouseholdBillingConfig(householdId, userId, authToken);
+    const activeCycleStart = getDhakaBillingCycleTiming(new Date(), billingDay).cycleStartDate;
+    const cycleStartDate = String(req.body?.cycleStartDate || activeCycleStart);
+    const alertKey = String(req.body?.alertKey || '').trim();
+
+    const dismissedAlertKeys = await readingService.dismissSlabAlert(
+      householdId,
+      userId,
+      cycleStartDate,
+      alertKey,
+      authToken
+    );
+
+    return res.status(201).json({
+      status: 'success',
+      data: {
+        householdId,
+        cycleStartDate,
+        dismissedAlertKeys,
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof MeterReadingValidationError) {
+      return res.status(err.statusCode).json({
+        status: 'error',
+        code: err.code,
+        message: err.message,
+      });
+    }
+    return res.status(500).json({
+      status: 'error',
+      message: err?.message || 'Failed to dismiss slab alert.',
     });
   }
 });
