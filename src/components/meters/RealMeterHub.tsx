@@ -37,70 +37,103 @@ interface RealMeterHubProps {
 
 type AsyncStatus = 'idle' | 'loading' | 'success' | 'error';
 
-async function compressImageForUpload(file: File): Promise<{ base64: string; mimeType: string }> {
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const TARGET_UPLOAD_BYTES = 3.6 * 1024 * 1024;
+
+function estimateBase64Bytes(dataUrl: string): number {
+  const idx = dataUrl.indexOf(',');
+  const b64 = idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl;
+  const padding = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((b64.length * 3) / 4) - padding);
+}
+
+async function compressImageForUpload(
+  file: File,
+  language: 'en' | 'bn' = 'en'
+): Promise<{ base64: string; mimeType: string }> {
+  const allowedPrefix = file.type ? file.type.toLowerCase().startsWith('image/') : false;
+  const hasImageExt = /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name || '');
+  if (!allowedPrefix && !hasImageExt) {
+    throw new Error(
+      language === 'bn'
+        ? 'শুধুমাত্র ছবি ফাইল (JPEG, PNG, WebP) আপলোড করা যাবে। অন্য ফাইল গ্রহণযোগ্য নয়।'
+        : 'Only image files (JPEG, PNG, WebP) can be scanned. Non-image files are not allowed.'
+    );
+  }
+
   const dataUrl: string = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.onerror = () =>
+      reject(
+        new Error(
+          language === 'bn' ? 'ছবি ফাইলটি পড়া যায়নি।' : 'Failed to read selected image file.'
+        )
+      );
     reader.readAsDataURL(file);
   });
 
-  // Resize large mobile camera captures cleanly to keep Gemini Vision uploads fast
-  if (file.size <= 900 * 1024 || typeof document === 'undefined') {
+  if (typeof document === 'undefined') {
+    if (estimateBase64Bytes(dataUrl) > MAX_UPLOAD_BYTES) {
+      throw new Error('Image exceeds the 4 MB upload limit.');
+    }
     return { base64: dataUrl, mimeType: file.type || 'image/jpeg' };
   }
 
-  return new Promise((resolve) => {
+  const compressedDataUrl: string = await new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const maxDim = 1600;
+      const maxDim = 1280;
       let { width, height } = img;
       if (width > maxDim || height > maxDim) {
         const scale = maxDim / Math.max(width, height);
-        width = Math.round(width * scale);
-        height = Math.round(height * scale);
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
       }
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        resolve({ base64: dataUrl, mimeType: file.type || 'image/jpeg' });
+        reject(
+          new Error(
+            language === 'bn'
+              ? 'ব্রাউজারে ছবিটি প্রসেস করা যায়নি। অন্য ছবি দিন।'
+              : 'Could not process the selected image in browser. Please try another photo.'
+          )
+        );
         return;
       }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
-      const compressed = canvas.toDataURL('image/jpeg', 0.85);
-      resolve({ base64: compressed, mimeType: 'image/jpeg' });
+
+      let output = canvas.toDataURL('image/jpeg', 0.7);
+      if (estimateBase64Bytes(output) > TARGET_UPLOAD_BYTES) {
+        output = canvas.toDataURL('image/jpeg', 0.55);
+      }
+      resolve(output);
     };
-    img.onerror = () => resolve({ base64: dataUrl, mimeType: file.type || 'image/jpeg' });
+    img.onerror = () =>
+      reject(
+        new Error(
+          language === 'bn'
+            ? 'ফাইলটি বৈধ ছবি হিসেবে লোড করা যায়নি। অনুগ্রহ করে JPEG বা PNG মিটারের ছবি দিন।'
+            : 'Selected file could not be decoded as an image. Please upload a valid JPEG or PNG meter photo.'
+        )
+      );
     img.src = dataUrl;
   });
-}
 
-const getReadingsStorageKey = (householdId: string) =>
-  `kilowattiq_real_readings_${householdId}`;
-const getSmsStorageKey = (householdId: string) =>
-  `kilowattiq_real_sms_${householdId}`;
-
-function readStoredArray<T>(key: string): T[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+  if (estimateBase64Bytes(compressedDataUrl) > MAX_UPLOAD_BYTES) {
+    throw new Error(
+      language === 'bn'
+        ? 'সংকোচনের পরেও ছবিটি ৪ মেগাবাইটের বেশি বড়। অনুগ্রহ করে মিটারের কাছ থেকে ছোট ছবি তুলুন।'
+        : 'Photo is still larger than 4 MB after compression. Please crop closer to the meter display or choose a smaller photo.'
+    );
   }
-}
 
-function writeStoredArray<T>(key: string, items: T[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(items));
-  } catch {
-    // Ignore storage quota errors cleanly
-  }
+  return { base64: compressedDataUrl, mimeType: 'image/jpeg' };
 }
 
 export const RealMeterHub: React.FC<RealMeterHubProps> = ({
@@ -119,11 +152,19 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
   const [loadStatus, setLoadStatus] = useState<AsyncStatus>('idle');
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Household Billing Cycle Day (1..31, default 1)
+  const initialBillingDay = household.billingDay && household.billingDay >= 1 ? household.billingDay : 1;
+  const [billingDay, setBillingDay] = useState<number>(initialBillingDay);
+  const [billingDayInput, setBillingDayInput] = useState<number>(initialBillingDay);
+  const [billingDayStatus, setBillingDayStatus] = useState<AsyncStatus>('idle');
+  const [billingDayMessage, setBillingDayMessage] = useState<string | null>(null);
+
   // Flow 1: Add Manual Reading
   const todayStr = new Date().toISOString().slice(0, 10);
   const [manualKwh, setManualKwh] = useState<string>('');
   const [manualDate, setManualDate] = useState<string>(todayStr);
   const [manualNotes, setManualNotes] = useState<string>('');
+  const [isMeterReplacement, setIsMeterReplacement] = useState<boolean>(false);
   const [manualStatus, setManualStatus] = useState<AsyncStatus>('idle');
   const [manualMessage, setManualMessage] = useState<string | null>(null);
 
@@ -154,10 +195,6 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
     setLoadStatus('loading');
     setLoadError(null);
     const baseHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    const postHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...baseHeaders,
-    };
 
     try {
       const [readingsRes, smsRes] = await Promise.all([
@@ -175,86 +212,23 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
         throw new Error(readingsJson.message || 'Unable to load meter readings.');
       }
 
-      let resolvedReadings: ManualMeterReading[] = readingsJson.data.readings || [];
-      let resolvedMetrics: MeterUsageMetrics | null = readingsJson.data.metrics || null;
+      const resolvedReadings: ManualMeterReading[] = readingsJson.data.readings || [];
+      const resolvedMetrics: MeterUsageMetrics | null = readingsJson.data.metrics || null;
+      const serverBillingDay =
+        typeof readingsJson.data.billingDay === 'number'
+          ? readingsJson.data.billingDay
+          : resolvedMetrics?.billingDay || initialBillingDay;
 
-      // Rehydrate from browser localStorage if server in-memory store restarted/cold-started empty
-      const readingsKey = getReadingsStorageKey(household.id);
-      if (resolvedReadings.length === 0) {
-        const storedReadings = readStoredArray<ManualMeterReading>(readingsKey);
-        if (storedReadings.length > 0) {
-          const sortedChron = [...storedReadings].sort((a, b) =>
-            a.readingDate.localeCompare(b.readingDate) || a.createdAt.localeCompare(b.createdAt)
-          );
-          for (const item of sortedChron) {
-            const replayRes = await fetch('/api/v1/meters/readings', {
-              method: 'POST',
-              headers: postHeaders,
-              body: JSON.stringify({
-                householdId: household.id,
-                readingKwh: item.readingKwh,
-                readingDate: item.readingDate,
-                source: item.source,
-                confidence: item.confidence,
-                notes: item.notes,
-              }),
-            });
-            if (replayRes.ok) {
-              const replayJson = await replayRes.json();
-              if (replayJson.status === 'success') {
-                resolvedReadings = replayJson.data.readings || resolvedReadings;
-                resolvedMetrics = replayJson.data.metrics || resolvedMetrics;
-              }
-            }
-          }
-          writeStoredArray(readingsKey, resolvedReadings);
-        }
-      } else {
-        writeStoredArray(readingsKey, resolvedReadings);
-      }
-
+      setBillingDay(serverBillingDay);
+      setBillingDayInput(serverBillingDay);
       setReadings(resolvedReadings);
       setMetrics(resolvedMetrics);
       if (onMetricsUpdated && resolvedMetrics) {
         onMetricsUpdated(resolvedMetrics);
       }
 
-      let resolvedSms: SavedSmsRecord[] =
+      const resolvedSms: SavedSmsRecord[] =
         smsRes.ok && smsJson.status === 'success' ? smsJson.data || [] : [];
-      const smsKey = getSmsStorageKey(household.id);
-      if (resolvedSms.length === 0) {
-        const storedSms = readStoredArray<SavedSmsRecord>(smsKey);
-        if (storedSms.length > 0) {
-          const oldestFirst = [...storedSms].reverse();
-          for (const item of oldestFirst) {
-            const replaySmsRes = await fetch('/api/v1/meters/sms', {
-              method: 'POST',
-              headers: postHeaders,
-              body: JSON.stringify({
-                householdId: household.id,
-                smsType: item.smsType,
-                utility: item.utility,
-                amountBdt: item.amountBdt,
-                date: item.date,
-                balanceBdt: item.balanceBdt,
-                unitsKwh: item.unitsKwh,
-                token: item.token,
-                rawText: item.rawText,
-              }),
-            });
-            if (replaySmsRes.ok) {
-              const replaySmsJson = await replaySmsRes.json();
-              if (replaySmsJson.status === 'success') {
-                resolvedSms = replaySmsJson.data.records || resolvedSms;
-              }
-            }
-          }
-          writeStoredArray(smsKey, resolvedSms);
-        }
-      } else {
-        writeStoredArray(smsKey, resolvedSms);
-      }
-
       setSmsRecords(resolvedSms);
       setLoadStatus('success');
     } catch (err: any) {
@@ -265,17 +239,83 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
           : err?.message || 'Unable to load your meter readings. Please try again.'
       );
     }
-  }, [household.id, token, language, onMetricsUpdated]);
+  }, [household.id, initialBillingDay, token, language, onMetricsUpdated]);
 
   useEffect(() => {
     fetchAllMeterData();
   }, [fetchAllMeterData]);
 
-  // Helper: Check client-side monotonic constraint before submitting
-  const validateAgainstExisting = (val: number, dateStr: string): string | null => {
+  // Update household billing cycle day (1..31)
+  const handleSaveBillingDay = async () => {
+    const parsedDay = Math.floor(Number(billingDayInput));
+    if (!Number.isInteger(parsedDay) || parsedDay < 1 || parsedDay > 31) {
+      setBillingDayStatus('error');
+      setBillingDayMessage(
+        language === 'bn'
+          ? 'বিলিং তারিখ ১ থেকে ৩১-এর মধ্যে হতে হবে।'
+          : 'Billing day must be between 1 and 31.'
+      );
+      return;
+    }
+
+    setBillingDayStatus('loading');
+    setBillingDayMessage(null);
+    try {
+      const res = await fetch('/api/v1/meters/billing-day', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ householdId: household.id, billingDay: parsedDay }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.status !== 'success') {
+        throw new Error(json.message || 'Unable to update billing day.');
+      }
+      setBillingDay(json.data.billingDay);
+      setBillingDayInput(json.data.billingDay);
+      setReadings(json.data.readings || readings);
+      setMetrics(json.data.metrics || metrics);
+      if (onMetricsUpdated && json.data.metrics) {
+        onMetricsUpdated(json.data.metrics);
+      }
+      setBillingDayStatus('success');
+      setBillingDayMessage(
+        language === 'bn'
+          ? `বিলিং চক্র মাসের ${formatNumber(json.data.billingDay)} তারিখে নির্ধারিত হয়েছে।`
+          : `Billing cycle updated to start on day ${json.data.billingDay}.`
+      );
+    } catch (err: any) {
+      setBillingDayStatus('error');
+      setBillingDayMessage(err?.message || 'Failed to update billing day.');
+    }
+  };
+
+  // Helper: Check client-side monotonic constraint strictly within target meter segment
+  const validateAgainstExisting = (
+    val: number,
+    dateStr: string,
+    replacementMode: boolean = false
+  ): string | null => {
+    if (replacementMode || readings.length === 0) {
+      return null;
+    }
+
+    let anchorBeforeOrOn: ManualMeterReading | null = null;
+    for (const r of readings) {
+      if (r.readingDate <= dateStr) {
+        anchorBeforeOrOn = r;
+      }
+    }
+    const targetSegment = anchorBeforeOrOn
+      ? anchorBeforeOrOn.meterSegment || 1
+      : readings[0].meterSegment || 1;
+    const segmentReadings = readings.filter((r) => (r.meterSegment || 1) === targetSegment);
+
     let prev: ManualMeterReading | null = null;
     let next: ManualMeterReading | null = null;
-    for (const r of readings) {
+    for (const r of segmentReadings) {
       if (r.readingDate <= dateStr) {
         prev = r;
       } else if (!next) {
@@ -284,8 +324,8 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
     }
     if (prev && val < prev.readingKwh) {
       return language === 'bn'
-        ? `রিডিং (${formatNumber(val)} kWh) পূর্ববর্তী রিডিংয়ের (${formatNumber(prev.readingKwh)} kWh, ${prev.readingDate}) চেয়ে কম হতে পারবে না।`
-        : `Reading (${val} kWh) cannot be lower than the previous reading (${prev.readingKwh} kWh on ${prev.readingDate}).`;
+        ? `রিডিং (${formatNumber(val)} kWh) পূর্ববর্তী রিডিংয়ের (${formatNumber(prev.readingKwh)} kWh, ${prev.readingDate}) চেয়ে কম হতে পারবে না। নতুন মিটার লাগানো হলে "আমি মিটার পরিবর্তন করেছি" টিক দিন।`
+        : `Reading (${val} kWh) cannot be lower than the previous reading (${prev.readingKwh} kWh on ${prev.readingDate}). Check "I replaced my meter" if you installed a new meter.`;
     }
     if (next && val > next.readingKwh) {
       return language === 'bn'
@@ -309,7 +349,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       return;
     }
 
-    const clientCheck = validateAgainstExisting(numericVal, manualDate);
+    const clientCheck = validateAgainstExisting(numericVal, manualDate, isMeterReplacement);
     if (clientCheck) {
       setManualStatus('error');
       setManualMessage(clientCheck);
@@ -330,6 +370,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
           readingKwh: numericVal,
           readingDate: manualDate,
           source: 'MANUAL',
+          isMeterReplacement,
           notes: manualNotes.trim() || undefined,
         }),
       });
@@ -339,7 +380,6 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       }
 
       setReadings(json.data.readings);
-      writeStoredArray(getReadingsStorageKey(household.id), json.data.readings || []);
       setMetrics(json.data.metrics);
       if (onMetricsUpdated && json.data.metrics) {
         onMetricsUpdated(json.data.metrics);
@@ -347,6 +387,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
 
       setManualKwh('');
       setManualNotes('');
+      setIsMeterReplacement(false);
       setManualStatus('success');
       setManualMessage(
         language === 'bn'
@@ -368,7 +409,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
     setConfirmScanMessage(null);
 
     try {
-      const { base64, mimeType } = await compressImageForUpload(file);
+      const { base64, mimeType } = await compressImageForUpload(file, language);
       setScanPreviewUrl(base64);
 
       const res = await fetch('/api/v1/meters/scan', {
@@ -415,7 +456,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       return;
     }
 
-    const clientCheck = validateAgainstExisting(numericVal, confirmScanDate);
+    const clientCheck = validateAgainstExisting(numericVal, confirmScanDate, false);
     if (clientCheck) {
       setConfirmScanStatus('error');
       setConfirmScanMessage(clientCheck);
@@ -447,7 +488,6 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       }
 
       setReadings(json.data.readings);
-      writeStoredArray(getReadingsStorageKey(household.id), json.data.readings || []);
       setMetrics(json.data.metrics);
       if (onMetricsUpdated && json.data.metrics) {
         onMetricsUpdated(json.data.metrics);
@@ -558,7 +598,7 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
           date: confirmSmsDate || null,
           balanceBdt: bal,
           unitsKwh: parsedSms.unitsKwh,
-          token: parsedSms.token,
+          tokenLast4: parsedSms.tokenLast4,
           rawText: parsedSms.rawText,
         }),
       });
@@ -568,12 +608,11 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       }
 
       setSmsRecords(json.data.records || []);
-      writeStoredArray(getSmsStorageKey(household.id), json.data.records || []);
       setConfirmSmsSaveStatus('success');
       setConfirmSmsMessage(
         language === 'bn'
-          ? 'এসএমএস তথ্য সফলভাবে সংরক্ষণ করা হয়েছে।'
-          : 'Confirmed SMS record saved.'
+          ? 'এসএমএস তথ্য সফলভাবে সংরক্ষণ করা হয়েছে (সম্পূর্ণ টোকেন সংরক্ষণ করা হয়নি)।'
+          : 'Confirmed SMS record saved (only last 4 token digits retained).'
       );
     } catch (err: any) {
       setConfirmSmsSaveStatus('error');
@@ -594,7 +633,6 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       if (res.ok && json.status === 'success') {
         const nextReadings = json.data.readings || [];
         setReadings(nextReadings);
-        writeStoredArray(getReadingsStorageKey(household.id), nextReadings);
         setMetrics(json.data.metrics || null);
         if (onMetricsUpdated && json.data.metrics) {
           onMetricsUpdated(json.data.metrics);
@@ -618,7 +656,6 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
       if (res.ok && json.status === 'success') {
         const nextSms = json.data || [];
         setSmsRecords(nextSms);
-        writeStoredArray(getSmsStorageKey(household.id), nextSms);
       }
     } catch {
       // Non-blocking error
@@ -676,7 +713,9 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
           <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
             {metrics?.monthToDateEstimatedCostBdt !== null && metrics?.monthToDateEstimatedCostBdt !== undefined
               ? `${language === 'bn' ? 'আনুমানিক বিল:' : 'Est. BERC Bill:'} ${formatCurrency(metrics.monthToDateEstimatedCostBdt)}`
-              : metrics?.monthLabel || todayStr.slice(0, 7)}
+              : metrics?.cycleStartDate
+                ? `${metrics.cycleStartDate} → ${metrics.cycleEndDate}`
+                : metrics?.monthLabel || todayStr.slice(0, 7)}
           </p>
         </div>
 
@@ -734,6 +773,72 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
                 ? 'ইউটিলিটি এসএমএস পেস্ট করুন'
                 : 'Paste a utility SMS to track'}
           </p>
+        </div>
+      </div>
+
+      {/* Household Billing Cycle Start Day Config Bar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+          <span className="font-['Outfit'] font-semibold text-slate-900 dark:text-slate-100">
+            {language === 'bn' ? 'বিলিং চক্রের দিন:' : 'Billing Cycle Day:'}
+          </span>
+          <span className="font-mono tabular-nums text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+            {metrics?.cycleStartDate && metrics?.cycleEndDate
+              ? `${metrics.cycleStartDate} → ${metrics.cycleEndDate} (${language === 'bn' ? `প্রতি মাসের ${formatNumber(billingDay)} তারিখ` : `Day ${billingDay}`})`
+              : language === 'bn'
+                ? `প্রতি মাসের ${formatNumber(billingDay)} তারিখ`
+                : `Day ${billingDay} of month`}
+          </span>
+          {billingDayMessage && (
+            <span
+              className={`text-[11px] ${
+                billingDayStatus === 'error'
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}
+            >
+              {billingDayMessage}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <label
+            htmlFor="household-billing-day-input"
+            className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 font-['Outfit']"
+          >
+            {language === 'bn' ? 'দিন (১–৩১)' : 'Day (1–31)'}
+          </label>
+          <input
+            id="household-billing-day-input"
+            type="number"
+            min={1}
+            max={31}
+            value={billingDayInput}
+            onChange={(e) => {
+              setBillingDayInput(Number(e.target.value));
+              if (billingDayStatus !== 'idle') {
+                setBillingDayStatus('idle');
+                setBillingDayMessage(null);
+              }
+            }}
+            className="w-20 min-h-[44px] px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono tabular-nums text-right text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+          <button
+            type="button"
+            disabled={billingDayStatus === 'loading'}
+            onClick={handleSaveBillingDay}
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-amber-400 dark:hover:bg-amber-300 text-white dark:text-slate-950 font-['Outfit'] font-semibold text-xs cursor-pointer disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            {billingDayStatus === 'loading'
+              ? language === 'bn'
+                ? 'সংরক্ষণ হচ্ছে...'
+                : 'Saving...'
+              : language === 'bn'
+                ? 'তারিখ সংরক্ষণ'
+                : 'Save Day'}
+          </button>
         </div>
       </div>
 
@@ -869,11 +974,41 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
               </div>
             </div>
 
-            {metrics?.latestReading && (
+            {/* Meter Replacement Option */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="flex items-start sm:items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isMeterReplacement}
+                  onChange={(e) => {
+                    setIsMeterReplacement(e.target.checked);
+                    if (manualStatus !== 'idle') {
+                      setManualStatus('idle');
+                      setManualMessage(null);
+                    }
+                  }}
+                  className="mt-0.5 sm:mt-0 w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 font-['Outfit']">
+                  {language === 'bn' ? 'আমি আমার মিটার পরিবর্তন করেছি' : 'I replaced my meter'}
+                </span>
+              </label>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                {isMeterReplacement
+                  ? language === 'bn'
+                    ? 'পুরনো রিডিং রেখে নতুন মিটার সেগমেন্ট শুরু হবে (ঋণাত্মক ব্যবহার হিসাব হবে না)।'
+                    : 'Starts a new meter segment while keeping old readings; usage will stay non-negative.'
+                  : language === 'bn'
+                    ? 'নতুন মিটার লাগালে টিক দিন (রিডিং ০ বা কম থেকে শুরু হলে)।'
+                    : 'Check this only if your utility installed a replacement meter.'}
+              </span>
+            </div>
+
+            {metrics?.latestReading && !isMeterReplacement && (
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                 {language === 'bn'
-                  ? `সর্বশেষ সংরক্ষিত রিডিং: ${formatNumber(metrics.latestReading.readingKwh)} kWh (${metrics.latestReading.readingDate}) — নতুন রিডিং এর কম হতে পারবে না।`
-                  : `Previous reading: ${metrics.latestReading.readingKwh} kWh on ${metrics.latestReading.readingDate} — new readings cannot be lower.`}
+                  ? `সর্বশেষ সংরক্ষিত রিডিং (সেগমেন্ট #${formatNumber(metrics.activeSegment)}): ${formatNumber(metrics.latestReading.readingKwh)} kWh (${metrics.latestReading.readingDate}) — নতুন রিডিং এর কম হতে পারবে না।`
+                  : `Previous reading (Segment #${metrics.activeSegment}): ${metrics.latestReading.readingKwh} kWh on ${metrics.latestReading.readingDate} — new readings cannot be lower.`}
               </p>
             )}
 
@@ -1309,17 +1444,27 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
                   </div>
                 </div>
 
-                {(parsedSms.unitsKwh !== null || parsedSms.token) && (
-                  <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300 flex flex-wrap gap-4">
-                    {parsedSms.unitsKwh !== null && (
-                      <span>
-                        {language === 'bn' ? 'ইউনিট:' : 'Units:'} {formatNumber(parsedSms.unitsKwh)} kWh
-                      </span>
-                    )}
-                    {parsedSms.token && (
-                      <span>
-                        {language === 'bn' ? 'টোকেন:' : 'Token:'} {parsedSms.token}
-                      </span>
+                {(parsedSms.unitsKwh !== null || parsedSms.tokenMasked || parsedSms.tokenLast4) && (
+                  <div className="rounded-xl bg-white/80 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 px-3 py-2 text-[11px] font-mono text-slate-600 dark:text-slate-300 space-y-1">
+                    <div className="flex flex-wrap gap-4">
+                      {parsedSms.unitsKwh !== null && (
+                        <span>
+                          {language === 'bn' ? 'ইউনিট:' : 'Units:'} {formatNumber(parsedSms.unitsKwh)} kWh
+                        </span>
+                      )}
+                      {(parsedSms.tokenMasked || parsedSms.tokenLast4) && (
+                        <span>
+                          {language === 'bn' ? 'মাস্কড টোকেন:' : 'Token (masked):'}{' '}
+                          {parsedSms.tokenMasked || `****-****-****-****-${parsedSms.tokenLast4}`}
+                        </span>
+                      )}
+                    </div>
+                    {(parsedSms.tokenMasked || parsedSms.tokenLast4) && (
+                      <p className="text-[11px] font-['Plus_Jakarta_Sans'] text-slate-500 dark:text-slate-400">
+                        {language === 'bn'
+                          ? 'নিরাপত্তা নীতি: আপনার প্রিপেইড STS টোকেনের কেবল শেষ ৪টি অঙ্ক সংরক্ষণ করা হবে; সম্পূর্ণ টোকেন সংরক্ষণ করা হয় না।'
+                          : 'Privacy notice: Only the last 4 digits of your STS token are stored. The full 20-digit token is masked and never saved.'}
+                      </p>
                     )}
                   </div>
                 )}
@@ -1405,28 +1550,51 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70">
                 {chronologicalDesc.map((r, idx) => {
                   const prevChron = chronologicalDesc[idx + 1];
-                  const delta = prevChron ? Number((r.readingKwh - prevChron.readingKwh).toFixed(2)) : null;
+                  const sameSegment =
+                    prevChron && (prevChron.meterSegment || 1) === (r.meterSegment || 1);
+                  const delta = sameSegment
+                    ? Number((r.readingKwh - prevChron.readingKwh).toFixed(2))
+                    : null;
                   return (
                     <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="py-2.5 pr-3 font-mono tabular-nums text-slate-900 dark:text-slate-100">
                         {r.readingDate}
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className="inline-block px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold font-['Outfit'] text-slate-700 dark:text-slate-300">
-                          {r.source === 'METER_SCAN'
-                            ? language === 'bn'
-                              ? 'ছবি স্ক্যান'
-                              : 'Meter Scan'
-                            : language === 'bn'
-                              ? 'ম্যানুয়াল'
-                              : 'Manual'}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold font-['Outfit'] text-slate-700 dark:text-slate-300">
+                            {r.source === 'METER_SCAN'
+                              ? language === 'bn'
+                                ? 'ছবি স্ক্যান'
+                                : 'Meter Scan'
+                              : language === 'bn'
+                                ? 'ম্যানুয়াল'
+                                : 'Manual'}
+                          </span>
+                          {(r.meterSegment || 1) > 1 && (
+                            <span className="inline-block px-2 py-0.5 rounded bg-amber-400/20 text-[10px] font-mono font-semibold text-amber-800 dark:text-amber-200">
+                              {r.isMeterReplacement
+                                ? language === 'bn'
+                                  ? `নতুন মিটার #${formatNumber(r.meterSegment)}`
+                                  : `New meter #${r.meterSegment}`
+                                : language === 'bn'
+                                  ? `সেগমেন্ট #${formatNumber(r.meterSegment)}`
+                                  : `Seg #${r.meterSegment}`}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                         {formatNumber(r.readingKwh.toFixed(2))}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400 font-semibold">
-                        {delta !== null ? `+${formatNumber(delta.toFixed(2))}` : '—'}
+                        {r.isMeterReplacement
+                          ? language === 'bn'
+                            ? 'নতুন মিটার'
+                            : 'New meter'
+                          : delta !== null
+                            ? `+${formatNumber(delta.toFixed(2))}`
+                            : '—'}
                       </td>
                       <td className="py-2.5 pl-3 text-right">
                         <button
@@ -1474,7 +1642,15 @@ export const RealMeterHub: React.FC<RealMeterHubProps> = ({
                       {s.date || s.createdAt.slice(0, 10)}
                     </td>
                     <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
-                      {s.utility || household.utilityProvider} • {s.smsType}
+                      <div>
+                        {s.utility || household.utilityProvider} • {s.smsType}
+                      </div>
+                      {(s.tokenMasked || s.tokenLast4) && (
+                        <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                          {language === 'bn' ? 'টোকেন:' : 'Token:'}{' '}
+                          {s.tokenMasked || `****-****-****-****-${s.tokenLast4}`}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                       {s.amountBdt !== null ? formatCurrency(s.amountBdt, { showDecimals: true }) : '—'}

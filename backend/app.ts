@@ -16,7 +16,7 @@ app.use((req, res, next) => {
 });
 
 // Global Middlewares
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '5mb' }));
 app.use(requestLogger);
 
 // Canonical /api/v1 router and transparent rewrite layer

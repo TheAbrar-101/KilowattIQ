@@ -6,6 +6,7 @@ export interface Household {
   accountNumber: string;
   sanctionedLoadKw: number;
   monthlyBudgetBDT: number;
+  billingDay?: number; // Day of month billing cycle begins (1-31, defaults to 1)
   address: {
     division: string;
     city: string;

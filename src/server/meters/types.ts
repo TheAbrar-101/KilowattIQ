@@ -1,6 +1,6 @@
 /**
  * Types for No-IoT Household Meter Readings, Gemini Vision Meter Scan,
- * Utility Recharge/Bill SMS Parsing, and Real Usage Computation.
+ * Utility Recharge/Bill SMS Parsing, Meter Replacement Segments & Billing Cycles.
  */
 
 export type MeterReadingSource = 'MANUAL' | 'METER_SCAN';
@@ -8,8 +8,11 @@ export type MeterReadingSource = 'MANUAL' | 'METER_SCAN';
 export interface ManualMeterReading {
   id: string;
   householdId: string;
+  userId: string;
   readingKwh: number;
   readingDate: string; // YYYY-MM-DD
+  meterSegment: number; // Increments when user logs "I replaced my meter"
+  isMeterReplacement?: boolean;
   source: MeterReadingSource;
   notes?: string;
   confidence?: number;
@@ -24,7 +27,11 @@ export interface MeterUsageMetrics {
   dailySpanDays: number | null;
   monthToDateKwh: number | null;
   monthToDateEstimatedCostBdt: number | null;
-  monthLabel: string; // YYYY-MM
+  monthLabel: string; // Billing cycle period label (e.g. YYYY-MM-DD..YYYY-MM-DD)
+  billingDay: number;
+  cycleStartDate: string; // YYYY-MM-DD
+  cycleEndDate: string; // YYYY-MM-DD
+  activeSegment: number;
   tariffVersionId: string;
   needsMoreReadings: boolean;
 }
@@ -36,6 +43,7 @@ export interface MeterScanResult {
   unitDetected: string;
   rawText: string;
   notes: string;
+  modelUsed?: string;
 }
 
 export type SmsRecordType = 'RECHARGE' | 'BILL' | 'BALANCE' | 'UNKNOWN';
@@ -48,7 +56,10 @@ export interface ParsedUtilitySms {
   date: string | null; // YYYY-MM-DD
   balanceBdt: number | null;
   unitsKwh: number | null;
-  token: string | null;
+  /** Only the last 4 digits of any STS token are ever retained */
+  tokenLast4: string | null;
+  /** Masked representation (e.g. ****-****-****-****-7890) */
+  tokenMasked: string | null;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   rawText: string;
   failureReason?: string;
@@ -57,13 +68,16 @@ export interface ParsedUtilitySms {
 export interface SavedSmsRecord {
   id: string;
   householdId: string;
+  userId: string;
   smsType: SmsRecordType;
   utility: string | null;
   amountBdt: number | null;
   date: string | null;
   balanceBdt: number | null;
   unitsKwh: number | null;
-  token: string | null;
+  /** Only the last 4 digits of STS tokens are stored */
+  tokenLast4: string | null;
+  tokenMasked: string | null;
   rawText: string;
   createdAt: string;
 }

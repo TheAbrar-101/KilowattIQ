@@ -1,0 +1,62 @@
+# ====================================================================
+# KilowattIQ Utility SMS Parser Fixtures
+# ====================================================================
+# Paste real DESCO / DPDC / BPDB / BREB / NESCO / WZPDCL SMS messages
+# below, one per block separated by "---".
+#
+# Header fields (optional except UTILITY):
+#   UTILITY: DESCO | DPDC | BPDB | BREB | NESCO | WZPDCL
+#   SYNTHETIC: true   (remove this line when you replace with a real SMS)
+#   EXPECTED_AMOUNT: 500
+#   EXPECTED_BALANCE: 410.25
+#   EXPECTED_DATE: 2026-11-16
+#
+# The parser test (npm run test:meters) runs EVERY block below and fails
+# loudly with the message text if parsing fails.
+# ====================================================================
+
+---
+UTILITY: DESCO
+SYNTHETIC: true
+EXPECTED_AMOUNT: 1500
+EXPECTED_BALANCE: 1842.5
+EXPECTED_DATE: 2026-11-16
+DESCO: Recharge Tk 1,500.00 successful on 16/11/2026. Token: 1234-5678-9012-3456-7890. Bal: Tk 1842.50
+
+---
+UTILITY: DESCO
+SYNTHETIC: true
+EXPECTED_AMOUNT: 500
+EXPECTED_BALANCE: 410.25
+EXPECTED_DATE: 2026-11-16
+DESCO Prepaid: Recharge amt Tk.500, Energy Cost Tk.380, Demand Chrg Tk.42, VAT Tk.23.81, Curr Bal Tk.410.25 Dt:16/11/26
+
+---
+UTILITY: DPDC
+SYNTHETIC: true
+EXPECTED_AMOUNT: 2450.75
+EXPECTED_DATE: 2026-11-12
+DPDC Bill for Oct 2026 Tk 2450.75 paid on 2026-11-12 for 260 kWh. Thank you.
+
+---
+UTILITY: DESCO
+SYNTHETIC: true
+EXPECTED_AMOUNT: 1000
+EXPECTED_BALANCE: 450.5
+EXPECTED_DATE: 2026-11-16
+ডেসকো: রিচার্জ ১০০০ টাকা সফল হয়েছে ১৬/১১/২০২৬। বর্তমান ব্যালেন্স ৪৫০.৫০ টাকা।
+
+---
+UTILITY: BREB
+SYNTHETIC: true
+EXPECTED_AMOUNT: 820
+EXPECTED_DATE: 2026-11-08
+BREB Palli Bidyut: Your Oct electricity bill is 820 Tk. Last pay date 08/11/2026.
+
+---
+UTILITY: BPDB
+SYNTHETIC: true
+EXPECTED_AMOUNT: 600
+EXPECTED_BALANCE: 125.4
+EXPECTED_DATE: 2026-11-10
+BPDB Prepaid: Recharge amount Tk 600 on 10-Nov-2026. Rem Balance Tk 125.40. Token 99887766554433221100

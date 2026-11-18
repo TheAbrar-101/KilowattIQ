@@ -623,6 +623,7 @@ export class SupabaseService {
       accountNumber: row.account_number || '8820-9941-01',
       sanctionedLoadKw: Number(row.sanctioned_load_kw) || 5.5,
       monthlyBudgetBDT: 4500,
+      billingDay: row.billing_day ? Number(row.billing_day) : 1,
       address: {
         division: 'Dhaka',
         city: row.address_city || 'Dhaka',
@@ -700,6 +701,7 @@ export class SupabaseService {
           accountNumber: row.account_number || '8820-9941-01',
           sanctionedLoadKw: Number(row.sanctioned_load_kw) || 5.5,
           monthlyBudgetBDT: 4500,
+          billingDay: row.billing_day ? Number(row.billing_day) : 1,
           address: {
             division: 'Dhaka',
             city: row.address_city || 'Dhaka',
@@ -737,6 +739,7 @@ export class SupabaseService {
           accountNumber: data.account_number || '8820-9941-01',
           sanctionedLoadKw: Number(data.sanctioned_load_kw) || 5.5,
           monthlyBudgetBDT: 4500,
+          billingDay: data.billing_day ? Number(data.billing_day) : 1,
           address: {
             division: 'Dhaka',
             city: data.address_city || 'Dhaka',

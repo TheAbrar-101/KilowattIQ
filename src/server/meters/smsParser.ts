@@ -1,11 +1,10 @@
 /**
  * Utility Recharge & Bill SMS Parser
  *
- * Extracts amount (BDT), date (YYYY-MM-DD), remaining balance (BDT),
- * optional units (kWh), prepaid STS token, and utility name from
- * Bangladeshi utility SMS (DESCO, DPDC, BPDB, BREB, NESCO, WZPDCL, bKash/Nagad).
- * Supports both English and Bengali numerals.
- * Returns parsed: false with a plain failure reason when extraction fails.
+ * Security rule for prepaid STS tokens:
+ * - Full 20-digit STS tokens are NEVER stored or returned intact.
+ * - Only the last 4 digits (`tokenLast4`) and masked format (`****-****-****-****-1234`)
+ *   are kept, and any full 20-digit token inside `rawText` is also masked before persistence.
  */
 
 import { ParsedUtilitySms, SmsRecordType } from './types';
@@ -126,22 +125,49 @@ function extractUtility(rawText: string): string | null {
   return null;
 }
 
-function extractStsToken(normalizedText: string): string | null {
-  // Match 20-digit STS prepaid meter token grouped with hyphens or spaces, or contiguous 20 digits
-  const grouped = normalizedText.match(/\b(\d{4}[-\s]\d{4}[-\s]\d{4}[-\s]\d{4}[-\s]\d{4})\b/);
-  if (grouped) {
-    return grouped[1].replace(/\s+/g, '-');
+export function formatMaskedToken(last4: string): string {
+  const cleanLast4 = normalizeDigits(last4).replace(/\D/g, '').slice(-4);
+  return cleanLast4.length === 4 ? `****-****-****-****-${cleanLast4}` : '****';
+}
+
+function extractStsTokenLast4(normalizedText: string): { last4: string | null; masked: string | null } {
+  // Match 20-digit STS prepaid meter token grouped with hyphens/spaces or contiguous 20 digits
+  const grouped = normalizedText.match(/\b(\d{4})[-\s](\d{4})[-\s](\d{4})[-\s](\d{4})[-\s](\d{4})\b/);
+  if (grouped && grouped[5]) {
+    const last4 = grouped[5];
+    return { last4, masked: formatMaskedToken(last4) };
   }
-  const contiguous = normalizedText.match(/\b(\d{20})\b/);
-  if (contiguous) {
-    return contiguous[1].replace(/(\d{4})(?=\d)/g, '$1-');
+  const contiguous = normalizedText.match(/\b\d{16}(\d{4})\b/);
+  if (contiguous && contiguous[1]) {
+    const last4 = contiguous[1];
+    return { last4, masked: formatMaskedToken(last4) };
   }
-  return null;
+  return { last4: null, masked: null };
+}
+
+/**
+ * Replaces any full 20-digit STS token in SMS text with a masked representation
+ * preserving only the last 4 digits. Never retains the full STS token.
+ */
+export function maskStsTokensInText(rawText: string): string {
+  if (!rawText) return '';
+  const digitGroup = '[0-9০-৯]';
+  const groupedRe = new RegExp(
+    `\\b${digitGroup}{4}[-\\s]${digitGroup}{4}[-\\s]${digitGroup}{4}[-\\s]${digitGroup}{4}[-\\s](${digitGroup}{4})\\b`,
+    'g'
+  );
+  const contiguousRe = new RegExp(`\\b${digitGroup}{16}(${digitGroup}{4})\\b`, 'g');
+
+  return rawText
+    .replace(groupedRe, (_m, last4) => formatMaskedToken(last4))
+    .replace(contiguousRe, (_m, last4) => formatMaskedToken(last4));
 }
 
 export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
-  const rawText = (rawSms || '').trim();
-  if (rawText.length < 6) {
+  const rawInput = (rawSms || '').trim();
+  const maskedRawText = maskStsTokensInText(rawInput);
+
+  if (rawInput.length < 6) {
     return {
       parsed: false,
       smsType: 'UNKNOWN',
@@ -150,17 +176,18 @@ export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
       date: null,
       balanceBdt: null,
       unitsKwh: null,
-      token: null,
+      tokenLast4: null,
+      tokenMasked: null,
       confidence: 'LOW',
-      rawText,
+      rawText: maskedRawText,
       failureReason: 'SMS text is too short or empty. Please paste the full utility SMS.',
     };
   }
 
-  const text = normalizeDigits(rawText);
-  const utility = extractUtility(rawText);
+  const text = normalizeDigits(rawInput);
+  const utility = extractUtility(rawInput);
   const date = extractDate(text);
-  const token = extractStsToken(text);
+  const { last4: tokenLast4, masked: tokenMasked } = extractStsTokenLast4(text);
 
   // Extract remaining balance first so it isn't confused with recharge/bill amount
   let balanceBdt: number | null = null;
@@ -178,16 +205,17 @@ export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
     }
   }
 
-  // Strip matched balance snippet before searching for recharge/bill amount
-  let textWithoutBalance = text;
+  // Strip matched balance snippet & full STS tokens before searching for recharge/bill amount
+  let textWithoutBalance = maskStsTokensInText(text);
   for (const pat of balancePatterns) {
     textWithoutBalance = textWithoutBalance.replace(pat, ' ');
   }
 
   // Extract units (kWh) if explicitly mentioned
   let unitsKwh: number | null = null;
-  const unitMatch = text.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:kwh|units?|ইউনিট)\b/i)
-    || text.match(/(?:units?|consumed|energy|ইউনিট)\s*[:=\-]?\s*([\d,]+(?:\.\d{1,2})?)\s*(?:kwh)?/i);
+  const unitMatch =
+    text.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:kwh|units?|ইউনিট)\b/i) ||
+    text.match(/(?:units?|consumed|energy|ইউনিট)\s*[:=\-]?\s*([\d,]+(?:\.\d{1,2})?)\s*(?:kwh)?/i);
   if (unitMatch && unitMatch[1]) {
     unitsKwh = parseNumericToken(unitMatch[1]);
   }
@@ -216,7 +244,7 @@ export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
   // Determine SMS type
   const lower = text.toLowerCase();
   let smsType: SmsRecordType = 'UNKNOWN';
-  if (token || /recharge|top[- ]?up|vending|credited|token|রিচার্জ|টোকেন/.test(lower)) {
+  if (tokenLast4 || /recharge|top[- ]?up|vending|credited|token|রিচার্জ|টোকেন/.test(lower)) {
     smsType = 'RECHARGE';
   } else if (/bill|due|payable|invoice|biller|paid|বিল|বকেয়া|পরিশোধ/.test(lower)) {
     smsType = 'BILL';
@@ -224,7 +252,6 @@ export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
     smsType = 'BALANCE';
   }
 
-  // Failure condition: must extract at least an amount, balance, or unit figure
   const hasFinancialOrMeterSignal = amountBdt !== null || balanceBdt !== null || unitsKwh !== null;
   if (!hasFinancialOrMeterSignal) {
     return {
@@ -235,9 +262,10 @@ export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
       date,
       balanceBdt: null,
       unitsKwh: null,
-      token,
+      tokenLast4,
+      tokenMasked,
       confidence: 'LOW',
-      rawText,
+      rawText: maskedRawText,
       failureReason:
         'Could not extract an amount, balance, or kWh figure from this SMS. Please check the message and try again.',
     };
@@ -256,8 +284,9 @@ export function parseUtilitySms(rawSms: string): ParsedUtilitySms {
     date,
     balanceBdt,
     unitsKwh,
-    token,
+    tokenLast4,
+    tokenMasked,
     confidence,
-    rawText,
+    rawText: maskedRawText,
   };
 }
